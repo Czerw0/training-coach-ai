@@ -1,5 +1,21 @@
 garmin_metrics/
+# Environment variables
+.env
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+*.egg-info/
+
+# Exploration scripts (contain hardcoded credentials)
+explore_garmin.py
+garmin_metrics/
+
+# Database
+*.db
+*.sqlite3
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

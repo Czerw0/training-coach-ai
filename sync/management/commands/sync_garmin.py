@@ -12,24 +12,36 @@ load_dotenv()
 class Command(BaseCommand):
     help = 'Sync Garmin data to database with sport-specific mapping'
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--days',
+            type=int,
+            default=4,
+            help='Number of past days to sync (default: 4)'
+        )
+
     def handle(self, *args, **options):
+        days = options['days']
+        today = datetime.date.today()
         self.stdout.write('Starting Garmin sync...')
         
         # Login
         api = Garmin(os.getenv('GARMIN_EMAIL'), os.getenv('GARMIN_PASSWORD'))
         api.login()
         
-        # Define Date Range (Syncing last 3 days to catch delayed uploads)
+        # Define Date Range (Syncing last 4 days to catch delayed uploads)
         today = datetime.date.today()
-        for i in range(3, -1, -1):
+        for i in range(days, -1, -1):
             date_str = (today - datetime.timedelta(days=i)).isoformat()
             self.stdout.write(f"--- Checking date: {date_str} ---")
             self._sync_activities(api, date_str)
             self._sync_sleep(api, date_str) 
             self._sync_hrv(api, date_str)
             self._sync_daily_stats(api, date_str)
+            time.sleep(2)  # Sleep to avoid hitting API rate limits
         
         self.stdout.write(self.style.SUCCESS('Garmin Sync complete'))
+
 
     def _sync_activities(self, api, date):
         activities = api.get_activities_by_date(date, date)
@@ -104,7 +116,7 @@ class Command(BaseCommand):
             # Running dynamics only — these come from details endpoint
             try:
                 details = api.get_activity(int(garmin_id))
-                time.sleep(1)
+                time.sleep(2)
                 defaults.update(self._parse_sport_specifics(details, activity_type))
             except Exception as e:
                 self.stdout.write(self.style.WARNING(
@@ -165,13 +177,13 @@ class Command(BaseCommand):
             obj, created = SleepRecord.objects.update_or_create(
                 date=dto.get('calendarDate'),
                 defaults={
-                    'duration_hours': dto.get('sleepTimeSeconds', 0) / 3600.0,
-                    'score': overall_score,
-                    'deep_sleep_hours': dto.get('deepSleepSeconds', 0) / 3600.0,
-                    'rem_sleep_hours': dto.get('remSleepSeconds', 0) / 3600.0,
-                    'light_sleep_hours': dto.get('lightSleepSeconds', 0) / 3600.0,
-                    'awake_hours': dto.get('awakeSleepSeconds', 0) / 3600.0,
-                    'body_battery_change': bb_change,
+                    'duration_hours': dto.get('sleepTimeSeconds', 0) / 3600.0 if dto.get('sleepTimeSeconds') else None,
+                    'score': overall_score if overall_score is not None else None,
+                    'deep_sleep_hours': dto.get('deepSleepSeconds', 0) / 3600.0 if dto.get('deepSleepSeconds') else None,
+                    'rem_sleep_hours': dto.get('remSleepSeconds', 0) / 3600.0 if dto.get('remSleepSeconds') else None,
+                    'light_sleep_hours': dto.get('lightSleepSeconds', 0) / 3600.0 if dto.get('lightSleepSeconds') else None,
+                    'awake_hours': dto.get('awakeSleepSeconds', 0) / 3600.0 if dto.get('awakeSleepSeconds') else None,
+                    'body_battery_change': bb_change if bb_change is not None else None,
                 }
             )
 
@@ -200,9 +212,9 @@ class Command(BaseCommand):
                 HRVRecord.objects.update_or_create(
                     date=summary.get('calendarDate'), # Use the date from the API response
                     defaults={
-                        'hrv_rmssd': summary.get('lastNightAvg'),
-                        'hrv_status': formatted_status,
-                        # Note: resting_hr is usually in daily_stats, not this HRV summary
+                        'hrv_rmssd': summary.get('lastNightAvg') if summary.get('lastNightAvg') is not None else None,
+                        'hrv_status': formatted_status if formatted_status in dict(HRVRecord.HRV_STATUS_CHOICES) else None,
+                        'resting_hr': data.get('restingHeartRate') if data.get('restingHeartRate') is not None else None, # Note: resting_hr is usually in daily_stats, not this HRV summary
                     }
                 )
                 self.stdout.write(f"  [Updated] HRV for {date}: {summary.get('lastNightAvg')}ms ({raw_status})")
@@ -228,7 +240,11 @@ class Command(BaseCommand):
                     'body_battery_low': data.get('bodyBatteryLowestValue'),
                     'stress_level_avg': data.get('averageStressLevel'),
                     'steps': data.get('totalSteps'),
-                    'total_calories': int(data.get('totalKilocalories', 0)),
+                    'total_calories': int(data['totalKilocalories']) if data.get('totalKilocalories') else None,
+                    'training_readiness_score': data.get('trainingReadinessScore'),
+                    'recovery_time_hours': data.get('recoveryTimeHours'),
+                    'vo2max_running': data.get('vO2MaxRunning'),
+                    'vo2max_cycling': data.get('vO2MaxCycling'),
                 }
             )
 
