@@ -1,4 +1,4 @@
-name: Daily Garmin Sync
+name: Daily Weather Sync
 
 on:
   schedule:
@@ -26,12 +26,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Garmin sync
+      - name: Run weather sync
         env:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           DEBUG: 'False'
           ALLOWED_HOSTS: 'localhost'
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
-          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
-        run: python manage.py sync_garmin
+        run: python manage.py sync_weather

@@ -145,3 +145,23 @@ class UserProfile(models.Model):
     weight_kg = models.FloatField(null=True, blank=True)
     primary_sport = models.CharField(max_length=50, default='running')
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class WeatherHourly(models.Model):
+    datetime = models.DateTimeField(unique=True)
+    temp = models.FloatField(null=True, blank=True)
+    humidity = models.FloatField(null=True, blank=True)
+    wind_speed = models.FloatField(null=True, blank=True)
+    precipitation_probability = models.IntegerField(null=True, blank=True)
+    precipitation = models.FloatField(null=True, blank=True) # rain
+    cloud_cover = models.IntegerField(null=True, blank=True)
+    weather_code = models.IntegerField(null=True, blank=True)
+    uv_index = models.FloatField(null=True, blank=True)
+    is_day = models.BooleanField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['datetime']
+
+    def __str__(self):
+        return f"{self.datetime}: {self.temp}°C"
