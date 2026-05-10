@@ -9,7 +9,7 @@ __pycache__/
 venv/
 *.egg-info/
 
-# Exploration scripts (contain hardcoded credentials)
+# Exploration scripts 
 explore_garmin.py
 garmin_metrics/
 
