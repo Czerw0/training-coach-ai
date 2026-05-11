@@ -165,3 +165,4 @@ class WeatherHourly(models.Model):
 
     def __str__(self):
         return f"{self.datetime}: {self.temp}°C"
+
