@@ -1,3 +1,6 @@
 from django.contrib import admin
+from .models import Injury, Goal, DailyFeeling
 
-# Register your models here.
+admin.site.register(Injury)
+admin.site.register(Goal)
+admin.site.register(DailyFeeling)

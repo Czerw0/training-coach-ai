@@ -1,4 +1,5 @@
 from django.db import models
+import datetime
 
 class Injury(models.Model):
     INJURY_CHOICES = [
@@ -67,3 +68,16 @@ class DailyFeeling(models.Model):
     
     def __str__(self):
         return f"Feeling on {self.date}: Energy {self.energy_level}, Soreness {self.muscele_soreness}, Motivation {self.motivation}"
+    
+class CoachRecommendation(models.Model):
+    date = models.DateField(default=datetime.date.today)
+    recommendation = models.TextField()
+    user_message = models.TextField(null=True, blank=True)
+    user_followed = models.BooleanField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Recommendation {self.date}"

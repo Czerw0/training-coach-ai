@@ -131,12 +131,20 @@ class DailyStats(models.Model):
     body_battery_high = models.IntegerField(null=True, blank=True)
     body_battery_low = models.IntegerField(null=True, blank=True)
     stress_level_avg = models.IntegerField(null=True, blank=True)
-    training_readiness_score = models.IntegerField(null=True, blank=True)
     recovery_time_hours = models.IntegerField(null=True, blank=True)
     steps = models.IntegerField(null=True, blank=True)
     total_calories = models.IntegerField(null=True, blank=True)
     vo2max_running = models.FloatField(null=True, blank=True)
     vo2max_cycling = models.FloatField(null=True, blank=True)
+    training_status = models.IntegerField(null=True, blank=True)   # Garmin numeric status
+    acwr_ratio = models.FloatField(null=True, blank=True)          # acute:chronic from Garmin
+    endurance_score = models.IntegerField(null=True, blank=True)
+    fitness_score = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date']
+        verbose_name_plural = 'Daily Stats'
 
 class UserProfile(models.Model):
     ftp_watts = models.IntegerField(null=True, blank=True)
@@ -144,6 +152,8 @@ class UserProfile(models.Model):
     lthr = models.IntegerField("Lactate Threshold HR", null=True, blank=True)
     weight_kg = models.FloatField(null=True, blank=True)
     primary_sport = models.CharField(max_length=50, default='running')
+    injury_history = models.TextField(null=True, blank=True) # Could be JSON or structured text for better parsing
+    athlete_notes = models.TextField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
 
@@ -166,3 +176,13 @@ class WeatherHourly(models.Model):
     def __str__(self):
         return f"{self.datetime}: {self.temp}°C"
 
+class FTPRecord(models.Model):
+    date = models.DateField(unique=True)
+    ftp_watts = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"FTP {self.ftp_watts}W on {self.date}"

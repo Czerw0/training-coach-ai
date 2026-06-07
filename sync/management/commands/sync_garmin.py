@@ -29,6 +29,8 @@ class Command(BaseCommand):
         api = Garmin(os.getenv('GARMIN_EMAIL'), os.getenv('GARMIN_PASSWORD'))
         api.login()
         
+        self._sync_ftp(api) # ftp not date-specific
+
         # Define Date Range (Syncing last 4 days to catch delayed uploads)
         today = datetime.date.today()
         for i in range(days, -1, -1):
@@ -226,13 +228,47 @@ class Command(BaseCommand):
 
     def _sync_daily_stats(self, api, date):
         try:
-            # api.get_stats(date) typically returns the dictionary you provided
             data = api.get_stats(date)
             if not data:
                 self.stdout.write(f"  [No Data] Daily stats not found for {date}")
                 return
 
-            # Map JSON to DailyStats Model
+            # --- VO2max + training status (separate endpoint, nested) ---
+            vo2_running = None
+            vo2_cycling = None
+            training_status_val = None
+            acwr_ratio = None
+
+            try:
+                ts = api.get_training_status(date)
+                time.sleep(1)
+
+                vo2_block = ts.get('mostRecentVO2Max') or {}
+                generic = vo2_block.get('generic') or {}
+                cycling = vo2_block.get('cycling') or {}
+                vo2_running = generic.get('vo2MaxValue')
+                vo2_cycling = cycling.get('vo2MaxValue')
+
+                status_block = ts.get('mostRecentTrainingStatus') or {}
+                status_map = status_block.get('latestTrainingStatusData') or {}
+                if status_map:
+                    device_data = list(status_map.values())[0]
+                    training_status_val = device_data.get('trainingStatus')
+                    acwr = device_data.get('acuteTrainingLoadDTO') or {}
+                    acwr_ratio = acwr.get('dailyAcuteChronicWorkloadRatio')
+            except Exception as e:
+                self.stdout.write(self.style.WARNING(f"  Training status failed for {date}: {e}"))
+
+            # --- Endurance score (separate endpoint) ---
+            endurance_score = None
+            try:
+                es = api.get_endurance_score(date)
+                time.sleep(1)
+                if es:
+                    endurance_score = es.get('overallScore')
+            except Exception as e:
+                self.stdout.write(self.style.WARNING(f"  Endurance score failed for {date}: {e}"))
+
             DailyStats.objects.update_or_create(
                 date=data.get('calendarDate'),
                 defaults={
@@ -241,22 +277,46 @@ class Command(BaseCommand):
                     'stress_level_avg': data.get('averageStressLevel'),
                     'steps': data.get('totalSteps'),
                     'total_calories': int(data['totalKilocalories']) if data.get('totalKilocalories') else None,
-                    'training_readiness_score': data.get('trainingReadinessScore'),
-                    'recovery_time_hours': data.get('recoveryTimeHours'),
-                    'vo2max_running': data.get('vO2MaxRunning'),
-                    'vo2max_cycling': data.get('vO2MaxCycling'),
+                    'vo2max_running': vo2_running,
+                    'vo2max_cycling': vo2_cycling,
+                    'training_status': training_status_val,
+                    'acwr_ratio': acwr_ratio,
+                    'endurance_score': endurance_score,
                 }
             )
 
-            # Update the resting_hr in the HRVRecord for this date if it exists
             resting_hr = data.get('restingHeartRate')
             if resting_hr:
                 HRVRecord.objects.filter(date=data.get('calendarDate')).update(resting_hr=resting_hr)
 
-            self.stdout.write(f"  [Updated] Daily Stats for {date}: {data.get('totalSteps')} steps")
+            self.stdout.write(f"  [Updated] Daily Stats for {date}: VO2 run {vo2_running} / cyc {vo2_cycling}")
 
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"  Error syncing Daily Stats: {e}"))
+
+    def _sync_ftp(self, api):
+        try:
+            from sync.models import UserProfile, FTPRecord
+            ftp_data = api.get_cycling_ftp()
+            if ftp_data and ftp_data.get('functionalThresholdPower'):
+                ftp = ftp_data['functionalThresholdPower']
+
+                # Update current value in profile
+                profile, _ = UserProfile.objects.get_or_create(pk=1)
+                profile.ftp_watts = ftp
+                profile.save()
+
+                # Store history — calendarDate is when FTP was set
+                ftp_date = ftp_data.get('calendarDate', '')[:10]  # "2026-06-06"
+                if ftp_date:
+                    FTPRecord.objects.update_or_create(
+                        date=ftp_date,
+                        defaults={'ftp_watts': ftp}
+                    )
+
+                self.stdout.write(f"  FTP synced: {ftp}W ({ftp_date})")
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"  FTP sync failed: {e}"))
 
 if __name__ == "__main__":
     command = Command()
