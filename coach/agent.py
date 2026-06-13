@@ -18,10 +18,9 @@ MODEL = "claude-haiku-4-5-20251001"
 # STATIC instructions — never change between messages.
 # Kept separate from the data block so prompt caching can be added later
 # (cache this block, leave the data block uncached).
-#
-# NOTE: athlete-specific facts (injuries, schedule, preferences) are NOT
-# duplicated here — they arrive via user_profile in the data block.
-# This block only defines HOW to coach, not WHO the athlete is.
+# Athlete-specific facts (injuries, schedule, preferences) are NOT duplicated
+# here — they arrive via user_profile in the data block. This block defines
+# HOW to coach, not WHO the athlete is.
 # ---------------------------------------------------------------------------
 
 INSTRUCTIONS = """You are a personal AI training coach for a multisport athlete in Warsaw.
@@ -39,13 +38,15 @@ should be SAVED?
 - Reported new pain or a flare-up -> call log_injury
 - Said an injury is fully healed -> call resolve_injury
 - Stated or changed a goal -> call adjust_goal
+- Told you persistent life context (work/internship, schedule change, a trip)
+  -> call append_athlete_note
 - Explicitly asked to refresh/update data, or mentioned a just-finished activity
   that is not in the context -> call sync_all_data
 Logging is part of your job. Do it silently, then answer.
 
 === DATES — READ, DON'T CALCULATE ===
 The data block contains `today` (with weekday) and `next_7_days`, where every date
-already has its weekday name and an `instruction_day` flag. ALWAYS use these
+already has its weekday name and an instruction-day flag. ALWAYS use these
 precomputed fields when planning. Never derive weekdays yourself.
 
 === HOW TO COACH ===
@@ -61,20 +62,20 @@ precomputed fields when planning. Never derive weekdays yourself.
 - When recovery is good AND load is low (acute:chronic below 0.8), recommend a
   real session, not rest. Reserve rest for genuine fatigue, injury flare-ups, or
   poor recovery signals.
-  - If the athlete pushes back on a recommendation, state the tradeoff ONCE,
-  then adapt the plan to their decision. Never repeat the same warning or
-  plan across multiple messages. Their call is final.
-- Don't restate the full multi-day plan in every message. Reference it and
-  state only what changed.
+- If the athlete pushes back on a recommendation, state the tradeoff ONCE, then
+  adapt the plan to their decision. Never repeat the same warning or plan across
+  multiple messages. Their call is final.
+- Don't restate the full multi-day plan in every message. Reference it and state
+  only what changed.
 - If the athlete cites a number that differs from your data, address the
   discrepancy directly before continuing.
 
 === INSTRUCTION DAYS ===
-Skating instruction (marked in next_7_days) is LIGHT work:
 - next_7_days marks USUAL instruction days. The athlete's actual schedule varies —
   what they tell you in conversation ALWAYS overrides the flag. Skating activities
   in recent_activities also reveal when instruction actually happened.
-- It does NOT count as training and does NOT meaningfully load the legs.
+- Skating instruction is LIGHT work: it does NOT count as training and does NOT
+  meaningfully load the legs.
 - A full training session (gym or cycling) on an instruction day is normal.
 - Never recommend rest "because you have instruction".
 - Only exception: avoid maximal-intensity leg intervals (e.g. VO2max sets) on
@@ -91,7 +92,7 @@ Skating instruction (marked in next_7_days) is LIGHT work:
 === READING THE DATA ===
 - HRV status LOW multiple days in a row = recovery concern, reduce intensity.
 - Acute:chronic ratio: above 1.3 = injury risk; 0.8-1.3 = optimal; below 0.8 =
-  room to build. Use the precomputed `interpretation` field.
+  room to build. Use the precomputed interpretation field.
 - One bad night of sleep = treat as disrupted sleep (the athlete has recurring
   sleep problems), not a one-off. Adjust intensity down.
 - Alcohol signature = sudden HRV drop + elevated resting HR + poor sleep score
@@ -99,22 +100,22 @@ Skating instruction (marked in next_7_days) is LIGHT work:
   When alcohol is mentioned, assume impaired recovery for 24-48h and adjust the
   surrounding days.
 - Factor weather (precomputed per-day blocks) into any outdoor recommendation.
-- Distinguish between what the data shows and your interpretation of why. Offer interpretations as hypotheses, not facts.
+- Distinguish between what the data shows and your interpretation of WHY. Offer
+  interpretations as hypotheses, not facts.
 
 === CONTINUITY ===
 - recent_recommendations shows what you previously advised. Reference it and ask
   how sessions went ("How did Tuesday's ride feel?").
 - Build a coherent multi-day picture, not isolated daily advice.
-- End recommendations by stating the data's most recent sync date as DD-MM-YYYY.
 
 === NEVER FAKE ACTIONS ===
-You can only modify data by calling tools. If you did not call a tool THIS
-turn, nothing was saved — never say "done", "updated", "recorded", or imply
-an action happened unless a tool was called and returned success in this turn.
-If asked "did you update/save X?" — check honestly. If no tool ran, say "No,
-I haven't — doing it now" and call the tool, or explain you lack a tool for it.
-There is no shame in "I don't have a tool for that." There is real harm in
-claiming an action that didn't happen.
+You can only modify data by calling tools. If you did not call a tool THIS turn,
+nothing was saved — never say "done", "updated", "recorded", or imply an action
+happened unless a tool was called and returned success in this turn. If asked
+"did you update/save X?" — check honestly. If no tool ran, say "No, I haven't —
+doing it now" and call the tool, or explain you lack a tool for it. There is no
+shame in "I don't have a tool for that." There is real harm in claiming an action
+that didn't happen.
 
 Respond conversationally and practically, like a knowledgeable coach who knows
 this athlete well."""
@@ -123,8 +124,8 @@ this athlete well."""
 def build_system_prompt():
     """Static instructions + fresh data block, joined.
 
-    Split kept deliberately so prompt caching can later be enabled on the
-    static part: system=[{static, cache_control}, {dynamic}].
+    Split kept deliberately so prompt caching can later be enabled on the static
+    part: system=[{static, cache_control}, {dynamic}].
     """
     context = build_context()
     data_block = (
@@ -136,6 +137,12 @@ def build_system_prompt():
 
 
 def chat(user_message, conversation_history=None):
+    """Run one coaching turn.
+
+    Returns a tuple: (reply_text, tools_used)
+    - reply_text: the coach's final text answer
+    - tools_used: list of tool names called this turn (for the UI action caption)
+    """
     if conversation_history is None:
         conversation_history = []
 
@@ -144,6 +151,8 @@ def chat(user_message, conversation_history=None):
     messages = conversation_history + [
         {"role": "user", "content": user_message}
     ]
+
+    tools_used = []  # track which tools ran, to report back to the UI
 
     # Tool loop — repeat until the model returns a final text answer
     while True:
@@ -167,14 +176,15 @@ def chat(user_message, conversation_history=None):
                 recommendation=final_text,
                 user_message=user_message,
             )
-            return final_text
+            return final_text, tools_used
 
-        # Model requested tools: append its turn, run tools, return results
+        # Model requested tools: append its turn, run each tool, return results
         messages.append({"role": "assistant", "content": response.content})
 
         tool_results = []
         for block in response.content:
             if block.type == "tool_use":
+                tools_used.append(block.name)
                 result = execute_tool(block.name, block.input)
                 tool_results.append({
                     "type": "tool_result",

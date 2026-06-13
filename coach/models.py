@@ -62,6 +62,7 @@ class DailyFeeling(models.Model):
     motivation = models.IntegerField(null=True, blank=True) # 1-10 scale
     notes = models.CharField(max_length=1200, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-date']

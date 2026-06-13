@@ -1,16 +1,40 @@
+import json
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-import json
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.utils.timesince import timesince
+
 from coach.agent import chat
-from coach.models import Message, CoachRecommendation
+from coach.models import Message
+from sync.models import DailyStats
+
+
+# Maps internal tool names -> friendly labels shown under the coach's reply
+TOOL_LABELS = {
+    "sync_all_data": "Synced data",
+    "log_daily_feeling": "Logged how you feel",
+    "log_injury": "Logged injury",
+    "resolve_injury": "Marked injury resolved",
+    "adjust_goal": "Updated goal",
+    "append_athlete_note": "Saved a note",
+}
+
+
+def _last_update_text():
+    last_row = DailyStats.objects.order_by('-updated_at').first()
+    if not last_row or not last_row.updated_at:
+        return None
+    return f"{timesince(last_row.updated_at)} ago"
 
 
 @ensure_csrf_cookie
 def chat_page(request):
-    past_messages = Message.objects.all()
-    return render(request, 'coach/chat.html', {'past_messages': past_messages})
+    past_messages = Message.objects.all().order_by('created_at')
+    return render(request, 'coach/chat.html', {
+        'past_messages': past_messages,
+        'last_update': _last_update_text(),
+    })
 
 
 @require_http_methods(["POST"])
@@ -21,39 +45,33 @@ def chat_message(request):
 
     if not user_message:
         return JsonResponse({'error': 'Empty message'}, status=400)
-
-    # Pull conversation history from the session
-    # Build history from all past messages
-    recent = Message.objects.order_by('-created_at')[:20]  # Get last 20 messages
+S
+    # Build history for the model: last 20 messages, oldest-first
+    recent = Message.objects.order_by('-created_at')[:20]
     history = [
         {"role": m.role, "content": m.content}
         for m in reversed(recent)
     ]
 
-    reply = chat(user_message, history)
-
-    # Save both sides
-    Message.objects.create(role="user", content=user_message)
-    Message.objects.create(role="assistant", content=reply)
-
-    # Call the agent
+    # Call the agent ONCE
     try:
-        reply = chat(user_message, history)
+        reply, tools_used = chat(user_message, history)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-    # Update history with this exchange
-    history.append({"role": "user", "content": user_message})
-    history.append({"role": "assistant", "content": reply})
-    request.session['chat_history'] = history
-    request.session.modified = True
+    # Persist both sides
+    Message.objects.create(role="user", content=user_message)
+    Message.objects.create(role="assistant", content=reply)
 
-    return JsonResponse({'reply': reply})
+    # Friendly labels for the tools that ran this turn
+    actions = [TOOL_LABELS.get(t, t) for t in tools_used]
+
+    return JsonResponse({'reply': reply, 'actions': actions})
 
 
 @require_http_methods(["POST"])
 def chat_reset(request):
-    """Clear the conversation history."""
-    request.session['chat_history'] = []
-    request.session.modified = True
+    """Delete the stored conversation (used by the 'reset' path if kept)."""
+    Message.objects.all().delete()
     return JsonResponse({'status': 'reset'})
+

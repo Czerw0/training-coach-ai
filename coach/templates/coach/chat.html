@@ -2,74 +2,201 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Training Coach</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --navy:#0B1F3A; --blue:#2D6CDF; --blue-soft:#C4D6F7;
+            --ink:#11151C; --ink-soft:#6B7585; --line:#E4E8EF;
+            --surface:#FFFFFF; --bg:#F4F6F9; --pill-bg:#EDF0F5; --green:#34C759;
+        }
+        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+        html, body { height:100%; }
         body {
-            font-family: -apple-system, system-ui, sans-serif;
-            background: #f0f2f5;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
+            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+            background:var(--bg); color:var(--ink); height:100dvh;
+            display:flex; justify-content:center; align-items:stretch;
         }
-        header {
-            background: #1a73e8;
-            color: white;
-            padding: 16px;
-            font-size: 18px;
-            font-weight: 600;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .app {
+            width:100%; max-width:520px; display:flex; flex-direction:column;
+            height:100dvh; background:var(--bg); overflow:hidden;
         }
-        #reset { background: rgba(255,255,255,0.2); border: none; color: white;
-                 padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        @media (min-width:600px) {
+            body { padding:24px; align-items:center; }
+            .app {
+                height:min(900px, calc(100dvh - 48px));
+                border:1px solid var(--line); border-radius:22px;
+                box-shadow:0 10px 40px rgba(11,31,58,0.10); background:var(--surface);
+            }
+        }
+
+        .topbar { flex-shrink:0; padding:max(12px, env(safe-area-inset-top)) 12px 0; }
+        .pill {
+            display:flex; align-items:center; gap:10px;
+            background:var(--pill-bg); border-radius:999px; padding:8px 8px 8px 12px;
+        }
+        .logo {
+            width:30px; height:30px; border-radius:50%; background:var(--navy); color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:700; font-size:14px; flex-shrink:0;
+        }
+        .pill .name { font-size:15px; font-weight:650; flex:1; }
+        #view-toggle {
+            display:flex; align-items:center; gap:6px;
+            background:var(--surface); border:1px solid var(--line); border-radius:999px;
+            padding:6px 13px; font-size:13px; font-weight:600; color:var(--navy); cursor:pointer;
+        }
+        #view-toggle:active { background:var(--pill-bg); }
+        #view-toggle svg { width:16px; height:16px; stroke:var(--navy); fill:none; stroke-width:1.9; }
+
+        .update-line {
+            flex-shrink:0; text-align:center; color:var(--ink-soft);
+            font-size:12.5px; padding:10px 0 9px;
+        }
+        .update-line .dot {
+            display:inline-block; width:6px; height:6px; border-radius:50%;
+            background:var(--green); margin-right:6px; vertical-align:middle;
+        }
+        .update-line.syncing .dot { background:var(--blue); animation:pulse 1s infinite; }
+        @keyframes pulse { 50% { opacity:.3; } }
+        .divider { flex-shrink:0; height:1px; background:var(--line); }
+
         #messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+            flex:1; overflow-y:auto; padding:16px 14px 6px;
+            display:flex; flex-direction:column; gap:12px;
+            -webkit-overflow-scrolling:touch;
         }
-        .msg { max-width: 85%; padding: 12px 16px; border-radius: 16px;
-               white-space: pre-wrap; line-height: 1.45; font-size: 15px; }
-        .user { background: #1a73e8; color: white; align-self: flex-end;
-                border-bottom-right-radius: 4px; }
-        .coach { background: white; color: #1c1c1e; align-self: flex-start;
-                 border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .typing { color: #888; font-style: italic; align-self: flex-start; }
-        #input-area { display: flex; padding: 12px; background: white;
-                      border-top: 1px solid #ddd; gap: 8px; }
-        #input { flex: 1; padding: 12px; border: 1px solid #ccc;
-                 border-radius: 20px; font-size: 15px; outline: none; }
-        #send { background: #1a73e8; color: white; border: none;
-                border-radius: 20px; padding: 12px 20px; font-size: 15px; cursor: pointer; }
-        #send:disabled { opacity: 0.5; }
+        .msg {
+            max-width:84%; padding:11px 15px; line-height:1.5; font-size:15px;
+            word-wrap:break-word; border-radius:18px; background:var(--surface);
+        }
+        .user {
+            align-self:flex-end; border:1.5px solid var(--blue-soft);
+            border-bottom-right-radius:5px; color:var(--ink);
+        }
+        .coach {
+            align-self:flex-start; border:1px solid var(--line); border-bottom-left-radius:5px;
+        }
+        .coach h1,.coach h2,.coach h3 { font-size:15px; font-weight:700; margin:10px 0 4px; color:var(--navy); }
+        .coach h1:first-child,.coach h2:first-child,.coach h3:first-child { margin-top:0; }
+        .coach p { margin:6px 0; }
+        .coach p:first-child { margin-top:0; }
+        .coach p:last-child { margin-bottom:0; }
+        .coach ul,.coach ol { margin:6px 0; padding-left:20px; }
+        .coach li { margin:3px 0; }
+        .coach strong { font-weight:680; }
+        .coach hr { border:none; border-top:1px solid var(--line); margin:10px 0; }
+        .coach code { background:#EEF1F6; padding:1px 5px; border-radius:5px; font-size:13px; font-family:ui-monospace,monospace; }
+
+        /* Tool-action caption under a coach reply */
+        .actions {
+            align-self:flex-start; max-width:84%;
+            margin-top:-6px; padding:0 6px;
+            font-size:12px; color:var(--ink-soft);
+            display:flex; flex-wrap:wrap; gap:4px 10px;
+        }
+        .actions .act::before { content:"✓ "; color:var(--green); }
+
+        /* Animated thinking dots — proves the app is alive while waiting */
+        .thinking {
+            align-self:flex-start;
+            display:flex; align-items:center; gap:5px;
+            padding:13px 16px; border:1px solid var(--line);
+            border-radius:18px; border-bottom-left-radius:5px; background:var(--surface);
+        }
+        .thinking .label { font-size:13px; color:var(--ink-soft); margin-right:4px; }
+        .thinking .d {
+            width:7px; height:7px; border-radius:50%; background:var(--ink-soft);
+            animation:bounce 1.2s infinite ease-in-out;
+        }
+        .thinking .d:nth-child(3) { animation-delay:.15s; }
+        .thinking .d:nth-child(4) { animation-delay:.3s; }
+        @keyframes bounce { 0%,60%,100% { transform:translateY(0); opacity:.4; } 30% { transform:translateY(-5px); opacity:1; } }
+
+        .bottom { flex-shrink:0; padding:8px 12px max(10px, env(safe-area-inset-bottom)); background:var(--bg); }
+        @media (min-width:600px) { .bottom { background:var(--surface); } }
+        .input-pill {
+            display:flex; align-items:center; background:var(--surface);
+            border:1px solid var(--line); border-radius:999px; padding:4px 4px 4px 18px;
+        }
+        @media (min-width:600px) { .input-pill { background:var(--bg); } }
+        .input-pill:focus-within { border-color:var(--blue); }
+        #input { flex:1; border:none; outline:none; background:none; font-size:16px; color:var(--ink); padding:8px 0; }
+        #send {
+            width:38px; height:38px; flex-shrink:0; border:none; cursor:pointer;
+            border-radius:50%; background:var(--blue);
+            display:flex; align-items:center; justify-content:center;
+        }
+        #send svg { width:20px; height:20px; stroke:#fff; fill:none; stroke-width:2.2; }
+        #send:disabled { opacity:.4; }
+        #send:active { background:var(--navy); }
+
+        .view { display:none; flex:1; flex-direction:column; overflow:hidden; }
+        .view.active { display:flex; }
+        .placeholder {
+            flex:1; display:flex; flex-direction:column;
+            align-items:center; justify-content:center;
+            gap:8px; padding:30px; text-align:center; color:var(--ink-soft);
+        }
+        .placeholder .big { font-size:18px; font-weight:650; color:var(--ink); }
     </style>
 </head>
 <body>
-    <header>
-        <span>Training Coach</span>
-        <button id="reset">New chat</button>
-    </header>
-    <div id="messages"></div>
-    <div id="messages">
-    {% for m in past_messages %}
-        <div class="msg {% if m.role == 'user' %}user{% else %}coach{% endif %}">{{ m.content }}</div>
-    {% endfor %}
-    </div>
-    <div id="input-area">
-        <input id="input" type="text" placeholder="Ask your coach..." autocomplete="off">
-        <button id="send">Send</button>
+    <div class="app">
+        <div class="topbar">
+            <div class="pill">
+                <div class="logo">TC</div>
+                <div class="name">Training Coach</div>
+                <button id="view-toggle">
+                    <svg id="toggle-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                    <span id="toggle-label">Calendar</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="update-line" id="update-line">
+            <span class="dot"></span><span id="update-text">Last update: {{ last_update|default:"recently" }}</span>
+        </div>
+        <div class="divider"></div>
+
+        <!-- CHAT VIEW -->
+        <div class="view active" id="view-chat">
+            <div id="messages">
+                {% for m in past_messages %}
+                    <div class="msg {% if m.role == 'user' %}user{% else %}coach{% endif %}"
+                         data-raw="{{ m.content|escape }}">{{ m.content }}</div>
+                {% endfor %}
+            </div>
+            <div class="bottom">
+                <div class="input-pill">
+                    <input id="input" type="text" placeholder="How do you feel today?" autocomplete="off">
+                    <button id="send" aria-label="Send">
+                        <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CALENDAR VIEW (placeholder) -->
+        <div class="view" id="view-calendar">
+            <div class="placeholder">
+                <div class="big">Calendar</div>
+                <div>Your activities and planned sessions will show here soon.</div>
+            </div>
+        </div>
     </div>
 
     <script>
         const messages = document.getElementById('messages');
         const input = document.getElementById('input');
         const send = document.getElementById('send');
-        const reset = document.getElementById('reset');
+        const updateLine = document.getElementById('update-line');
+
+        document.querySelectorAll('.msg.coach').forEach(el => {
+            const raw = el.getAttribute('data-raw');
+            if (raw !== null) el.innerHTML = marked.parse(raw);
+        });
 
         function getCookie(name) {
             const value = `; ${document.cookie}`;
@@ -80,10 +207,26 @@
         function addMessage(text, cls) {
             const div = document.createElement('div');
             div.className = 'msg ' + cls;
-            div.textContent = text;
+            if (cls === 'coach') div.innerHTML = marked.parse(text);
+            else div.textContent = text;
             messages.appendChild(div);
             messages.scrollTop = messages.scrollHeight;
             return div;
+        }
+
+        // Render the "✓ Synced data · Logged feeling" caption
+        function addActions(actions) {
+            if (!actions || actions.length === 0) return;
+            const wrap = document.createElement('div');
+            wrap.className = 'actions';
+            actions.forEach(a => {
+                const span = document.createElement('span');
+                span.className = 'act';
+                span.textContent = a;
+                wrap.appendChild(span);
+            });
+            messages.appendChild(wrap);
+            messages.scrollTop = messages.scrollHeight;
         }
 
         async function sendMessage() {
@@ -92,46 +235,62 @@
             addMessage(text, 'user');
             input.value = '';
             send.disabled = true;
+            updateLine.classList.add('syncing');
 
-            const typing = addMessage('Coach is thinking...', 'typing');
+            // Animated thinking indicator (proves the app is alive)
+            const thinking = document.createElement('div');
+            thinking.className = 'thinking';
+            thinking.innerHTML = '<span class="label">Coach is thinking</span><span class="d"></span><span class="d"></span><span class="d"></span>';
+            messages.appendChild(thinking);
+            messages.scrollTop = messages.scrollHeight;
 
             try {
                 const res = await fetch('/message/', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken'),
-                    },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
                     body: JSON.stringify({ message: text }),
                 });
                 const data = await res.json();
-                typing.remove();
+                thinking.remove();
                 if (data.reply) {
                     addMessage(data.reply, 'coach');
+                    addActions(data.actions);   // show which tools ran
                 } else {
-                    addMessage('Error: ' + (data.error || 'unknown'), 'coach');
+                    addMessage('Something went wrong: ' + (data.error || 'unknown error') + '. Try again.', 'coach');
                 }
             } catch (e) {
-                typing.remove();
-                addMessage('Network error: ' + e.message, 'coach');
+                thinking.remove();
+                addMessage('Network error — check your connection and try again.', 'coach');
             }
+            updateLine.classList.remove('syncing');
             send.disabled = false;
             input.focus();
         }
 
         send.addEventListener('click', sendMessage);
         input.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
-        reset.addEventListener('click', async () => {
-            await fetch('/reset/', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': getCookie('csrftoken') },
-            });
-            messages.innerHTML = '';
+
+        const toggle = document.getElementById('view-toggle');
+        const toggleLabel = document.getElementById('toggle-label');
+        const toggleIcon = document.getElementById('toggle-icon');
+        const chatView = document.getElementById('view-chat');
+        const calView = document.getElementById('view-calendar');
+        const ICON_CALENDAR = '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>';
+        const ICON_CHAT = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
+
+        toggle.addEventListener('click', () => {
+            const showingCalendar = calView.classList.contains('active');
+            if (showingCalendar) {
+                calView.classList.remove('active'); chatView.classList.add('active');
+                toggleLabel.textContent = 'Calendar'; toggleIcon.innerHTML = ICON_CALENDAR;
+                messages.scrollTop = messages.scrollHeight;
+            } else {
+                chatView.classList.remove('active'); calView.classList.add('active');
+                toggleLabel.textContent = 'Coach'; toggleIcon.innerHTML = ICON_CHAT;
+            }
         });
+
         messages.scrollTop = messages.scrollHeight;
-
-        input.focus();
-
     </script>
 </body>
 </html>
