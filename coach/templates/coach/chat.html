@@ -51,7 +51,7 @@
 </head>
 <body>
     <header>
-        <span>🚴 Training Coach</span>
+        <span>Training Coach</span>
         <button id="reset">New chat</button>
     </header>
     <div id="messages"></div>
@@ -128,10 +128,10 @@
             });
             messages.innerHTML = '';
         });
+        messages.scrollTop = messages.scrollHeight;
 
         input.focus();
 
-        messages.scrollTop = messages.scrollHeight;
     </script>
 </body>
 </html>
