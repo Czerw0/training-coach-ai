@@ -45,7 +45,7 @@ def chat_message(request):
 
     if not user_message:
         return JsonResponse({'error': 'Empty message'}, status=400)
-S
+
     # Build history for the model: last 20 messages, oldest-first
     recent = Message.objects.order_by('-created_at')[:20]
     history = [
