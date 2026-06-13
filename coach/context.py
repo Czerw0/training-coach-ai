@@ -1,13 +1,15 @@
 import datetime
 from django.db.models import Sum, Q
 from django.utils import timezone
-from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, UserProfile
+from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, UserProfile, FTPRecord
 from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation
-from sync.models import FTPRecord
 
 
-# Minimal WMO weather code -> short label. Only the codes that actually occur
-# in Warsaw forecasts. Anything unmapped falls back to "code N".
+# Days of the week with skating instruction: Mon=0, Tue=1, Wed=2, Sun=6.
+# NOTE: if the schedule changes (e.g. July/August pause), update this set.
+INSTRUCTION_DAYS = {0, 1, 2, 6}
+
+# Minimal WMO weather code -> short label.
 WEATHER_CODES = {
     0: "clear", 1: "mainly clear", 2: "partly cloudy", 3: "overcast",
     45: "fog", 48: "fog",
@@ -20,26 +22,16 @@ WEATHER_CODES = {
 
 
 def _round(value, ndigits=1):
-    """Round a float, but pass None through untouched."""
     return round(value, ndigits) if value is not None else None
 
 
 def _summarise_weather(hours):
-    """
-    Turn a flat list of hourly rows into a compact per-day, per-block summary.
-
-    Hourly weather is the single biggest part of the context. Sending 48-72 raw
-    rows wastes tokens — the coach only needs to know "when is it dry, how warm,
-    how windy" per part of the day. This collapses ~48 rows into ~9 short lines.
-    """
-    # Group hours into day -> block
-    blocks = {}  # { 'YYYY-MM-DD': { 'morning (6-12)': [rows], ... } }
-
+    """Collapse hourly rows into one short line per day-part. Big token saver."""
+    blocks = {}
     for h in hours:
         dt = h['datetime']
         hour = dt.hour
         day = dt.date().isoformat()
-
         if 6 <= hour < 12:
             block = 'morning (06-12)'
         elif 12 <= hour < 18:
@@ -48,10 +40,8 @@ def _summarise_weather(hours):
             block = 'evening (18-22)'
         else:
             block = 'night (22-06)'
-
         blocks.setdefault(day, {}).setdefault(block, []).append(h)
 
-    # Build a one-line string per block
     summary = {}
     for day, day_blocks in blocks.items():
         summary[day] = {}
@@ -64,22 +54,14 @@ def _summarise_weather(hours):
             temp_str = f"{round(min(temps))}-{round(max(temps))}C" if temps else "n/a"
             rain_str = f"{max(rain_probs)}% max" if rain_probs else "n/a"
             wind_str = f"{round(min(winds))}-{round(max(winds))} km/h" if winds else "n/a"
-            # Use the most significant (highest) code as the representative condition
             cond_str = WEATHER_CODES.get(max(codes), f"code {max(codes)}") if codes else "n/a"
 
-            summary[day][block] = (
-                f"{temp_str}, rain {rain_str}, wind {wind_str}, {cond_str}"
-            )
-
+            summary[day][block] = f"{temp_str}, rain {rain_str}, wind {wind_str}, {cond_str}"
     return summary
 
 
 def _clean_activities(rows):
-    """
-    Round the wasteful long floats Garmin returns (e.g. 5406.47607421875) and
-    convert seconds->minutes, meters->km so the numbers are both smaller in
-    tokens and easier for the model to reason about.
-    """
+    """Round Garmin's long floats; seconds->min, meters->km."""
     cleaned = []
     for a in rows:
         cleaned.append({
@@ -97,15 +79,21 @@ def _clean_activities(rows):
     return cleaned
 
 
-# ---------------------------------------------------------------------------
-# Main context builder
-# ---------------------------------------------------------------------------
-
 def build_context():
     today = datetime.date.today()
     now = timezone.now()
 
-    # --- User Profile (static, but small and critical) ---
+    # --- Precomputed calendar: the model READS weekdays, never calculates ---
+    next_7_days = []
+    for i in range(7):
+        d = today + datetime.timedelta(days=i)
+        next_7_days.append({
+            'date': d.isoformat(),
+            'weekday': d.strftime('%A'),
+            'usual_instruction_day': d.weekday() in INSTRUCTION_DAYS,
+        })
+
+    # --- User Profile ---
     profile = UserProfile.objects.first()
     profile_data = {
         'ftp_watts': profile.ftp_watts if profile else None,
@@ -117,12 +105,12 @@ def build_context():
         'athlete_notes': profile.athlete_notes if profile else None,
     }
 
-    # --- Recent coach recommendations (memory across days) ---
+    # --- Cross-day memory ---
     recent_recommendations = list(CoachRecommendation.objects.filter(
         date__gte=today - datetime.timedelta(days=7)
     ).order_by('-date').values('date', 'recommendation', 'user_message'))
 
-    # --- Training Load + acute:chronic ratio ---
+    # --- Training load + ACWR ---
     load_7 = Activity.objects.filter(
         start_time__date__gte=today - datetime.timedelta(days=7)
     ).aggregate(Sum('training_load'))['training_load__sum'] or 0
@@ -133,31 +121,21 @@ def build_context():
 
     acute_chronic_ratio = round(load_7 / (load_28 / 4), 2) if load_28 else None
 
-    # --- Recent Activities (last 14 days, trimmed + cleaned) ---
+    # --- Recent activities (14 days, trimmed + cleaned) ---
     activities_raw = list(Activity.objects.filter(
         start_time__date__gte=today - datetime.timedelta(days=14)
     ).order_by('-start_time').values(
-        'start_time',
-        'activity_type',
-        'duration_seconds',
-        'distance_meters',
-        'avg_hr',
-        'training_load',
-        'training_effect_label',
-        'tss',
-        'avg_power',
-        'normalized_power',
+        'start_time', 'activity_type', 'duration_seconds', 'distance_meters',
+        'avg_hr', 'training_load', 'training_effect_label', 'tss',
+        'avg_power', 'normalized_power',
     ))
     activities = _clean_activities(activities_raw)
 
-    # --- HRV last 7 days ---
+    # --- Recovery: HRV / sleep / daily stats, 7 days ---
     hrv = list(HRVRecord.objects.filter(
         date__gte=today - datetime.timedelta(days=7)
-    ).order_by('-date').values(
-        'date', 'hrv_rmssd', 'hrv_status', 'resting_hr',
-    ))
+    ).order_by('-date').values('date', 'hrv_rmssd', 'hrv_status', 'resting_hr'))
 
-    # --- Sleep last 7 days (durations rounded) ---
     sleep_raw = list(SleepRecord.objects.filter(
         date__gte=today - datetime.timedelta(days=7)
     ).order_by('-date').values(
@@ -171,28 +149,14 @@ def build_context():
         'bb_change': s['body_battery_change'],
     } for s in sleep_raw]
 
-    # --- Daily Stats last 7 days (volatile metrics only) ---
-    # VO2max / endurance change slowly, so we DON'T repeat them here 7x —
-    # they live in fitness_trend below instead.
     daily_stats = list(DailyStats.objects.filter(
         date__gte=today - datetime.timedelta(days=7)
     ).order_by('-date').values(
-        'date',
-        'body_battery_high',
-        'body_battery_low',
-        'stress_level_avg',
-        'steps',
-        'recovery_time_hours',
-        'training_status',
-        'acwr_ratio',
+        'date', 'body_battery_high', 'body_battery_low', 'stress_level_avg',
+        'steps', 'recovery_time_hours', 'training_status', 'acwr_ratio',
     ))
 
-    ftp_history = list(FTPRecord.objects.filter(
-        date__gte=today - datetime.timedelta(days=180)
-    ).order_by('-date').values('date', 'ftp_watts'))
-    
-    # --- Fitness trend (slow-moving metrics over 90 days, sparse) ---
-    # This is what lets the coach answer "how has my VO2max changed vs a month ago".
+    # --- Slow-moving fitness metrics (90 days, sparse) ---
     fitness_trend = list(DailyStats.objects.filter(
         date__gte=today - datetime.timedelta(days=90),
     ).exclude(
@@ -201,14 +165,17 @@ def build_context():
         'date', 'vo2max_running', 'vo2max_cycling', 'endurance_score',
     )[:15])
 
-    # --- Daily Feelings last 14 days ---
+    ftp_history = list(FTPRecord.objects.filter(
+        date__gte=today - datetime.timedelta(days=180)
+    ).order_by('-date').values('date', 'ftp_watts'))
+
+    # --- Feelings, injuries, goals ---
     feelings = list(DailyFeeling.objects.filter(
         date__gte=today - datetime.timedelta(days=14)
     ).order_by('-date').values(
         'date', 'energy_level', 'muscle_soreness', 'muscle_sore', 'motivation', 'notes',
     ))
 
-    # --- Active Injuries ---
     active_injuries = list(Injury.objects.filter(
         date_started__lte=today
     ).filter(
@@ -218,24 +185,19 @@ def build_context():
         'affects_running', 'affects_cycling', 'date_started',
     ))
 
-    # --- Recently resolved injuries (last 6 months) ---
     recent_resolved_injuries = list(Injury.objects.filter(
         date_resolved__gte=today - datetime.timedelta(days=180),
         date_resolved__lt=today,
     ).values(
         'body_part', 'severity', 'description',
-        'affects_running', 'affects_cycling',
-        'date_started', 'date_resolved',
+        'affects_running', 'affects_cycling', 'date_started', 'date_resolved',
     ))
 
-    # --- Active Goals ---
-    active_goals = list(Goal.objects.filter(
-        is_active=True
-    ).values(
+    active_goals = list(Goal.objects.filter(is_active=True).values(
         'title', 'goal_type', 'target_date', 'description',
     ))
 
-    # --- Weather next 48h, summarised into per-day blocks ---
+    # --- Weather, summarised ---
     weather_hours = list(WeatherHourly.objects.filter(
         datetime__gte=now,
         datetime__lte=now + datetime.timedelta(hours=48)
@@ -244,8 +206,14 @@ def build_context():
     ))
     weather_summary = _summarise_weather(weather_hours)
 
+    # --- Data freshness: when did Garmin data last land? ---
+    last_stats = DailyStats.objects.order_by('-date').first()
+    last_sync_date = last_stats.date.isoformat() if last_stats else None
+
     return {
-        'today': str(today),
+        'today': f"{today.isoformat()} ({today.strftime('%A')})",
+        'next_7_days': next_7_days,
+        'last_garmin_data_date': last_sync_date,
         'user_profile': profile_data,
         'training_load': {
             '7_days': round(load_7, 1),
@@ -266,10 +234,10 @@ def build_context():
             'daily_stats_last_7_days': daily_stats,
         },
         'fitness_trend': fitness_trend,
+        'ftp_history': ftp_history,
         'daily_feelings_last_14_days': feelings,
         'active_injuries': active_injuries,
         'recent_resolved_injuries': recent_resolved_injuries,
         'active_goals': active_goals,
-        'ftp_history': ftp_history,
         'weather_next_48h': weather_summary,
     }
