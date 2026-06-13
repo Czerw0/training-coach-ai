@@ -55,6 +55,11 @@
         <button id="reset">New chat</button>
     </header>
     <div id="messages"></div>
+    <div id="messages">
+    {% for m in past_messages %}
+        <div class="msg {% if m.role == 'user' %}user{% else %}coach{% endif %}">{{ m.content }}</div>
+    {% endfor %}
+    </div>
     <div id="input-area">
         <input id="input" type="text" placeholder="Ask your coach..." autocomplete="off">
         <button id="send">Send</button>
@@ -125,6 +130,8 @@
         });
 
         input.focus();
+
+        messages.scrollTop = messages.scrollHeight;
     </script>
 </body>
 </html>

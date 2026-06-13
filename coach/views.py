@@ -4,14 +4,13 @@ from django.views.decorators.http import require_http_methods
 import json
 from django.views.decorators.csrf import ensure_csrf_cookie
 from coach.agent import chat
+from coach.models import Message, CoachRecommendation
 
 
 @ensure_csrf_cookie
 def chat_page(request):
-    """Render the chat page."""
-    # Clear history when loading a fresh page if you want each visit to start clean.
-    # Comment this out to persist across page reloads.
-    return render(request, 'coach/chat.html')
+    past_messages = Message.objects.all()
+    return render(request, 'coach/chat.html', {'past_messages': past_messages})
 
 
 @require_http_methods(["POST"])
@@ -24,7 +23,18 @@ def chat_message(request):
         return JsonResponse({'error': 'Empty message'}, status=400)
 
     # Pull conversation history from the session
-    history = request.session.get('chat_history', [])
+    # Build history from all past messages
+    recent = Message.objects.order_by('-created_at')[:20]  # Get last 20 messages
+    history = [
+        {"role": m.role, "content": m.content}
+        for m in reversed(recent)
+    ]
+
+    reply = chat(user_message, history)
+
+    # Save both sides
+    Message.objects.create(role="user", content=user_message)
+    Message.objects.create(role="assistant", content=reply)
 
     # Call the agent
     try:
