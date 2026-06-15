@@ -6,6 +6,6 @@ garminconnect
 openmeteo-requests 
 requests-cache 
 retry-requests
-anthropic
+anthropic=0.107.0
 gunicorn 
 whitenoise
