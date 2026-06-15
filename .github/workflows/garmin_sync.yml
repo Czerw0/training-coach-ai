@@ -2,11 +2,23 @@ name: Daily Garmin Sync
 
 on:
   schedule:
+    - cron: '0 6 * * *'
     - cron: '0 7 * * *'  # Every day at 7:00 AM UTC (9:00 AM Warsaw time)
+    - cron: '0 8 * * *'  # Every day at 8:00 AM UTC (10:00 AM Warsaw time)
     - cron: '0 9 * * *'
+    - cron: '0 10 * * *'
     - cron: '0 11 * * *' 
+    - cron: '0 12 * * *'
+    - cron: '0 13 * * *'
+    - cron: '0 14 * * *'
     - cron: '0 15 * * *'
+    - cron: '0 16 * * *'
+    - cron: '0 17 * * *'
+    - cron: '0 18 * * *'
     - cron: '0 19 * * *'
+    - cron: '0 20 * * *'
+    - cron: '0 21 * * *'
+    - cron: '0 22 * * *'
     - cron: '0 23 * * *'
   workflow_dispatch:       # Allows manual trigger from GitHub UI
 
