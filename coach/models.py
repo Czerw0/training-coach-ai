@@ -91,3 +91,13 @@ class Message(models.Model):
 
     class Meta:
         ordering = ['created_at']
+
+
+class SyncStatus(models.Model):
+    state = models.CharField(max_length=20, default="idle")  # idle | running | done | error
+    message = models.TextField(blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # singleton
+        super().save(*args, **kwargs)

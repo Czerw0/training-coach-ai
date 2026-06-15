@@ -9,6 +9,10 @@ from coach.agent import chat
 from coach.models import Message
 from sync.models import DailyStats
 
+import threading
+from django.core.management import call_command
+from coach.models import SyncStatus
+
 
 # Maps internal tool names -> friendly labels shown under the coach's reply
 TOOL_LABELS = {
@@ -75,3 +79,27 @@ def chat_reset(request):
     Message.objects.all().delete()
     return JsonResponse({'status': 'reset'})
 
+
+def _run_sync():
+    status, _ = SyncStatus.objects.get_or_create(pk=1)
+    status.state = "running"; status.message = "Syncing Garmin + weather…"; status.save()
+    try:
+        call_command('sync_garmin', days=1)
+        call_command('sync_weather')
+        status.state = "done"; status.message = "Up to date"; status.save()
+    except Exception as e:
+        status.state = "error"; status.message = f"Sync failed: {e}"; status.save()
+
+@require_http_methods(["POST"])
+def sync_now(request):
+    status, _ = SyncStatus.objects.get_or_create(pk=1)
+    if status.state == "running":
+        return JsonResponse({'state': 'running', 'message': 'Already syncing…'})
+    # fire-and-forget background thread
+    threading.Thread(target=_run_sync, daemon=True).start()
+    return JsonResponse({'state': 'running', 'message': 'Sync started…'})
+
+@require_http_methods(["GET"])
+def sync_status(request):
+    status, _ = SyncStatus.objects.get_or_create(pk=1)
+    return JsonResponse({'state': status.state, 'message': status.message})
