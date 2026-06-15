@@ -4,6 +4,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.timesince import timesince
+from django.contrib.auth.decorators import login_required
 
 from coach.agent import chat
 from coach.models import Message
@@ -24,14 +25,13 @@ TOOL_LABELS = {
     "append_athlete_note": "Saved a note",
 }
 
-
 def _last_update_text():
     last_row = DailyStats.objects.order_by('-updated_at').first()
     if not last_row or not last_row.updated_at:
         return None
     return f"{timesince(last_row.updated_at)} ago"
 
-
+@login_required
 @ensure_csrf_cookie
 def chat_page(request):
     past_messages = Message.objects.all().order_by('created_at')
@@ -41,6 +41,7 @@ def chat_page(request):
     })
 
 
+@login_required
 @require_http_methods(["POST"])
 def chat_message(request):
     """Handle a single chat message via AJAX."""
@@ -72,14 +73,14 @@ def chat_message(request):
 
     return JsonResponse({'reply': reply, 'actions': actions})
 
-
+@login_required
 @require_http_methods(["POST"])
 def chat_reset(request):
     """Delete the stored conversation (used by the 'reset' path if kept)."""
     Message.objects.all().delete()
     return JsonResponse({'status': 'reset'})
 
-
+@login_required
 def _run_sync():
     status, _ = SyncStatus.objects.get_or_create(pk=1)
     status.state = "running"; status.message = "Syncing Garmin + weather…"; status.save()
@@ -89,7 +90,7 @@ def _run_sync():
         status.state = "done"; status.message = "Up to date"; status.save()
     except Exception as e:
         status.state = "error"; status.message = f"Sync failed: {e}"; status.save()
-
+@login_required
 @require_http_methods(["POST"])
 def sync_now(request):
     status, _ = SyncStatus.objects.get_or_create(pk=1)
@@ -98,7 +99,7 @@ def sync_now(request):
     # fire-and-forget background thread
     threading.Thread(target=_run_sync, daemon=True).start()
     return JsonResponse({'state': 'running', 'message': 'Sync started…'})
-
+@login_required
 @require_http_methods(["GET"])
 def sync_status(request):
     status, _ = SyncStatus.objects.get_or_create(pk=1)

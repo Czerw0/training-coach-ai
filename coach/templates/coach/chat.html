@@ -62,14 +62,6 @@
         @keyframes pulse { 50% { opacity:.3; } }
         .divider { flex-shrink:0; height:1px; background:var(--line); }
 
-        #sync-btn {
-            background: none; border: none; cursor: pointer; padding: 2px;
-            margin-left: 8px; vertical-align: middle; line-height: 0;
-        }
-        #sync-btn svg { width: 15px; height: 15px; stroke: var(--ink-soft); fill: none; stroke-width: 2; }
-        #sync-btn:active svg { stroke: var(--blue); }
-        #sync-btn.spinning svg { animation: spin 0.9s linear infinite; stroke: var(--blue); }
-        @keyframes spin { to { transform: rotate(360deg); } }
 
         #messages {
             flex:1; overflow-y:auto; padding:16px 14px 6px;
@@ -302,52 +294,6 @@
             }
         });
 
-        // ---- Manual background sync ----
-        const syncBtn = document.getElementById('sync-btn');
-        const updateText = document.getElementById('update-text');
-        let pollTimer = null;
-
-        async function startSync() {
-            syncBtn.classList.add('spinning');
-            updateLine.classList.add('syncing');
-            updateText.textContent = 'Syncing…';
-            try {
-                await fetch('/sync/', {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
-                });
-                pollStatus();   // begin watching for completion
-            } catch (e) {
-                stopSync('Sync failed to start');
-            }
-        }
-
-        function pollStatus() {
-            clearInterval(pollTimer);
-            pollTimer = setInterval(async () => {
-                try {
-                    const res = await fetch('/sync/status/');
-                    const data = await res.json();
-                    if (data.state === 'done') {
-                        stopSync('Just synced');
-                    } else if (data.state === 'error') {
-                        stopSync('Sync error');
-                    }
-                    // if 'running', keep polling
-                } catch (e) {
-                    stopSync('Lost connection');
-                }
-            }, 3000);   // check every 3 seconds
-        }
-
-        function stopSync(text) {
-            clearInterval(pollTimer);
-            syncBtn.classList.remove('spinning');
-            updateLine.classList.remove('syncing');
-            updateText.textContent = text;
-        }
-
-        syncBtn.addEventListener('click', startSync);
         messages.scrollTop = messages.scrollHeight;
     </script>
 </body>
