@@ -1,5 +1,4 @@
 import datetime as dt
-from django.core.management import call_command
 from coach.models import DailyFeeling, Goal, Injury
 
 
@@ -93,16 +92,6 @@ def adjust_goal(title, goal_type=None, target_date=None,
     return f"{action} goal: {title}."
 
 
-def sync_all_data():
-    """Pull the latest Garmin and weather data on demand. Slow (~60s)."""
-    try:
-        call_command('sync_garmin', days=1)
-        call_command('sync_weather')
-        return "Synced latest Garmin and weather data successfully."
-    except Exception as e:
-        return f"Error syncing data: {e}"
-    
-
 def append_athlete_note(note):
     """Append a dated note to athlete_notes. Never overwrites."""
     from sync.models import UserProfile
@@ -112,8 +101,6 @@ def append_athlete_note(note):
     profile.athlete_notes = (profile.athlete_notes or "") + entry
     profile.save()
     return f"Appended note to athlete profile: {note}"
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -250,43 +237,25 @@ TOOL_DEFINITIONS = [
         }
     },
     {
-        "name": "sync_all_data",
+        "name": "append_athlete_note",
         "description": (
-            "Fetch the latest Garmin and weather data. This is SLOW (up to a "
-            "minute) and should be used sparingly. Only call this when the athlete "
-            "explicitly asks to refresh/update data (words like 'refresh', "
-            "'update', 'sync', 'latest data'), or says they just completed an "
-            "activity that isn't showing in the current context yet. Do NOT call "
-            "it for normal questions — the context already contains recent data. "
-            "Also check last_garmin_data_date in the context: if it is more than "
-            "1 day old, suggest a sync before making recommendations."
+            "Append a dated note to the athlete's permanent profile notes. Use for "
+            "LIFE CONTEXT that should persist: work schedule changes (internship, "
+            "new job), instruction schedule changes, upcoming trips, equipment "
+            "changes. NOT for goals (use adjust_goal), NOT for daily states (use "
+            "log_daily_feeling). Append-only — it can never delete existing notes."
         ),
         "input_schema": {
             "type": "object",
-            "properties": {},
-            "required": []
+            "properties": {
+                "note": {
+                    "type": "string",
+                    "description": "Concise note, e.g. 'Internship starts July 1, full-time, training limited to ~4-5h/week'"
+                }
+            },
+            "required": ["note"]
         }
-    },
-    {
-    "name": "append_athlete_note",
-    "description": (
-        "Append a dated note to the athlete's permanent profile notes. Use for "
-        "LIFE CONTEXT that should persist: work schedule changes (internship, "
-        "new job), instruction schedule changes, upcoming trips, equipment "
-        "changes. NOT for goals (use adjust_goal), NOT for daily states (use "
-        "log_daily_feeling). Append-only — it can never delete existing notes."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "note": {
-                "type": "string",
-                "description": "Concise note, e.g. 'Internship starts July 1, full-time, training limited to ~4-5h/week'"
-            }
-        },
-        "required": ["note"]
     }
-}
 ]
 
 
@@ -295,7 +264,6 @@ TOOL_FUNCTIONS = {
     "log_injury": log_injury,
     "resolve_injury": resolve_injury,
     "adjust_goal": adjust_goal,
-    "sync_all_data": sync_all_data,
     "append_athlete_note": append_athlete_note,
 }
 
