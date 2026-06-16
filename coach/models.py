@@ -120,6 +120,7 @@ class ApiUsage(models.Model):
     # Context for the timeline view
     api_calls = models.IntegerField(default=1)               # API round-trips in this turn (tool loop can be >1)
     user_message = models.CharField(max_length=300, blank=True, default="")  # truncated triggering message
+    tools_used = models.CharField(max_length=255, blank=True, default="")
  
     class Meta:
         ordering = ['-created_at']

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Usage · Training Coach</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --navy:#0B1F3A; --blue:#2D6CDF; --ink:#11151C;
+            --ink-soft:#6B7585; --line:#E4E8EF; --surface:#FFFFFF;
+            --bg:#F4F6F9; --pill-bg:#EDF0F5;
+        }
+        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+        html, body { height:100%; }
+        body {
+            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+            background:var(--bg); color:var(--ink);
+            height:100dvh; display:flex; justify-content:center; align-items:stretch;
+        }
+        .app {
+            width:100%; max-width:520px; display:flex; flex-direction:column;
+            height:100dvh; background:var(--bg); overflow:hidden;
+        }
+        @media (min-width:600px) {
+            body { padding:24px; align-items:center; }
+            .app {
+                height:min(900px, calc(100dvh - 48px));
+                border:1px solid var(--line); border-radius:22px;
+                box-shadow:0 10px 40px rgba(11,31,58,0.10); background:var(--surface);
+            }
+        }
+
+        .topbar { flex-shrink:0; padding:max(12px, env(safe-area-inset-top)) 12px 0; }
+        .pill {
+            display:flex; align-items:center; gap:10px;
+            background:var(--pill-bg); border-radius:999px; padding:8px 8px 8px 12px;
+        }
+        .logo {
+            width:30px; height:30px; border-radius:50%; background:var(--navy); color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:700; font-size:14px; flex-shrink:0;
+        }
+        .pill .name { font-size:15px; font-weight:650; flex:1; }
+        .back {
+            display:flex; align-items:center; gap:6px;
+            background:var(--surface); border:1px solid var(--line); border-radius:999px;
+            padding:6px 13px; font-size:13px; font-weight:600; color:var(--navy);
+            cursor:pointer; text-decoration:none;
+        }
+        .back svg { width:16px; height:16px; stroke:var(--navy); fill:none; stroke-width:1.9; }
+
+        .scroll { flex:1; overflow-y:auto; padding:14px; -webkit-overflow-scrolling:touch; }
+
+        /* Summary cards */
+        .cards { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:16px; }
+        .card {
+            background:var(--surface); border:1px solid var(--line);
+            border-radius:14px; padding:13px 14px;
+        }
+        @media (min-width:600px) { .card { background:var(--bg); } }
+        .card .k { font-size:12px; color:var(--ink-soft); font-weight:600; margin-bottom:4px; }
+        .card .v { font-size:20px; font-weight:700; color:var(--navy); font-variant-numeric:tabular-nums; }
+        .card .v small { font-size:12px; font-weight:600; color:var(--ink-soft); }
+
+        .section-title { font-size:13px; font-weight:700; color:var(--ink-soft); margin:6px 2px 8px; }
+
+        .chart-box {
+            background:var(--surface); border:1px solid var(--line);
+            border-radius:14px; padding:14px; margin-bottom:16px;
+        }
+        @media (min-width:600px) { .chart-box { background:var(--bg); } }
+        .chart-box canvas { max-height:240px; }
+
+        /* Recent timeline */
+        .recent { display:flex; flex-direction:column; gap:8px; }
+        .turn {
+            background:var(--surface); border:1px solid var(--line);
+            border-radius:12px; padding:11px 13px;
+        }
+        @media (min-width:600px) { .turn { background:var(--bg); } }
+        .turn .top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+        .turn .when { font-size:12px; color:var(--ink-soft); }
+        .turn .cost { font-size:13px; font-weight:700; color:var(--navy); font-variant-numeric:tabular-nums; }
+        .turn .msg { font-size:13px; margin-top:4px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .turn .meta { font-size:11px; color:var(--ink-soft); margin-top:4px; }
+        .turn .tools { color:var(--blue); font-weight:600; }
+
+        .empty { text-align:center; color:var(--ink-soft); padding:30px; font-size:14px; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="topbar">
+            <div class="pill">
+                <div class="logo">TC</div>
+                <div class="name">Usage &amp; cost</div>
+                <a class="back" href="/">
+                    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Coach
+                </a>
+            </div>
+        </div>
+
+        <div class="scroll">
+            <div class="cards">
+                <div class="card"><div class="k">Total spend</div><div class="v" id="c-total">—</div></div>
+                <div class="card"><div class="k">This month</div><div class="v" id="c-month">—</div></div>
+                <div class="card"><div class="k">Today</div><div class="v" id="c-today">—</div></div>
+                <div class="card"><div class="k">Avg / message</div><div class="v" id="c-avg">—</div></div>
+            </div>
+
+            <div class="section-title">Daily cost (last 30 days)</div>
+            <div class="chart-box"><canvas id="dailyChart"></canvas></div>
+
+            <div class="section-title">Token breakdown</div>
+            <div class="chart-box"><canvas id="tokenChart"></canvas></div>
+
+            <div class="section-title">Recent messages</div>
+            <div class="recent" id="recent"></div>
+        </div>
+    </div>
+
+    <script>
+        const fmt = n => '$' + Number(n).toFixed(2);
+        const fmt4 = n => '$' + Number(n).toFixed(4);
+
+        async function load() {
+            let data;
+            try {
+                data = await fetch('/usage/data/').then(r => r.json());
+            } catch (e) {
+                document.getElementById('recent').innerHTML = '<div class="empty">Could not load usage data.</div>';
+                return;
+            }
+
+            // summary cards
+            const s = data.summary;
+            document.getElementById('c-total').textContent = fmt(s.total_cost);
+            document.getElementById('c-month').textContent = fmt(s.month_cost);
+            document.getElementById('c-today').textContent = fmt(s.today_cost);
+            document.getElementById('c-avg').innerHTML = fmt4(s.avg_cost) + ' <small>· ' + s.total_turns + ' msgs</small>';
+
+            // daily cost bar chart
+            const d = data.daily;
+            new Chart(document.getElementById('dailyChart'), {
+                type: 'bar',
+                data: {
+                    labels: d.map(x => x.date.slice(5)),   // MM-DD
+                    datasets: [{
+                        label: 'Cost (USD)',
+                        data: d.map(x => x.cost),
+                        backgroundColor: '#2D6CDF',
+                        borderRadius: 4,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: c => fmt4(c.parsed.y) } },
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 0, autoSkip: true } },
+                        y: { beginAtZero: true, ticks: { font: { size: 10 }, callback: v => '$' + v.toFixed(2) } },
+                    },
+                },
+            });
+
+            // token breakdown doughnut
+            const t = data.token_totals;
+            new Chart(document.getElementById('tokenChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Input', 'Output', 'Cache write', 'Cache read'],
+                    datasets: [{
+                        data: [t.input, t.output, t.cache_write, t.cache_read],
+                        backgroundColor: ['#2D6CDF', '#7A5CCC', '#BA7517', '#1D9E75'],
+                        borderWidth: 0,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } },
+                        tooltip: { callbacks: { label: c => c.label + ': ' + c.parsed.toLocaleString() + ' tokens' } },
+                    },
+                },
+            });
+
+            // recent timeline
+            const wrap = document.getElementById('recent');
+            if (!data.recent.length) {
+                wrap.innerHTML = '<div class="empty">No messages logged yet.</div>';
+                return;
+            }
+            wrap.innerHTML = '';
+            data.recent.forEach(r => {
+                const div = document.createElement('div');
+                div.className = 'turn';
+                const tools = r.tools ? `<span class="tools">${r.tools.split(',').join(' · ')}</span> · ` : '';
+                div.innerHTML =
+                    `<div class="top"><span class="when">${r.when}</span><span class="cost">${fmt4(r.cost)}</span></div>` +
+                    `<div class="msg">${r.message ? escapeHtml(r.message) : '(no message)'}</div>` +
+                    `<div class="meta">${tools}${r.input.toLocaleString()} in · ${r.output.toLocaleString()} out</div>`;
+                wrap.appendChild(div);
+            });
+        }
+
+        function escapeHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', load);
+    </script>
+</body>
+</html>

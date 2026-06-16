@@ -9,4 +9,6 @@ urlpatterns = [
     path('calendar/events/', views.calendar_events, name='calendar_events'),
     path('calendar/session/', views.save_planned_session, name='save_planned_session'),
     path('calendar/session/delete/', views.delete_planned_session, name='delete_planned_session'),
+    path('usage/', views.usage_page, name='usage_page'),
+    path('usage/data/', views.usage_data, name='usage_data'),
 ]

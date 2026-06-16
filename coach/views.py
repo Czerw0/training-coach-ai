@@ -9,7 +9,10 @@ from django.contrib.auth.decorators import login_required
 from coach.agent import chat
 from coach.models import Message, PlannedSession
 from sync.models import DailyStats, Activity
-
+import datetime
+from django.db.models import Sum
+from django.db.models.functions import TruncDate
+from coach.models import ApiUsage
 
 # Maps internal tool names -> friendly labels shown under the coach's reply
 TOOL_LABELS = {
@@ -196,3 +199,77 @@ def delete_planned_session(request):
     PlannedSession.objects.filter(id=data.get("id")).delete()
     return JsonResponse({"ok": True})
  
+
+
+@login_required
+def usage_page(request):
+    return render(request, 'coach/usage.html')
+ 
+ 
+@login_required
+@require_http_methods(["GET"])
+def usage_data(request):
+    """Aggregated usage/cost data for the dashboard charts."""
+    qs = ApiUsage.objects.all()
+    today = datetime.date.today()
+    month_start = today.replace(day=1)
+
+    def total_cost(queryset):
+        return queryset.aggregate(s=Sum('cost_usd'))['s'] or 0.0
+
+    all_cost   = total_cost(qs)
+    month_cost = total_cost(qs.filter(created_at__date__gte=month_start))
+    today_cost = total_cost(qs.filter(created_at__date=today))
+    turns      = qs.count()
+    avg_cost   = (all_cost / turns) if turns else 0.0
+
+    # daily cost, last 30 days
+    start_30 = today - datetime.timedelta(days=29)
+    daily_rows = (qs.filter(created_at__date__gte=start_30)
+                    .annotate(d=TruncDate('created_at'))
+                    .values('d')
+                    .annotate(cost=Sum('cost_usd'),
+                              inp=Sum('input_tokens'),
+                              out=Sum('output_tokens'))
+                    .order_by('d'))
+    daily = [{
+        "date": r["d"].isoformat(),
+        "cost": round(r["cost"] or 0, 4),
+        "input": r["inp"] or 0,
+        "output": r["out"] or 0,
+    } for r in daily_rows]
+
+    # token totals (for the doughnut)
+    tot = qs.aggregate(
+        inp=Sum('input_tokens'), out=Sum('output_tokens'),
+        cw=Sum('cache_creation_tokens'), cr=Sum('cache_read_tokens'),
+    )
+    token_totals = {
+        "input": tot["inp"] or 0,
+        "output": tot["out"] or 0,
+        "cache_write": tot["cw"] or 0,
+        "cache_read": tot["cr"] or 0,
+    }
+
+    # recent turns (timeline)
+    recent = [{
+        "when": u.created_at.strftime("%d %b %H:%M"),
+        "cost": round(u.cost_usd, 4),
+        "tools": u.tools_used,
+        "message": u.user_message,
+        "input": u.input_tokens,
+        "output": u.output_tokens,
+    } for u in qs.order_by('-created_at')[:15]]
+
+    return JsonResponse({
+        "summary": {
+            "total_cost": round(all_cost, 4),
+            "month_cost": round(month_cost, 4),
+            "today_cost": round(today_cost, 4),
+            "total_turns": turns,
+            "avg_cost": round(avg_cost, 6),
+        },
+        "daily": daily,
+        "token_totals": token_totals,
+        "recent": recent,
+    })

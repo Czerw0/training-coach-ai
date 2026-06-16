@@ -141,6 +141,12 @@
             gap:8px; padding:30px; text-align:center; color:var(--ink-soft);
         }
         .placeholder .big { font-size:18px; font-weight:650; color:var(--ink); }
+
+        .nav-pill {
+            background:var(--surface); border:1px solid var(--line); border-radius:999px;
+            padding:6px 11px; font-size:12.5px; font-weight:600; color:var(--navy); cursor:pointer;
+        }
+        .nav-pill:active { background:var(--pill-bg); }
     </style>
 </head>
 <body>
@@ -149,10 +155,8 @@
             <div class="pill">
                 <div class="logo">TC</div>
                 <div class="name">Training Coach</div>
-                <button id="view-toggle">
-                    <svg id="toggle-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                    <span id="toggle-label">Calendar</span>
-                </button>
+                <button id="cal-btn" class="nav-pill">Calendar</button>
+                <button id="use-btn" class="nav-pill">Usage</button>
             </div>
         </div>
 
@@ -273,10 +277,9 @@
         input.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
 
         // Calendar button -> navigate to the calendar page
-        document.getElementById('view-toggle').addEventListener('click', () => {
-            window.location.href = '/calendar/';
-        });
-
+        document.getElementById('cal-btn').addEventListener('click', () => location.href = '/calendar/');
+        document.getElementById('use-btn').addEventListener('click', () => location.href = '/usage/');
+        
         messages.scrollTop = messages.scrollHeight;
     </script>
 </body>
