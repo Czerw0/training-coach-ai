@@ -156,9 +156,9 @@ def build_context():
         'steps', 'recovery_time_hours', 'training_status', 'acwr_ratio',
     ))
 
-    # --- Slow-moving fitness metrics (90 days, sparse) ---
+    # --- Slow-moving fitness metrics (30 days, sparse) ---
     fitness_trend = list(DailyStats.objects.filter(
-        date__gte=today - datetime.timedelta(days=90),
+        date__gte=today - datetime.timedelta(days=30),
     ).exclude(
         vo2max_cycling__isnull=True
     ).order_by('-date').values(
@@ -166,7 +166,7 @@ def build_context():
     )[:15])
 
     ftp_history = list(FTPRecord.objects.filter(
-        date__gte=today - datetime.timedelta(days=180)
+        date__gte=today - datetime.timedelta(days=30)
     ).order_by('-date').values('date', 'ftp_watts'))
 
     # --- Feelings, injuries, goals ---
@@ -186,7 +186,7 @@ def build_context():
     ))
 
     recent_resolved_injuries = list(Injury.objects.filter(
-        date_resolved__gte=today - datetime.timedelta(days=180),
+        date_resolved__gte=today - datetime.timedelta(days=60),
         date_resolved__lt=today,
     ).values(
         'body_part', 'severity', 'description',

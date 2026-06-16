@@ -101,3 +101,29 @@ class SyncStatus(models.Model):
     def save(self, *args, **kwargs):
         self.pk = 1  # singleton
         super().save(*args, **kwargs)
+
+
+# Api usage model
+class ApiUsage(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    model = models.CharField(max_length=60)
+ 
+    # Token counts (all separate so the dashboard can show the breakdown)
+    input_tokens = models.IntegerField(default=0)            # uncached input
+    cache_creation_tokens = models.IntegerField(default=0)   # cache writes (1.25x)
+    cache_read_tokens = models.IntegerField(default=0)       # cache reads (0.10x)
+    output_tokens = models.IntegerField(default=0)
+ 
+    # Derived cost in USD (precomputed for easy charting/summing)
+    cost_usd = models.FloatField(default=0.0)
+ 
+    # Context for the timeline view
+    api_calls = models.IntegerField(default=1)               # API round-trips in this turn (tool loop can be >1)
+    tools_used = models.CharField(max_length=255, blank=True, default="")  # comma-separated tool names
+    user_message = models.CharField(max_length=300, blank=True, default="")  # truncated triggering message
+ 
+    class Meta:
+        ordering = ['-created_at']
+ 
+    def __str__(self):
+        return f"{self.created_at:%Y-%m-%d %H:%M} · ${self.cost_usd:.4f} · {self.model}"

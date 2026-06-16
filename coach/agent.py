@@ -5,7 +5,7 @@ import anthropic
 from dotenv import load_dotenv
 from coach.context import build_context
 from coach.tools import TOOL_DEFINITIONS, execute_tool
-from coach.models import CoachRecommendation
+from coach.models import CoachRecommendation, ApiUsage
 
 load_dotenv()
 
@@ -13,14 +13,23 @@ client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
 MODEL = "claude-haiku-4-5-20251001"
 
+# ---------------------------------------------------------------------------
+# Pricing for cost tracking — Haiku 4.5, USD per MILLION tokens.
+# Verify against https://www.anthropic.com/pricing if rates change.
+#   input $1.00 | cache write 1.25x $1.25 | cache read 0.10x $0.10 | output $5.00
+# (cache fields kept in the cost formula so the dashboard stays correct if you
+#  re-enable caching later — they'll just be 0 while caching is off.)
+# ---------------------------------------------------------------------------
+PRICE_INPUT       = 1.00 / 1_000_000
+PRICE_CACHE_WRITE = 1.25 / 1_000_000
+PRICE_CACHE_READ  = 0.10 / 1_000_000
+PRICE_OUTPUT      = 5.00 / 1_000_000
+
 
 # ---------------------------------------------------------------------------
 # STATIC instructions — never change between messages.
-# Kept separate from the data block so prompt caching can be added later
-# (cache this block, leave the data block uncached).
-# Athlete-specific facts (injuries, schedule, preferences) are NOT duplicated
-# here — they arrive via user_profile in the data block. This block defines
-# HOW to coach, not WHO the athlete is.
+# (Kept split from the data block in build_system_prompt so caching can be
+# re-added later if usage ever becomes bursty enough to benefit.)
 # ---------------------------------------------------------------------------
 
 INSTRUCTIONS = """You are a personal AI training coach for a multisport athlete in Warsaw.
@@ -40,8 +49,6 @@ should be SAVED?
 - Stated or changed a goal -> call adjust_goal
 - Told you persistent life context (work/internship, schedule change, a trip)
   -> call append_athlete_note
-- Explicitly asked to refresh/update data, or mentioned a just-finished activity
-  that is not in the context -> call sync_all_data
 Logging is part of your job. Do it silently, then answer.
 
 === DATES — READ, DON'T CALCULATE ===
@@ -122,11 +129,7 @@ this athlete well."""
 
 
 def build_system_prompt():
-    """Static instructions + fresh data block, joined.
-
-    Split kept deliberately so prompt caching can later be enabled on the static
-    part: system=[{static, cache_control}, {dynamic}].
-    """
+    """Static instructions + fresh data block, joined into one string."""
     context = build_context()
     data_block = (
         "\n\n=== CURRENT ATHLETE DATA ===\n"
@@ -136,25 +139,50 @@ def build_system_prompt():
     return INSTRUCTIONS + data_block
 
 
+def _record_usage(agg, model, api_calls, tools_used, user_message):
+    """Persist one ApiUsage row for this chat turn (dashboard data)."""
+    inp = agg["input_tokens"]
+    cw  = agg["cache_creation_input_tokens"]
+    cr  = agg["cache_read_input_tokens"]
+    out = agg["output_tokens"]
+
+    cost = (inp * PRICE_INPUT + cw * PRICE_CACHE_WRITE
+            + cr * PRICE_CACHE_READ + out * PRICE_OUTPUT)
+
+    try:
+        ApiUsage.objects.create(
+            model=model,
+            input_tokens=inp,
+            cache_creation_tokens=cw,
+            cache_read_tokens=cr,
+            output_tokens=out,
+            cost_usd=round(cost, 6),
+            api_calls=api_calls,
+            tools_used=",".join(tools_used),
+            user_message=(user_message or "")[:300],
+        )
+    except Exception:
+        # Never let usage logging break a chat response
+        pass
+
+
 def chat(user_message, conversation_history=None):
     """Run one coaching turn.
 
-    Returns a tuple: (reply_text, tools_used)
-    - reply_text: the coach's final text answer
-    - tools_used: list of tool names called this turn (for the UI action caption)
+    Returns (reply_text, tools_used).
+    Records one ApiUsage row summarising the whole turn's token use + cost.
     """
     if conversation_history is None:
         conversation_history = []
 
     system_prompt = build_system_prompt()
+    messages = conversation_history + [{"role": "user", "content": user_message}]
 
-    messages = conversation_history + [
-        {"role": "user", "content": user_message}
-    ]
+    tools_used = []
+    api_calls = 0
+    agg = {"input_tokens": 0, "cache_creation_input_tokens": 0,
+           "cache_read_input_tokens": 0, "output_tokens": 0}
 
-    tools_used = []  # track which tools ran, to report back to the UI
-
-    # Tool loop — repeat until the model returns a final text answer
     while True:
         response = client.messages.create(
             model=MODEL,
@@ -164,23 +192,28 @@ def chat(user_message, conversation_history=None):
             tools=TOOL_DEFINITIONS,
             messages=messages,
         )
+        api_calls += 1
+
+        u = response.usage
+        agg["input_tokens"]                += getattr(u, "input_tokens", 0) or 0
+        agg["cache_creation_input_tokens"] += getattr(u, "cache_creation_input_tokens", 0) or 0
+        agg["cache_read_input_tokens"]     += getattr(u, "cache_read_input_tokens", 0) or 0
+        agg["output_tokens"]               += getattr(u, "output_tokens", 0) or 0
 
         if response.stop_reason != "tool_use":
             final_text = "".join(
-                block.text for block in response.content
-                if block.type == "text"
+                block.text for block in response.content if block.type == "text"
             )
-
             CoachRecommendation.objects.create(
                 date=datetime.date.today(),
                 recommendation=final_text,
                 user_message=user_message,
             )
+            _record_usage(agg, MODEL, api_calls, tools_used, user_message)
             return final_text, tools_used
 
         # Model requested tools: append its turn, run each tool, return results
         messages.append({"role": "assistant", "content": response.content})
-
         tool_results = []
         for block in response.content:
             if block.type == "tool_use":
@@ -191,5 +224,4 @@ def chat(user_message, conversation_history=None):
                     "tool_use_id": block.id,
                     "content": str(result),
                 })
-
         messages.append({"role": "user", "content": tool_results})
