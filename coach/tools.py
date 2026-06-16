@@ -1,5 +1,5 @@
 import datetime as dt
-from coach.models import DailyFeeling, Goal, Injury
+from coach.models import DailyFeeling, Goal, Injury, PlannedSession
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +102,19 @@ def append_athlete_note(note):
     profile.save()
     return f"Appended note to athlete profile: {note}"
 
+def create_planned_session(date, activity_type, title="", description="",duration_minutes=None, intensity="", created_by="coach"):
+    """Create a planned training session on a given date."""
+    PlannedSession.objects.create(
+        date=date, activity_type=activity_type, title=title or "",
+        description=description or "", duration_minutes=duration_minutes,
+        intensity=intensity or "", created_by=created_by,
+    )
+    return f"Planned {activity_type} on {date}: {title or activity_type}"
+
+def clear_planned_sessions(date):
+    """Remove all planned sessions on a given date (use before re-planning a day)."""
+    n, _ = PlannedSession.objects.filter(date=date).delete()
+    return f"Cleared {n} planned session(s) on {date}"
 
 # ---------------------------------------------------------------------------
 # Tool definitions — how the LLM sees the tools
@@ -255,7 +268,37 @@ TOOL_DEFINITIONS = [
             },
             "required": ["note"]
         }
-    }
+    },
+    {
+        "name": "create_planned_session",
+        "description": (
+            "Add a planned training session to the athlete's calendar on a specific "
+            "date. Use when planning ahead (e.g. 'plan my week'). One session per call; "
+            "call multiple times to plan several days. To change a day, call "
+            "clear_planned_sessions for that date first, then create the new one."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "ISO date YYYY-MM-DD. Use the dates from next_7_days."},
+                "activity_type": {"type": "string", "enum": ["cycling", "gym_legs", "gym_upper", "skating", "tennis", "skiing", "rest", "other"]},
+                "title": {"type": "string", "description": "Short name, e.g. 'VO2max intervals'"},
+                "description": {"type": "string", "description": "Details / exercises / sets x reps"},
+                "duration_minutes": {"type": "integer"},
+                "intensity": {"type": "string", "enum": ["easy", "moderate", "hard"]},
+            },
+            "required": ["date", "activity_type"],
+        },
+    },
+    {
+        "name": "clear_planned_sessions",
+        "description": "Delete all planned sessions on a date. Use before re-planning a day, or to remove a planned session the athlete cancelled.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"date": {"type": "string", "description": "ISO date YYYY-MM-DD"}},
+            "required": ["date"],
+        },
+    },
 ]
 
 
@@ -265,6 +308,8 @@ TOOL_FUNCTIONS = {
     "resolve_injury": resolve_injury,
     "adjust_goal": adjust_goal,
     "append_athlete_note": append_athlete_note,
+    "create_planned_session": create_planned_session,
+    "clear_planned_sessions": clear_planned_sessions,
 }
 
 

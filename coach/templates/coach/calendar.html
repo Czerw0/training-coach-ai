@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Calendar · Training Coach</title>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+    <style>
+        :root {
+            --navy:#0B1F3A; --blue:#2D6CDF; --ink:#11151C;
+            --ink-soft:#6B7585; --line:#E4E8EF; --surface:#FFFFFF;
+            --bg:#F4F6F9; --pill-bg:#EDF0F5; --danger:#C0392B;
+        }
+        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+        html, body { height:100%; }
+        body {
+            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+            background:var(--bg); color:var(--ink);
+            height:100dvh; display:flex; justify-content:center; align-items:stretch;
+        }
+
+        .app {
+            width:100%; max-width:520px; display:flex; flex-direction:column;
+            height:100dvh; background:var(--bg); overflow:hidden;
+        }
+        @media (min-width:600px) {
+            body { padding:24px; align-items:center; }
+            .app {
+                height:min(900px, calc(100dvh - 48px));
+                border:1px solid var(--line); border-radius:22px;
+                box-shadow:0 10px 40px rgba(11,31,58,0.10); background:var(--surface);
+            }
+        }
+
+        .topbar { flex-shrink:0; padding:max(12px, env(safe-area-inset-top)) 12px 0; }
+        .pill {
+            display:flex; align-items:center; gap:10px;
+            background:var(--pill-bg); border-radius:999px; padding:8px 8px 8px 12px;
+        }
+        .logo {
+            width:30px; height:30px; border-radius:50%; background:var(--navy); color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:700; font-size:14px; flex-shrink:0;
+        }
+        .pill .name { font-size:15px; font-weight:650; flex:1; }
+        .back {
+            display:flex; align-items:center; gap:6px;
+            background:var(--surface); border:1px solid var(--line); border-radius:999px;
+            padding:6px 13px; font-size:13px; font-weight:600; color:var(--navy);
+            cursor:pointer; text-decoration:none;
+        }
+        .back svg { width:16px; height:16px; stroke:var(--navy); fill:none; stroke-width:1.9; }
+
+        .legend {
+            display:flex; flex-wrap:wrap; gap:7px 12px;
+            padding:10px 14px 8px; font-size:11.5px; color:var(--ink-soft);
+        }
+        .legend .item { display:flex; align-items:center; gap:5px; }
+        .legend .sw { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
+        .legend .sw.outline { background:transparent; border:1.5px dashed #888780; }
+
+        .cal-wrap { flex:1; overflow-y:auto; padding:0 10px 16px; -webkit-overflow-scrolling:touch; }
+
+        /* ---- FullCalendar theming (month only) ---- */
+        .fc { font-size:12px; }
+        .fc .fc-toolbar.fc-header-toolbar { margin-bottom:8px; flex-wrap:wrap; gap:6px; }
+        .fc .fc-toolbar-title { font-size:15px; font-weight:650; color:var(--navy); }
+        .fc .fc-button {
+            background:var(--navy); border:none; font-size:11px;
+            padding:5px 9px; border-radius:8px; text-transform:capitalize;
+        }
+        .fc .fc-button:hover { background:#16304f; }
+        .fc .fc-button-primary:disabled { background:var(--ink-soft); }
+        .fc-theme-standard td, .fc-theme-standard th { border-color:var(--line); }
+        .fc .fc-daygrid-day-frame { min-height:84px; }
+        .fc .fc-col-header-cell-cushion { font-size:11px; font-weight:600; color:var(--ink-soft); padding:6px 2px; }
+        .fc .fc-daygrid-day-number { font-size:11px; color:var(--ink-soft); padding:3px 5px; }
+        .fc .fc-day-today { background:#FBF7E8 !important; }
+
+        /* Solid colour-filled event bars (Google-Calendar style) */
+        .fc-daygrid-event {
+            white-space:normal !important;
+            border:none; border-radius:5px;
+            padding:2px 6px; margin:1px 2px;
+            font-size:11px; font-weight:600; line-height:1.25;
+            color:#fff;                       /* activities: white text on solid colour */
+        }
+        .fc-daygrid-event .fc-event-title { white-space:normal; overflow:visible; }
+        /* remove FullCalendar's default little dot */
+        .fc-daygrid-event .fc-daygrid-event-dot { display:none; }
+        .fc-daygrid-dot-event { padding:2px 6px; }
+        .fc-daygrid-dot-event:hover { background:inherit; }
+
+        /* Planned sessions: lighter tinted fill + coloured text (still distinct from done) */
+        .fc-event.planned {
+            background:rgba(45,108,223,0.10) !important;   /* overridden per-colour inline */
+            border:1px dashed currentColor !important;
+        }
+
+        .fc .fc-more-link { font-size:10.5px; font-weight:600; color:var(--blue); }
+
+        /* ---- Modal ---- */
+        .overlay {
+            position:fixed; inset:0; background:rgba(11,31,58,0.45);
+            display:none; align-items:flex-end; justify-content:center; z-index:50;
+        }
+        .overlay.open { display:flex; }
+        .modal {
+            width:100%; max-width:480px; background:var(--surface);
+            border-radius:20px 20px 0 0; padding:20px 18px max(20px, env(safe-area-inset-bottom));
+            max-height:90dvh; overflow-y:auto;
+        }
+        @media (min-width:600px) { .overlay { align-items:center; } .modal { border-radius:20px; } }
+        .modal h2 { font-size:16px; font-weight:650; margin-bottom:4px; }
+        .modal .who-line { font-size:12px; color:var(--ink-soft); margin-bottom:12px; }
+        .modal label { display:block; font-size:13px; font-weight:600; color:var(--ink-soft); margin:12px 0 5px; }
+        .modal select, .modal input, .modal textarea {
+            width:100%; padding:11px 13px; border:1px solid var(--line); background:var(--bg);
+            border-radius:11px; font-size:16px; color:var(--ink); outline:none;
+        }
+        .modal select:focus, .modal input:focus, .modal textarea:focus { border-color:var(--blue); background:#fff; }
+        .modal textarea { resize:vertical; min-height:60px; }
+        .modal .row { display:flex; gap:10px; }
+        .modal .row > div { flex:1; }
+        .modal .check { display:flex; align-items:center; gap:8px; margin-top:14px; }
+        .modal .check input { width:auto; }
+        .modal-actions { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
+        .btn-primary {
+            flex:1; min-width:120px; background:var(--blue); color:#fff; border:none; border-radius:12px;
+            padding:13px; font-size:15px; font-weight:600; cursor:pointer;
+        }
+        .btn-primary:active { background:var(--navy); }
+        .btn-ghost {
+            background:none; border:1px solid var(--line); color:var(--ink-soft);
+            border-radius:12px; padding:13px 16px; font-size:15px; font-weight:600; cursor:pointer;
+        }
+        .btn-danger {
+            background:none; border:1px solid var(--danger); color:var(--danger);
+            border-radius:12px; padding:13px 16px; font-size:15px; font-weight:600; cursor:pointer;
+        }
+        .readonly-note { font-size:14px; color:var(--ink); margin-top:6px; line-height:1.5; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="topbar">
+            <div class="pill">
+                <div class="logo">TC</div>
+                <div class="name">Calendar</div>
+                <a class="back" href="/">
+                    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Coach
+                </a>
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="item"><span class="sw" style="background:#2D6CDF"></span>Cycling</div>
+            <div class="item"><span class="sw" style="background:#7A5CCC"></span>Gym</div>
+            <div class="item"><span class="sw" style="background:#1D9E75"></span>Skating</div>
+            <div class="item"><span class="sw" style="background:#BA7517"></span>Tennis</div>
+            <div class="item"><span class="sw" style="background:#378ADD"></span>Skiing</div>
+            <div class="item"><span class="sw" style="background:#645F43D6"></span>Hiking</div>
+            <div class="item"><span class="sw outline"></span>Planned COACH/USER</div>
+        </div>
+
+        <div class="cal-wrap">
+            <div id="calendar"></div>
+        </div>
+    </div>
+
+    <!-- Add / edit / delete planned session modal -->
+    <div class="overlay" id="overlay">
+        <div class="modal">
+            <h2 id="modal-title">Plan a session</h2>
+            <div class="who-line" id="who-line"></div>
+
+            <div id="form-area">
+                <label>Type</label>
+                <select id="f-type">
+                    <option value="cycling">Cycling</option>
+                    <option value="gym_legs">Gym — legs</option>
+                    <option value="gym_upper">Gym — upper body</option>
+                    <option value="skating">Skating</option>
+                    <option value="tennis">Tennis</option>
+                    <option value="skiing">Skiing</option>
+                    <option value="haiking">Hiking</option>
+                    <option value="rest">Rest</option>
+                    <option value="other">Other</option>
+                </select>
+
+                <label>Title</label>
+                <input type="text" id="f-title" placeholder="e.g. VO2max intervals">
+
+                <div class="row">
+                    <div>
+                        <label>Duration (min)</label>
+                        <input type="number" id="f-duration" placeholder="60">
+                    </div>
+                    <div>
+                        <label>Intensity</label>
+                        <select id="f-intensity">
+                            <option value="">—</option>
+                            <option value="easy">Easy</option>
+                            <option value="moderate">Moderate</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label>Notes</label>
+                <textarea id="f-notes" placeholder="Details, exercises, etc."></textarea>
+
+                <div class="check">
+                    <input type="checkbox" id="f-completed">
+                    <label for="f-completed" style="margin:0;">Mark as completed</label>
+                </div>
+            </div>
+
+            <div id="readonly-area" style="display:none;">
+                <p class="readonly-note" id="readonly-text"></p>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-primary" id="save-btn">Save</button>
+                <button class="btn-danger" id="delete-btn" style="display:none;">Delete</button>
+                <button class="btn-ghost" id="cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        const overlay = document.getElementById('overlay');
+        const modalTitle = document.getElementById('modal-title');
+        const whoLine = document.getElementById('who-line');
+        const formArea = document.getElementById('form-area');
+        const readonlyArea = document.getElementById('readonly-area');
+        const readonlyText = document.getElementById('readonly-text');
+        const saveBtn = document.getElementById('save-btn');
+        const deleteBtn = document.getElementById('delete-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+
+        let editingId = null;
+        let editingDate = null;
+
+        function openCreate(dateStr) {
+            editingId = null;
+            editingDate = dateStr;
+            modalTitle.textContent = 'Plan a session';
+            whoLine.textContent = dateStr + ' · created by you ';
+            formArea.style.display = '';
+            readonlyArea.style.display = 'none';
+            saveBtn.style.display = '';
+            deleteBtn.style.display = 'none';
+            document.getElementById('f-type').value = 'cycling';
+            document.getElementById('f-title').value = '';
+            document.getElementById('f-duration').value = '';
+            document.getElementById('f-intensity').value = '';
+            document.getElementById('f-notes').value = '';
+            document.getElementById('f-completed').checked = false;
+            overlay.classList.add('open');
+        }
+
+        function openEdit(ev) {
+            const p = ev.extendedProps;
+            editingId = p.session_id;
+            editingDate = ev.startStr.slice(0, 10);
+            modalTitle.textContent = 'Edit session';
+            const who = p.created_by === 'ai' ? 'planned by AI coach ' : 'planned by you ';
+            whoLine.textContent = editingDate + ' · ' + who;
+            formArea.style.display = '';
+            readonlyArea.style.display = 'none';
+            saveBtn.style.display = '';
+            deleteBtn.style.display = '';
+            document.getElementById('f-type').value = p.activity_type || 'other';
+            document.getElementById('f-title').value = p.title || '';
+            document.getElementById('f-duration').value = p.duration_minutes || '';
+            document.getElementById('f-intensity').value = p.intensity || '';
+            document.getElementById('f-notes').value = p.description || '';
+            document.getElementById('f-completed').checked = !!p.completed;
+            overlay.classList.add('open');
+        }
+
+        function openReadonly(ev) {
+            editingId = null;
+            modalTitle.textContent = ev.title;
+            whoLine.textContent = 'Completed activity · from Garmin';
+            formArea.style.display = 'none';
+            readonlyArea.style.display = '';
+            saveBtn.style.display = 'none';
+            deleteBtn.style.display = 'none';
+            readonlyText.textContent = ev.extendedProps.detail || 'Completed activity from Garmin.';
+            overlay.classList.add('open');
+        }
+
+        function closeModal() { overlay.classList.remove('open'); }
+        cancelBtn.addEventListener('click', closeModal);
+        overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+        let calendar;
+
+        async function saveSession() {
+            const payload = {
+                id: editingId,
+                date: editingDate,
+                activity_type: document.getElementById('f-type').value,
+                title: document.getElementById('f-title').value,
+                duration_minutes: document.getElementById('f-duration').value || null,
+                intensity: document.getElementById('f-intensity').value,
+                description: document.getElementById('f-notes').value,
+                completed: document.getElementById('f-completed').checked,
+            };
+            await fetch('/calendar/session/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify(payload),
+            });
+            closeModal();
+            calendar.refetchEvents();
+        }
+
+        async function deleteSession() {
+            if (!editingId) return;
+            await fetch('/calendar/session/delete/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ id: editingId }),
+            });
+            closeModal();
+            calendar.refetchEvents();
+        }
+
+        saveBtn.addEventListener('click', saveSession);
+        deleteBtn.addEventListener('click', deleteSession);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+                initialView: 'dayGridMonth',     // month only
+                firstDay: 1,                     // Monday
+                height: 'auto',
+                headerToolbar: { left: 'prev,next', center: 'title', right: 'today' },
+                dayMaxEventRows: 3,              // cap at 3, then "+N more"
+                fixedWeekCount: false,
+                // Planned sessions get a tinted background matching their colour.
+                eventDidMount: function(info) {
+                    if (info.event.extendedProps.kind === 'planned') {
+                        const c = info.event.borderColor || '#888780';
+                        info.el.style.background = 'transparent';
+                        info.el.style.color = c;
+                        info.el.style.borderColor = c;
+                    }
+                },
+                events: '/calendar/events/',
+                eventClick: function(info) {
+                    info.jsEvent.preventDefault();
+                    const p = info.event.extendedProps;
+                    if (p.kind === 'planned') openEdit(info.event);
+                    else openReadonly(info.event);
+                },
+                dateClick: function(info) {
+                    openCreate(info.dateStr.slice(0, 10));
+                },
+            });
+            calendar.render();
+        });
+    </script>
+</body>
+</html>

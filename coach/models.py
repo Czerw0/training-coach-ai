@@ -119,7 +119,6 @@ class ApiUsage(models.Model):
  
     # Context for the timeline view
     api_calls = models.IntegerField(default=1)               # API round-trips in this turn (tool loop can be >1)
-    tools_used = models.CharField(max_length=255, blank=True, default="")  # comma-separated tool names
     user_message = models.CharField(max_length=300, blank=True, default="")  # truncated triggering message
  
     class Meta:
@@ -127,3 +126,20 @@ class ApiUsage(models.Model):
  
     def __str__(self):
         return f"{self.created_at:%Y-%m-%d %H:%M} · ${self.cost_usd:.4f} · {self.model}"
+
+class PlannedSession(models.Model):
+    date = models.DateField(db_index=True)
+    activity_type = models.CharField(max_length=50)        # cycling, gym_legs, gym_upper, skating, tennis, skiing, rest, other
+    title = models.CharField(max_length=200, blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    duration_minutes = models.IntegerField(null=True, blank=True)
+    intensity = models.CharField(max_length=20, blank=True, default="")   # easy, moderate, hard
+    completed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=10, blank=True, default="")  # 'coach' or 'user'
+ 
+    class Meta:
+        ordering = ['date']
+ 
+    def __str__(self):
+        return f"{self.date} {self.activity_type}"
