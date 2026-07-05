@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import anthropic
+import hashlib
 from dotenv import load_dotenv
 from coach.context import build_context
 from coach.tools import TOOL_DEFINITIONS, execute_tool
@@ -24,7 +25,6 @@ PRICE_INPUT       = 1.00 / 1_000_000
 PRICE_CACHE_WRITE = 1.25 / 1_000_000
 PRICE_CACHE_READ  = 0.10 / 1_000_000
 PRICE_OUTPUT      = 5.00 / 1_000_000
-
 
 # ---------------------------------------------------------------------------
 # STATIC instructions — never change between messages.
@@ -137,6 +137,9 @@ that didn't happen.
 Respond conversationally and practically, like a knowledgeable coach who knows
 this athlete well."""
 
+PROMPT_VERSION = "v1.1.0" # Update this when you change the instructions or data block format in build_system_prompt().
+PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
+
 
 def build_system_prompt():
     """Static instructions + fresh data block, joined into one string."""
@@ -149,7 +152,7 @@ def build_system_prompt():
     return INSTRUCTIONS + data_block
 
 
-def _record_usage(agg, model, api_calls, tools_used, user_message):
+def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_version):
     """Persist one ApiUsage row for this chat turn (dashboard data)."""
     inp = agg["input_tokens"]
     cw  = agg["cache_creation_input_tokens"]
@@ -170,6 +173,7 @@ def _record_usage(agg, model, api_calls, tools_used, user_message):
             api_calls=api_calls,
             tools_used=",".join(tools_used),
             user_message=(user_message or "")[:300],
+            prompt_version=prompt_version,
         )
     except Exception:
         # Never let usage logging break a chat response

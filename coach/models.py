@@ -103,24 +103,19 @@ class SyncStatus(models.Model):
         super().save(*args, **kwargs)
 
 
-# Api usage model
+
 class ApiUsage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     model = models.CharField(max_length=60)
- 
-    # Token counts (all separate so the dashboard can show the breakdown)
-    input_tokens = models.IntegerField(default=0)            # uncached input
-    cache_creation_tokens = models.IntegerField(default=0)   # cache writes (1.25x)
-    cache_read_tokens = models.IntegerField(default=0)       # cache reads (0.10x)
+    input_tokens = models.IntegerField(default=0)            
+    cache_creation_tokens = models.IntegerField(default=0)   
+    cache_read_tokens = models.IntegerField(default=0)       
     output_tokens = models.IntegerField(default=0)
- 
-    # Derived cost in USD (precomputed for easy charting/summing)
     cost_usd = models.FloatField(default=0.0)
- 
-    # Context for the timeline view
-    api_calls = models.IntegerField(default=1)               # API round-trips in this turn (tool loop can be >1)
-    user_message = models.CharField(max_length=300, blank=True, default="")  # truncated triggering message
+    api_calls = models.IntegerField(default=1)               
+    user_message = models.CharField(max_length=300, blank=True, default="")  
     tools_used = models.CharField(max_length=255, blank=True, default="")
+    prompt_version = models.CharField(max_length=40, blank=True, default="")
  
     class Meta:
         ordering = ['-created_at']
@@ -130,14 +125,14 @@ class ApiUsage(models.Model):
 
 class PlannedSession(models.Model):
     date = models.DateField(db_index=True)
-    activity_type = models.CharField(max_length=50)        # cycling, gym_legs, gym_upper, skating, tennis, skiing, rest, other
+    activity_type = models.CharField(max_length=50)        
     title = models.CharField(max_length=200, blank=True, default="")
     description = models.TextField(blank=True, default="")
     duration_minutes = models.IntegerField(null=True, blank=True)
-    intensity = models.CharField(max_length=20, blank=True, default="")   # easy, moderate, hard
+    intensity = models.CharField(max_length=20, blank=True, default="")   
     completed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    created_by = models.CharField(max_length=10, blank=True, default="")  # 'coach' or 'user'
+    created_by = models.CharField(max_length=10, blank=True, default="")  
  
     class Meta:
         ordering = ['date']

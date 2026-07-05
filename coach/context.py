@@ -6,10 +6,10 @@ from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, Planne
 
 
 # Days of the week with skating instruction: Mon=0, Tue=1, Wed=2, Sun=6.
-# NOTE: if the schedule changes (e.g. July/August pause), update this set.
-INSTRUCTION_DAYS = {0, 1, 2, 6}
+# if the schedule changes (e.g. July/August pause), update this set.
+INSTRUCTION_DAYS = set()
 
-# Minimal WMO weather code -> short label.
+# Weather codes from Open-Meteo: https://open-meteo.com/en/docs#api-formats
 WEATHER_CODES = {
     0: "clear", 1: "mainly clear", 2: "partly cloudy", 3: "overcast",
     45: "fog", 48: "fog",
@@ -22,11 +22,11 @@ WEATHER_CODES = {
 
 
 def _round(value, ndigits=1):
+    """Round a float to the given number of decimal places, or return None if the value is None"""
     return round(value, ndigits) if value is not None else None
 
-
 def _summarise_weather(hours):
-    """Collapse hourly rows into one short line per day-part. Big token saver."""
+    """Collapse hourly rows into one short line per day-part"""
     blocks = {}
     for h in hours:
         dt = h['datetime']
@@ -61,7 +61,7 @@ def _summarise_weather(hours):
 
 
 def _clean_activities(rows):
-    """Round Garmin's long floats; seconds->min, meters->km."""
+    """Round Garmin's long floats"""
     cleaned = []
     for a in rows:
         cleaned.append({
@@ -80,10 +80,13 @@ def _clean_activities(rows):
 
 
 def build_context():
+    """
+    main function of the context module
+    """
     today = datetime.date.today()
     now = timezone.now()
 
-    # --- Precomputed calendar: the model READS weekdays, never calculates ---
+    # Next 7 days (for calendar view)
     next_7_days = []
     for i in range(7):
         d = today + datetime.timedelta(days=i)
@@ -93,9 +96,9 @@ def build_context():
             'usual_instruction_day': d.weekday() in INSTRUCTION_DAYS,
         })
 
-    calendar = PlannedSession.objects.filter(date__gte=today).order_by('date').values('date', 'title', 'activity_type')
+    calendar = PlannedSession.objects.filter(date__gte=today).order_by('date').values('date', 'title', 'activity_type', 'created_at', 'completed')
     
-    # --- User Profile ---
+    # User Profile
     profile = UserProfile.objects.first()
     profile_data = {
         'ftp_watts': profile.ftp_watts if profile else None,
@@ -107,12 +110,16 @@ def build_context():
         'athlete_notes': profile.athlete_notes if profile else None,
     }
 
-    # --- Cross-day memory ---
+
+
+    # Cross-day memory
     recent_recommendations = list(CoachRecommendation.objects.filter(
         date__gte=today - datetime.timedelta(days=7)
     ).order_by('-date').values('date', 'recommendation', 'user_message'))
 
-    # --- Training load + ACWR ---
+
+
+    # Training load + ACWR
     load_7 = Activity.objects.filter(
         start_time__date__gte=today - datetime.timedelta(days=7)
     ).aggregate(Sum('training_load'))['training_load__sum'] or 0
@@ -121,9 +128,12 @@ def build_context():
         start_time__date__gte=today - datetime.timedelta(days=28)
     ).aggregate(Sum('training_load'))['training_load__sum'] or 0
 
+    # Acute Chronic Workload Ratio (ACWR) = 7-day load / (28-day load / 4)
     acute_chronic_ratio = round(load_7 / (load_28 / 4), 2) if load_28 else None
 
-    # --- Recent activities (14 days, trimmed + cleaned) ---
+
+
+    # Recent activities (14 days)
     activities_raw = list(Activity.objects.filter(
         start_time__date__gte=today - datetime.timedelta(days=14)
     ).order_by('-start_time').values(
@@ -133,7 +143,9 @@ def build_context():
     ))
     activities = _clean_activities(activities_raw)
 
-    # --- Recovery: HRV / sleep / daily stats, 7 days ---
+
+
+    # Recovery: HRV / sleep / daily stats, 7 days
     hrv = list(HRVRecord.objects.filter(
         date__gte=today - datetime.timedelta(days=7)
     ).order_by('-date').values('date', 'hrv_rmssd', 'hrv_status', 'resting_hr'))
@@ -158,7 +170,9 @@ def build_context():
         'steps', 'recovery_time_hours', 'training_status', 'acwr_ratio',
     ))
 
-    # --- Slow-moving fitness metrics (30 days, sparse) ---
+
+
+    # Slow-moving fitness metrics (30 days, sparse)
     fitness_trend = list(DailyStats.objects.filter(
         date__gte=today - datetime.timedelta(days=30),
     ).exclude(
@@ -171,7 +185,9 @@ def build_context():
         date__gte=today - datetime.timedelta(days=30)
     ).order_by('-date').values('date', 'ftp_watts'))
 
-    # --- Feelings, injuries, goals ---
+
+
+    # Feelings, injuries, goals
     feelings = list(DailyFeeling.objects.filter(
         date__gte=today - datetime.timedelta(days=14)
     ).order_by('-date').values(
@@ -199,7 +215,9 @@ def build_context():
         'title', 'goal_type', 'target_date', 'description',
     ))
 
-    # --- Weather, summarised ---
+
+
+    # Weather, summarised
     weather_hours = list(WeatherHourly.objects.filter(
         datetime__gte=now,
         datetime__lte=now + datetime.timedelta(hours=48)
@@ -208,7 +226,9 @@ def build_context():
     ))
     weather_summary = _summarise_weather(weather_hours)
 
-    # --- Data freshness: when did Garmin data last land? ---
+
+
+    # time of latest sync of DailyStats 
     last_stats = DailyStats.objects.order_by('-date').first()
     last_sync_date = last_stats.date.isoformat() if last_stats else None
 
