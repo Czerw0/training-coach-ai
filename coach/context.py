@@ -2,7 +2,7 @@ import datetime
 from django.db.models import Sum, Q
 from django.utils import timezone
 from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, UserProfile, FTPRecord
-from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation
+from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, PlannedSession
 
 
 # Days of the week with skating instruction: Mon=0, Tue=1, Wed=2, Sun=6.
@@ -93,6 +93,8 @@ def build_context():
             'usual_instruction_day': d.weekday() in INSTRUCTION_DAYS,
         })
 
+    calendar = PlannedSession.objects.filter(date__gte=today).order_by('date').values('date', 'title', 'activity_type')
+    
     # --- User Profile ---
     profile = UserProfile.objects.first()
     profile_data = {
@@ -214,6 +216,7 @@ def build_context():
         'today': f"{today.isoformat()} ({today.strftime('%A')})",
         'next_7_days': next_7_days,
         'last_garmin_data_date': last_sync_date,
+        'calendar': list(calendar),
         'user_profile': profile_data,
         'training_load': {
             '7_days': round(load_7, 1),
