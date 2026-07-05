@@ -9,3 +9,5 @@ retry-requests
 anthropic==0.107.0
 gunicorn 
 whitenoise
+pytest
+pytest-django

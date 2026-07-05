@@ -26,6 +26,11 @@ PRICE_CACHE_WRITE = 1.25 / 1_000_000
 PRICE_CACHE_READ  = 0.10 / 1_000_000
 PRICE_OUTPUT      = 5.00 / 1_000_000
 
+def compute_cost(inp, cache_write, cache_read, out):
+    return (inp * PRICE_INPUT + cache_write * PRICE_CACHE_WRITE
+            + cache_read * PRICE_CACHE_READ + out * PRICE_OUTPUT)
+
+cost = compute_cost(1000, 500, 200, 1500)
 # ---------------------------------------------------------------------------
 # STATIC instructions — never change between messages.
 # (Kept split from the data block in build_system_prompt so caching can be
@@ -159,9 +164,7 @@ def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_versio
     cr  = agg["cache_read_input_tokens"]
     out = agg["output_tokens"]
 
-    cost = (inp * PRICE_INPUT + cw * PRICE_CACHE_WRITE
-            + cr * PRICE_CACHE_READ + out * PRICE_OUTPUT)
-
+    cost = compute_cost(inp, cw, cr, out)
     try:
         ApiUsage.objects.create(
             model=model,

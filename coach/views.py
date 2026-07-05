@@ -94,8 +94,8 @@ def _activity_color(activity_type):
     if "ski" in t:                                         return "#378ADD"   # light blue
     if "run" in t:                                         return "#E24B4A"   # red
     if "swim" in t:                                        return "#15A0A6"   # cyan
-    if "hiking" in t:                                      return "#645F43D6" # brown
-    return "#B1B1B1C8"                                                        # grey (rest/other)
+    if "mountaineering" in t:                              return "#645F43D6" # brown
+    return "#D6D6D696"                                                        # grey (rest/other)
 
  
 # --- the calendar page ---

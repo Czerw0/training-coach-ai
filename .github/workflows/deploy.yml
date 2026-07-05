@@ -1,25 +1,48 @@
-name: Deploy to Oracle VM
+name: Test and Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:                                        # test-only values, not secrets
+      SECRET_KEY: test-only-not-real
+      DEBUG: "False"
+      DATABASE_URL: sqlite:///test.sqlite3      
+      ANTHROPIC_API_KEY: dummy-for-import       
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest -v
+
   deploy:
     runs-on: ubuntu-latest
+    needs: test                                 # The gate
     steps:
-      - name: Deploy over SSH
+      - name: Deploy to VM
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
-            cd ~/training-coach-ai
+            cd training-coach-ai
             git pull
-            docker build -t training-coach .
+            docker build -t coach .
             docker stop coach || true
             docker rm coach || true
-            docker run -d --name coach --env-file .env -p 8000:8000 training-coach
+            docker run -d --name coach --env-file .env -p 8000:8000 coach
             docker image prune -f
