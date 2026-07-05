@@ -1,0 +1,13 @@
+django
+psycopg2-binary
+python-dotenv
+django-environ
+garminconnect
+openmeteo-requests 
+requests-cache 
+retry-requests
+anthropic==0.107.0
+gunicorn 
+whitenoise
+pytest
+pytest-django
