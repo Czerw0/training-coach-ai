@@ -35,7 +35,7 @@ class Command(BaseCommand):
         today = datetime.date.today()
         for i in range(days, -1, -1):
             date_str = (today - datetime.timedelta(days=i)).isoformat()
-            self.stdout.write(f"--- Checking date: {date_str} ---")
+            self.stdout.write(f"Checking date: {date_str}")
             self._sync_activities(api, date_str)
             self._sync_sleep(api, date_str) 
             self._sync_hrv(api, date_str)
@@ -53,7 +53,7 @@ class Command(BaseCommand):
             activity_type = activity.get('activityType', {}).get('typeKey', 'other')
 
             defaults = {
-                # --- Identification ---
+                #Identification
                 'activity_name': activity.get('activityName'),
                 'activity_type': activity_type,
                 'start_time': make_aware(datetime.datetime.strptime(
@@ -62,7 +62,7 @@ class Command(BaseCommand):
                 'location_name': activity.get('locationName'),
                 'device_id': str(activity.get('deviceId', '')),
 
-                # --- Primary Metrics ---
+                #Primary Metrics
                 'duration_seconds': activity.get('duration'),
                 'moving_duration_seconds': activity.get('movingDuration'),
                 'elapsed_duration_seconds': activity.get('elapsedDuration'),
@@ -70,7 +70,7 @@ class Command(BaseCommand):
                 'calories': int(activity['calories']) if activity.get('calories') else None,
                 'bmr_calories': int(activity['bmrCalories']) if activity.get('bmrCalories') else None,
 
-                # --- Heart Rate ---
+                #Heart Rate
                 'avg_hr': int(activity['averageHR']) if activity.get('averageHR') else None,
                 'max_hr': int(activity['maxHR']) if activity.get('maxHR') else None,
                 'hr_zone_1_seconds': activity.get('hrTimeInZone_1'),
@@ -79,14 +79,14 @@ class Command(BaseCommand):
                 'hr_zone_4_seconds': activity.get('hrTimeInZone_4'),
                 'hr_zone_5_seconds': activity.get('hrTimeInZone_5'),
 
-                # --- Training Analysis ---
+                #Training Analysis
                 'training_load': activity.get('activityTrainingLoad'),
                 'training_effect_aerobic': activity.get('aerobicTrainingEffect'),
                 'training_effect_anaerobic': activity.get('anaerobicTrainingEffect'),
                 'training_effect_label': activity.get('trainingEffectLabel'),
                 'vo2_max': activity.get('vO2MaxValue'),
 
-                # --- Environment ---
+                #Environment
                 'elevation_gain_m': activity.get('elevationGain'),
                 'elevation_loss_m': activity.get('elevationLoss'),
                 'min_temp': activity.get('minTemperature'),
@@ -94,12 +94,12 @@ class Command(BaseCommand):
                 'body_battery_delta': activity.get('differenceBodyBattery'),
                 'lap_count': activity.get('lapCount'),
 
-                # --- Strength Training ---
+                #Strength Training
                 'total_sets': activity.get('totalSets'),
                 'active_sets': activity.get('activeSets'),
                 'total_reps': activity.get('totalReps'),
 
-                # --- Cycling (confirmed in summary) ---
+                #Cycling (confirmed in summary)
                 'avg_power': int(activity['avgPower']) if activity.get('avgPower') else None,
                 'max_power': int(activity['maxPower']) if activity.get('maxPower') else None,
                 'normalized_power': int(activity['normPower']) if activity.get('normPower') else None,
@@ -233,7 +233,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"  [No Data] Daily stats not found for {date}")
                 return
 
-            # --- VO2max + training status (separate endpoint, nested) ---
+            #VO2max + training status (separate endpoint, nested)
             vo2_running = None
             vo2_cycling = None
             training_status_val = None
@@ -259,7 +259,7 @@ class Command(BaseCommand):
             except Exception as e:
                 self.stdout.write(self.style.WARNING(f"  Training status failed for {date}: {e}"))
 
-            # --- Endurance score (separate endpoint) ---
+            #Endurance score (separate endpoint)
             endurance_score = None
             try:
                 es = api.get_endurance_score(date)

@@ -187,3 +187,30 @@ class FTPRecord(models.Model):
 
     def __str__(self):
         return f"FTP {self.ftp_watts}W on {self.date}"
+
+class IndoorCyclingWorkout(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    category = models.CharField(max_length=50)          # endurance, threshold, vo2max, recovery, ...
+    duration_min = models.IntegerField()
+    intensity_factor = models.FloatField()
+    tss = models.FloatField()
+    description = models.TextField(blank=True, default="")
+    structure = models.JSONField(default=list, blank=True)   # [{"sec","ftp_low","ftp_high","cadence"}]
+ 
+    class Meta:
+        ordering = ["tss"]
+ 
+    def __str__(self):
+        return f"{self.name} ({self.category}, {self.duration_min}min), IF: {self.intensity_factor}, TSS: {self.tss}"
+ 
+    def detail_watts(self, ftp):
+        out = []
+        for s in self.structure:
+            lo = round(ftp * s["ftp_low"] / 100) 
+            hi = round(ftp * s["ftp_high"] / 100)
+            mins = s["sec"] // 60 or s["sec"]
+            unit = "m" if s["sec"] >= 60 else "s"
+            watts = f"{lo}W" if lo == hi else f"{lo}-{hi}W"
+            out.append(f"{mins}{unit} @ {watts}")
+        return " | ".join(out)
+ 

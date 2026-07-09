@@ -1,12 +1,13 @@
 import datetime
 from django.db.models import Sum, Q
 from django.utils import timezone
-from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, UserProfile, FTPRecord
+from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, UserProfile, FTPRecord, IndoorCyclingWorkout
 from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, PlannedSession
 
 
 # Days of the week with skating instruction: Mon=0, Tue=1, Wed=2, Sun=6.
-# if the schedule changes (e.g. July/August pause), update this set.
+# Currently EMPTY: instruction is paused for July/August. Restore the set
+# (e.g. {0, 1, 2, 6}) when the season resumes.
 INSTRUCTION_DAYS = set()
 
 # Weather codes from Open-Meteo: https://open-meteo.com/en/docs#api-formats
@@ -24,6 +25,7 @@ WEATHER_CODES = {
 def _round(value, ndigits=1):
     """Round a float to the given number of decimal places, or return None if the value is None"""
     return round(value, ndigits) if value is not None else None
+
 
 def _summarise_weather(hours):
     """Collapse hourly rows into one short line per day-part"""
@@ -86,18 +88,25 @@ def build_context():
     today = datetime.date.today()
     now = timezone.now()
 
-    # Next 7 days (for calendar view)
-    next_7_days = []
-    for i in range(7):
+    # Next 14 days — the plannable window. Must stay in sync with
+    # PLANNING_WINDOW_DAYS in tools.py.
+    next_14_days = []
+    for i in range(14):
         d = today + datetime.timedelta(days=i)
-        next_7_days.append({
+        next_14_days.append({
             'date': d.isoformat(),
             'weekday': d.strftime('%A'),
             'usual_instruction_day': d.weekday() in INSTRUCTION_DAYS,
         })
 
-    calendar = PlannedSession.objects.filter(date__gte=today).order_by('date').values('date', 'title', 'activity_type', 'created_at', 'completed')
-    
+    # Planned sessions the agent can see (its own writes + the athlete's).
+    # created_by lets it distinguish who planned what; capped at 28 days so a
+    # long bulk plan doesn't bloat every future message.
+    calendar = PlannedSession.objects.filter(
+        date__gte=today,
+        date__lte=today + datetime.timedelta(days=28),
+    ).order_by('date').values('date', 'title', 'activity_type', 'created_by', 'completed')
+
     # User Profile
     profile = UserProfile.objects.first()
     profile_data = {
@@ -110,14 +119,10 @@ def build_context():
         'athlete_notes': profile.athlete_notes if profile else None,
     }
 
-
-
     # Cross-day memory
     recent_recommendations = list(CoachRecommendation.objects.filter(
         date__gte=today - datetime.timedelta(days=7)
     ).order_by('-date').values('date', 'recommendation', 'user_message'))
-
-
 
     # Training load + ACWR
     load_7 = Activity.objects.filter(
@@ -131,8 +136,6 @@ def build_context():
     # Acute Chronic Workload Ratio (ACWR) = 7-day load / (28-day load / 4)
     acute_chronic_ratio = round(load_7 / (load_28 / 4), 2) if load_28 else None
 
-
-
     # Recent activities (14 days)
     activities_raw = list(Activity.objects.filter(
         start_time__date__gte=today - datetime.timedelta(days=14)
@@ -142,8 +145,6 @@ def build_context():
         'avg_power', 'normalized_power',
     ))
     activities = _clean_activities(activities_raw)
-
-
 
     # Recovery: HRV / sleep / daily stats, 7 days
     hrv = list(HRVRecord.objects.filter(
@@ -170,8 +171,6 @@ def build_context():
         'steps', 'recovery_time_hours', 'training_status', 'acwr_ratio',
     ))
 
-
-
     # Slow-moving fitness metrics (30 days, sparse)
     fitness_trend = list(DailyStats.objects.filter(
         date__gte=today - datetime.timedelta(days=30),
@@ -184,8 +183,6 @@ def build_context():
     ftp_history = list(FTPRecord.objects.filter(
         date__gte=today - datetime.timedelta(days=30)
     ).order_by('-date').values('date', 'ftp_watts'))
-
-
 
     # Feelings, injuries, goals
     feelings = list(DailyFeeling.objects.filter(
@@ -215,8 +212,6 @@ def build_context():
         'title', 'goal_type', 'target_date', 'description',
     ))
 
-
-
     # Weather, summarised
     weather_hours = list(WeatherHourly.objects.filter(
         datetime__gte=now,
@@ -226,15 +221,19 @@ def build_context():
     ))
     weather_summary = _summarise_weather(weather_hours)
 
+    # Indor cycling trenings
 
+    indoor_cyc_workouts = list(IndoorCyclingWorkout.objects.all().values(
+        'name', 'category', 'duration_min', 'intensity_factor', 'tss', 'description'
+    ))
 
-    # time of latest sync of DailyStats 
+    # time of latest sync of DailyStats
     last_stats = DailyStats.objects.order_by('-date').first()
     last_sync_date = last_stats.date.isoformat() if last_stats else None
 
     return {
         'today': f"{today.isoformat()} ({today.strftime('%A')})",
-        'next_7_days': next_7_days,
+        'next_14_days': next_14_days,
         'last_garmin_data_date': last_sync_date,
         'calendar': list(calendar),
         'user_profile': profile_data,
@@ -263,4 +262,5 @@ def build_context():
         'recent_resolved_injuries': recent_resolved_injuries,
         'active_goals': active_goals,
         'weather_next_48h': weather_summary,
+        'indoor_cycling_workouts': indoor_cyc_workouts,
     }

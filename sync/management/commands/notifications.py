@@ -24,7 +24,7 @@ class Command(BaseCommand):
             label = s.title or s.activity_type
             lines.append(f"{s.date} — {label}")
 
-        body = "Hi Karol,\n\nThis is how your training week looks:\n\n" + "\n".join(lines)
+        body = "Hi,\n\nThis is how your training week looks:\n\n" + "\n".join(lines)
 
         self.stdout.write(body)   # print to terminal for testing
 

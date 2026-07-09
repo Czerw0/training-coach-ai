@@ -1,10 +1,57 @@
 import datetime as dt
 from coach.models import DailyFeeling, Goal, Injury, PlannedSession
+from sync.models import IndoorCyclingWorkout, UserProfile
+# Tool functions
+
+PLANNING_WINDOW_DAYS = 14   # must match next_14_days in context.py
 
 
-# ---------------------------------------------------------------------------
-# Tool functions — plain Python, write to the database
-# ---------------------------------------------------------------------------
+def validate_session_date(date_str, expected_weekday, today=None):
+    """Check that date_str is a real date, falls on expected_weekday, and lies
+    inside the plannable window (today .. today+13).
+
+    Args:
+        date_str:         ISO date string from the model, e.g. "2026-07-10"
+        expected_weekday: weekday name the model claims it is, e.g. "Friday"
+        today:            injectable for tests; defaults to the real today
+
+    Returns:
+        (True, parsed_date)            if valid
+        (False, error_message_string)  if invalid — goes back to the model as
+                                       the tool result so it can self-correct
+    """
+    today = today or dt.date.today()
+
+    # 1. Parse — a malformed string is itself a model error to catch.
+    try:
+        parsed = dt.date.fromisoformat(date_str)
+    except (ValueError, TypeError):
+        return False, (
+            f"Invalid date '{date_str}'. Use YYYY-MM-DD copied from next_14_days."
+        )
+
+    # 2. The date's ACTUAL weekday must match what the model claimed.
+    actual_weekday = parsed.strftime("%A")
+    if actual_weekday.lower() != (expected_weekday or "").lower():
+        return False, (
+            f"Date mismatch: {date_str} is a {actual_weekday}, not "
+            f"{expected_weekday}. Copy the exact date for {expected_weekday} "
+            f"from next_14_days and try again."
+        )
+
+    # 3. The date must lie inside the window the model can actually see.
+    #    Weekday consistency alone would accept e.g. a correct Saturday a
+    #    month away that the model calculated blind.
+    window_end = today + dt.timedelta(days=PLANNING_WINDOW_DAYS - 1)
+    if not (today <= parsed <= window_end):
+        return False, (
+            f"Date {date_str} is outside the plannable window "
+            f"({today.isoformat()} to {window_end.isoformat()}). Only dates "
+            f"listed in next_14_days can be scheduled."
+        )
+
+    return True, parsed
+
 
 def log_daily_feeling(energy_level=None, muscle_soreness=None,
                       sore_muscles=None, motivation=None, notes=None):
@@ -102,23 +149,48 @@ def append_athlete_note(note):
     profile.save()
     return f"Appended note to athlete profile: {note}"
 
-def create_planned_session(date, activity_type, title="", description="",duration_minutes=None, intensity="", created_by="coach"):
-    """Create a planned training session on a given date."""
+
+def create_planned_session(date, weekday, activity_type, title="",
+                           description="", duration_minutes=None,
+                           intensity=""):
+    """Write one planned session — but only after the date passes validation.
+
+    The model supplies both `date` and `weekday`; they must agree, and the date
+    must lie inside the plannable window. `weekday` is a checksum, not stored.
+    """
+    ok, result = validate_session_date(date, weekday)
+    if not ok:
+        return result   # error string goes back to the model; nothing written
+
     PlannedSession.objects.create(
-        date=date, activity_type=activity_type, title=title or "",
+        date=result, activity_type=activity_type, title=title or "",
         description=description or "", duration_minutes=duration_minutes,
-        intensity=intensity or "", created_by=created_by,
+        intensity=intensity or "", created_by="ai",
     )
-    return f"Planned {activity_type} on {date}: {title or activity_type}"
+    return f"Planned {activity_type} on {date} ({weekday})"
 
-def clear_planned_sessions(date):
-    """Remove all planned sessions on a given date (use before re-planning a day)."""
-    n, _ = PlannedSession.objects.filter(date=date).delete()
-    return f"Cleared {n} planned session(s) on {date}"
 
-# ---------------------------------------------------------------------------
-# Tool definitions — how the LLM sees the tools
-# ---------------------------------------------------------------------------
+def clear_planned_sessions(date, weekday):
+    """Remove all planned sessions on a date. Same validation as create — a
+    miscalculated date here would clear the wrong day and cause the exact
+    duplicates this tool exists to prevent."""
+    ok, result = validate_session_date(date, weekday)
+    if not ok:
+        return result
+
+    n, _ = PlannedSession.objects.filter(date=result).delete()
+    return f"Cleared {n} planned session(s) on {date} ({weekday})"
+
+def get_workout_detail(name):
+    w = IndoorCyclingWorkout.objects.filter(name__iexact=name).first()
+    if not w:
+        return f"No workout '{name}'."
+    profile = UserProfile.objects.first()
+    ftp = (profile.ftp_watts if profile and profile.ftp_watts else 250)
+    return f"{w.name} at FTP {ftp}W: {w.detail_watts(ftp)}"
+
+#Tool definitions
+
 
 TOOL_DEFINITIONS = [
     {
@@ -275,28 +347,46 @@ TOOL_DEFINITIONS = [
             "Add a planned training session to the athlete's calendar on a specific "
             "date. Use when planning ahead (e.g. 'plan my week'). One session per call; "
             "call multiple times to plan several days. To change a day, call "
-            "clear_planned_sessions for that date first, then create the new one."
+            "clear_planned_sessions for that date first, then create the new one. "
+            "Both date and weekday must be copied exactly from next_14_days."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "date": {"type": "string", "description": "ISO date YYYY-MM-DD. Use the dates from next_7_days."},
+                "date": {"type": "string", "description": "ISO date YYYY-MM-DD, copied exactly from next_14_days."},
+                "weekday": {"type": "string", "description": "Weekday name for this date, exactly as in next_14_days (e.g. 'Friday'). Must match the date."},
                 "activity_type": {"type": "string", "enum": ["cycling", "gym_legs", "gym_upper", "skating", "tennis", "skiing", "rest", "other"]},
                 "title": {"type": "string", "description": "Short name, e.g. 'VO2max intervals'"},
                 "description": {"type": "string", "description": "Details / exercises / sets x reps"},
                 "duration_minutes": {"type": "integer"},
                 "intensity": {"type": "string", "enum": ["easy", "moderate", "hard"]},
             },
-            "required": ["date", "activity_type"],
+            "required": ["date", "weekday", "activity_type"],
         },
     },
     {
         "name": "clear_planned_sessions",
-        "description": "Delete all planned sessions on a date. Use before re-planning a day, or to remove a planned session the athlete cancelled.",
+        "description": (
+            "Delete all planned sessions on a date. Use before re-planning a day, "
+            "or to remove a planned session the athlete cancelled. Both date and "
+            "weekday must be copied exactly from next_14_days."
+        ),
         "input_schema": {
             "type": "object",
-            "properties": {"date": {"type": "string", "description": "ISO date YYYY-MM-DD"}},
-            "required": ["date"],
+            "properties": {
+                "date": {"type": "string", "description": "ISO date YYYY-MM-DD, copied exactly from next_14_days."},
+                "weekday": {"type": "string", "description": "Weekday name for this date, exactly as in next_14_days (e.g. 'Friday'). Must match the date."},
+            },
+            "required": ["date", "weekday"],
+        },
+    },
+    {
+        "name": "get_workout_detail",
+        "description": "Get the interval watt targets for one indoor cycling workout. Call before prescribing an indoor session. Use the exact name from indoor_workouts.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
         },
     },
 ]
@@ -310,6 +400,7 @@ TOOL_FUNCTIONS = {
     "append_athlete_note": append_athlete_note,
     "create_planned_session": create_planned_session,
     "clear_planned_sessions": clear_planned_sessions,
+    "get_workout_detail": get_workout_detail,
 }
 
 

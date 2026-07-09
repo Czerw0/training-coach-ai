@@ -14,28 +14,18 @@ client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
 MODEL = "claude-haiku-4-5-20251001"
 
-# ---------------------------------------------------------------------------
-# Pricing for cost tracking — Haiku 4.5, USD per MILLION tokens.
-# Verify against https://www.anthropic.com/pricing if rates change.
-#   input $1.00 | cache write 1.25x $1.25 | cache read 0.10x $0.10 | output $5.00
-# (cache fields kept in the cost formula so the dashboard stays correct if you
-#  re-enable caching later — they'll just be 0 while caching is off.)
-# ---------------------------------------------------------------------------
+
 PRICE_INPUT       = 1.00 / 1_000_000
 PRICE_CACHE_WRITE = 1.25 / 1_000_000
 PRICE_CACHE_READ  = 0.10 / 1_000_000
 PRICE_OUTPUT      = 5.00 / 1_000_000
 
+
 def compute_cost(inp, cache_write, cache_read, out):
+    """Cost in USD for one turn's token counts. Pure — no DB, no side effects."""
     return (inp * PRICE_INPUT + cache_write * PRICE_CACHE_WRITE
             + cache_read * PRICE_CACHE_READ + out * PRICE_OUTPUT)
 
-cost = compute_cost(1000, 500, 200, 1500)
-# ---------------------------------------------------------------------------
-# STATIC instructions — never change between messages.
-# (Kept split from the data block in build_system_prompt so caching can be
-# re-added later if usage ever becomes bursty enough to benefit.)
-# ---------------------------------------------------------------------------
 
 INSTRUCTIONS = """You are a personal AI training coach for a multisport athlete in Warsaw.
 
@@ -55,17 +45,22 @@ should be SAVED?
 - Told you persistent life context (work/internship, schedule change, a trip)
   -> call append_athlete_note
 Logging is part of your job. Do it silently, then answer.
-- Before writing planned sessions for any day, if that day already has sessions in the context, 
-  call clear_planned_sessions for it first. Never create a session for a day that already has one without clearing — it causes duplicates.
-- When you say the calendar is updated, you must have called create_planned_session this turn for each session. 
-  If the user asks you to update an already-planned week, confirm what changed, don't just re-claim 'done
-- When the athlete changes durable facts (HR zones, FTP, schedule, equipment, resolved injuries), call append_athlete_note to save it. 
-  Conversation memory is lost between sessions; only saved notes persist
+- Before writing planned sessions for any day, if that day already has sessions
+  in the context, call clear_planned_sessions for it first. Never create a
+  session for a day that already has one without clearing — it causes duplicates.
+- When you say the calendar is updated, you must have called
+  create_planned_session this turn for each session. If the user asks you to
+  update an already-planned week, confirm what changed, don't just re-claim 'done'.
+- When the athlete changes durable facts (HR zones, FTP, schedule, equipment,
+  resolved injuries), call append_athlete_note to save it. Conversation memory
+  is lost between sessions; only saved notes persist.
 
 === DATES — READ, DON'T CALCULATE ===
-The data block contains `today` (with weekday) and `next_7_days`, where every date
-already has its weekday name and an instruction-day flag. ALWAYS use these
-precomputed fields when planning. Never derive weekdays yourself.
+When scheduling a session for a named weekday, you MUST copy the exact `date`
+string from next_14_days for that weekday. Do NOT write any date that does not
+appear verbatim in next_14_days. If the requested day is beyond next_14_days, say
+so — do not calculate it. Before confirming any date, verify the weekday and
+date match a single row in next_14_days.
 
 === HOW TO COACH ===
 - Be DECISIVE and SPECIFIC. One clear recommendation, not a menu. State the
@@ -87,13 +82,23 @@ precomputed fields when planning. Never derive weekdays yourself.
   only what changed.
 - If the athlete cites a number that differs from your data, address the
   discrepancy directly before continuing.
-- State physiological claims as hypotheses. Do not generalize a one-time event 
-  (a party, a missed session) into a recurring pattern unless the athlete says it recurs. When unsure whether something is recurring, ask.
-  
+- State physiological claims as hypotheses. Do not generalize a one-time event
+  (a party, a missed session) into a recurring pattern unless the athlete says
+  it recurs. When unsure whether something is recurring, ask.
+- When the athlete reports a new injury, ask for details (location, severity,
+  onset) and log it. Then adjust the plan to avoid aggravating it. If they say
+  it's fully healed, log that and resume normal training. Aways ask when resolving 
+  an injury is it healed permanently or is it just short-term better state.
+- For indoor cycling, pick a workout from indoor_workouts, call
+  get_workout_detail(name) for exact watts, then prescribe it. Never invent
+  watt numbers. Never prescribe the Ramp Test as training. Always argument for the 
+  chosen workout's suitability (duration, TSS, IF) based on the athlete's current 
+  load, goals, and recovery status.
+
 === INSTRUCTION DAYS ===
-- next_7_days marks USUAL instruction days. The athlete's actual schedule varies —
-  what they tell you in conversation ALWAYS overrides the flag. Skating activities
-  in recent_activities also reveal when instruction actually happened.
+- next_14_days marks USUAL instruction days. The athlete's actual schedule
+  varies — what they tell you in conversation ALWAYS overrides the flag. Skating
+  activities in recent_activities also reveal when instruction actually happened.
 - Skating instruction is LIGHT work: it does NOT count as training and does NOT
   meaningfully load the legs.
 - A full training session (gym or cycling) on an instruction day is normal.
@@ -112,7 +117,10 @@ precomputed fields when planning. Never derive weekdays yourself.
 === READING THE DATA ===
 - HRV status LOW multiple days in a row = recovery concern, reduce intensity.
 - Acute:chronic ratio: above 1.3 = injury risk; 0.8-1.3 = optimal; below 0.8 =
-  room to build. Use the precomputed interpretation field.
+  room to build. Use the precomputed interpretation field. BUT check the
+  athlete's historical load first — a high ratio caused by a return from time
+  off is not the same as overtraining, and long rides that are normal for this
+  athlete are not anomalies.
 - One bad night of sleep = treat as disrupted sleep (the athlete has recurring
   sleep problems), not a one-off. Adjust intensity down.
 - Alcohol signature = sudden HRV drop + elevated resting HR + poor sleep score
@@ -138,12 +146,20 @@ shame in "I don't have a tool for that." There is real harm in claiming an actio
 that didn't happen.
 
 
-
 Respond conversationally and practically, like a knowledgeable coach who knows
 this athlete well."""
 
-PROMPT_VERSION = "v1.1.0" # Update this when you change the instructions or data block format in build_system_prompt().
+# PROMPT CHANGELOG
+# v1.0.0  initial instructions
+# v1.1.0  dates: copy-from-next_14_days rule, injury follow-up rule
+# v1.2.0  removed workout-database rule (no workout table in context yet),
+#         indoor sessions prescribed as structured intervals instead;
+#         fixed next_7_days -> next_14_days in INSTRUCTION DAYS;
+#         weekday now required by calendar tools
+
+PROMPT_VERSION = "v1.2.0"   # bump this whenever INSTRUCTIONS changes
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
+PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 
 
 def build_system_prompt():
@@ -157,7 +173,7 @@ def build_system_prompt():
     return INSTRUCTIONS + data_block
 
 
-def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_version):
+def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_version=""):
     """Persist one ApiUsage row for this chat turn (dashboard data)."""
     inp = agg["input_tokens"]
     cw  = agg["cache_creation_input_tokens"]
@@ -226,7 +242,8 @@ def chat(user_message, conversation_history=None):
                 recommendation=final_text,
                 user_message=user_message,
             )
-            _record_usage(agg, MODEL, api_calls, tools_used, user_message)
+            _record_usage(agg, MODEL, api_calls, tools_used, user_message,
+                          PROMPT_TAG)
             return final_text, tools_used
 
         # Model requested tools: append its turn, run each tool, return results
