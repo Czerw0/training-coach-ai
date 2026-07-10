@@ -12,20 +12,26 @@ load_dotenv()
 
 client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
-MODEL = "claude-sonnet-5" #change after 31August
+
+MODEL = "claude-sonnet-5"         
+
+# Safety cap: a tool-loop turn may make several API calls
+MAX_TOOL_ROUNDS = 8
 
 
-PRICE_INPUT       = 1.00 / 1_000_000
-PRICE_CACHE_WRITE = 1.25 / 1_000_000
-PRICE_CACHE_READ  = 0.10 / 1_000_000
-PRICE_OUTPUT      = 5.00 / 1_000_000
+# Pricing — MUST match MODEL. Sonnet 5 intro pricing (until Aug 31, 2026):
+#   input $2.00 | cache write $2.50 | cache read $0.20 | output $10.00
+# From Sept 1, 2026 it becomes 3.00 / 3.75 / 0.30 / 15.00 — update then.
+PRICE_INPUT       = 2.00 / 1_000_000
+PRICE_CACHE_WRITE = 2.50 / 1_000_000
+PRICE_CACHE_READ  = 0.20 / 1_000_000
+PRICE_OUTPUT      = 10.00 / 1_000_000
 
 
 def compute_cost(inp, cache_write, cache_read, out):
     """Cost in USD for one turn's token counts. Pure — no DB, no side effects."""
     return (inp * PRICE_INPUT + cache_write * PRICE_CACHE_WRITE
             + cache_read * PRICE_CACHE_READ + out * PRICE_OUTPUT)
-
 
 INSTRUCTIONS = """You are a personal AI training coach for a multisport athlete in Warsaw.
 
@@ -94,6 +100,8 @@ date match a single row in next_14_days.
   watt numbers. Never prescribe the Ramp Test as training. Always argument for the 
   chosen workout's suitability (duration, TSS, IF) based on the athlete's current 
   load, goals, and recovery status.
+- Do not plan a rest day in the calendar. Every emppty day is a rest day by default. 
+  Only plan a session if you have a specific workout recommendation for that day.
 
 === INSTRUCTION DAYS ===
 - next_14_days marks USUAL instruction days. The athlete's actual schedule
@@ -157,7 +165,7 @@ this athlete well."""
 #         fixed next_7_days -> next_14_days in INSTRUCTION DAYS;
 #         weekday now required by calendar tools
 
-PROMPT_VERSION = "v1.2.0"   # bump this whenever INSTRUCTIONS changes
+PROMPT_VERSION = "v1.2.0"
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
 PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 
@@ -216,14 +224,13 @@ def chat(user_message, conversation_history=None):
     agg = {"input_tokens": 0, "cache_creation_input_tokens": 0,
            "cache_read_input_tokens": 0, "output_tokens": 0}
 
-    while True:
+    for _round in range(MAX_TOOL_ROUNDS):
         response = client.messages.create(
             model=MODEL,
-            max_tokens=1500,
-            temperature=0.3,
-            system=system_prompt,
+            max_tokens=4096,            # Sonnet writes longer; 1500 risked
+            system=system_prompt,       # truncating mid-tool-call
             tools=TOOL_DEFINITIONS,
-            messages=messages,
+            messages=messages,          # NOTE: no temperature — deprecated
         )
         api_calls += 1
 
@@ -259,3 +266,8 @@ def chat(user_message, conversation_history=None):
                     "content": str(result),
                 })
         messages.append({"role": "user", "content": tool_results})
+
+    # Loop cap reached — fail loudly but gracefully, and still log the spend
+    _record_usage(agg, MODEL, api_calls, tools_used, user_message, PROMPT_TAG)
+    return ("I hit my internal tool-call limit for one turn — the actions so "
+            "far ran, but please re-ask to continue."), tools_used

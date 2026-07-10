@@ -25,4 +25,4 @@ EXPOSE 8000
 
 # Run collectstatic and gunicorn at startup
 CMD python manage.py migrate --noinput && \
-    gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 1 --timeout 120
+    gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 1 --timeout 300
