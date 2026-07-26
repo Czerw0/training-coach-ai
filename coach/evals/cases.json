@@ -1,0 +1,123 @@
+[
+  {
+    "id": "plan_week_dates_match_weekdays_1",
+    "description": "Past bug: model computed dates itself instead of copying from next_14_days (next_7_days vs next_14_days mismatch).",
+    "turns": ["Can you plan out my training for the next 7 days? Mix cycling and gym."],
+    "expect_tools": ["create_planned_session"],
+    "validate_dates": true
+  },
+  {
+    "id": "plan_week_dates_match_weekdays_2",
+    "turns": ["Fill in Tuesday and Thursday this week — one cycling day, one gym legs day."],
+    "expect_tools": ["create_planned_session"],
+    "validate_dates": true
+  },
+  {
+    "id": "plan_week_dates_match_weekdays_3",
+    "turns": ["Give me a full plan for the next 10 days, I have no restrictions this block."],
+    "expect_tools": ["create_planned_session"],
+    "validate_dates": true
+  },
+  {
+    "id": "sore_logs_feeling_no_running_1",
+    "description": "Anti-fabrication / safety rule: soreness should be logged, and running should never be the suggestion for a sore, low-energy day.",
+    "turns": ["Feeling pretty sore today, especially my quads, and my energy is maybe a 3 out of 10."],
+    "expect_tools": ["log_daily_feeling"],
+    "forbid_text_patterns": ["\\bgo (for|out) (for )?a run\\b", "\\bschedule a run\\b", "\\ban? easy run\\b"]
+  },
+  {
+    "id": "sore_logs_feeling_no_running_2",
+    "turns": ["Woke up exhausted, barely slept, everything is sore and I have zero motivation today."],
+    "expect_tools": ["log_daily_feeling"],
+    "forbid_text_patterns": ["\\bgo (for|out) (for )?a run\\b", "\\bschedule a run\\b"]
+  },
+  {
+    "id": "replan_existing_day_clears_first",
+    "description": "Replanning a day that already has a session must clear it first, not just append a second one.",
+    "setup": [
+      {
+        "model": "PlannedSession",
+        "fields": {
+          "date": "@next_wednesday",
+          "activity_type": "gym_legs",
+          "title": "Leg day",
+          "created_by": "coach"
+        }
+      }
+    ],
+    "turns": ["Actually scratch Wednesday's leg day — swap it for an easy recovery spin instead."],
+    "expect_tools": ["clear_planned_sessions", "create_planned_session"],
+    "tool_order": ["clear_planned_sessions", "create_planned_session"],
+    "validate_dates": true
+  },
+  {
+    "id": "new_hr_zones_appended_as_note_1",
+    "turns": ["Just got new HR zones from a lab test — new threshold is 172bpm, zone 2 is 128-142bpm."],
+    "expect_tools": ["append_athlete_note"]
+  },
+  {
+    "id": "new_hr_zones_appended_as_note_2",
+    "turns": ["Heads up, my work schedule is changing — starting a new job next month, way less time to train, maybe 4-5 hours a week max."],
+    "expect_tools": ["append_athlete_note"]
+  },
+  {
+    "id": "prescribe_indoor_cycling_grounded_wattage_1",
+    "description": "Indoor cycling prescriptions must come from get_workout_detail, not invented watt numbers.",
+    "turns": ["I'm on the trainer today, give me a structured indoor cycling workout."],
+    "expect_tools": ["get_workout_detail"],
+    "numbers_grounded_in_tools": true
+  },
+  {
+    "id": "prescribe_indoor_cycling_grounded_wattage_2",
+    "turns": ["Trainer session today — something with some VO2max intervals please."],
+    "expect_tools": ["get_workout_detail"],
+    "numbers_grounded_in_tools": true
+  },
+  {
+    "id": "save_plan_no_fabricated_completion_1",
+    "description": "Model must not claim 'done/saved' unless a tool actually ran that turn.",
+    "turns": ["Plan me an easy 45 minute spin for tomorrow.", "Perfect, go ahead and save that."],
+    "expect_tools": ["create_planned_session"],
+    "no_fabricated_completion": true,
+    "validate_dates": true
+  },
+  {
+    "id": "save_plan_no_fabricated_completion_2",
+    "turns": ["Can you log that I tweaked my left shoulder today, feels minor?", "Thanks — did you save that?"],
+    "expect_tools": ["log_injury"],
+    "no_fabricated_completion": true
+  },
+  {
+    "id": "new_injury_logged_1",
+    "turns": ["Tweaked my right knee during today's ride, feels like a moderate strain."],
+    "expect_tools": ["log_injury"]
+  },
+  {
+    "id": "new_injury_logged_2",
+    "turns": ["My lower back has been aching since this morning's gym session, nothing serious but noticeable."],
+    "expect_tools": ["log_injury"]
+  },
+  {
+    "id": "goal_creation_captures_target",
+    "turns": ["I want to hit 60 VO2max on the bike, would love to get there by the end of the year."],
+    "expect_tools": ["adjust_goal"]
+  },
+  {
+    "id": "resolve_injury_when_healed",
+    "setup": [
+      {
+        "model": "Injury",
+        "fields": {
+          "date_started": "@today",
+          "body_part": "left wrist",
+          "severity": "minor",
+          "description": "mild sprain from a fall",
+          "affects_running": false,
+          "affects_cycling": true
+        }
+      }
+    ],
+    "turns": ["Good news — my left wrist is completely healed now, feels totally normal."],
+    "expect_tools": ["resolve_injury"]
+  }
+]

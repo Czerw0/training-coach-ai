@@ -184,7 +184,7 @@ normally would.
 # v1.2.1  added TESTING section: "(test)"-prefixed messages skip DB writes
 # v1.2.2  TESTING section now reflects that the (test) skip is enforced in
 #         code (chat()), not by asking the model to self-police — the model
-#         was never a reliable gate for this (see CLAUDE.md standing rules)
+#         was never a reliable gate for this 
 
 PROMPT_VERSION = "v1.2.2"
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
@@ -197,7 +197,10 @@ def build_system_prompt():
     context = build_context()
     data_block = (
         "\n\n=== CURRENT ATHLETE DATA ===\n"
-        f"{json.dumps(context, indent=2, default=str)}"
+        # Compact, not indent=2 — the model doesn't need pretty-printing, and
+        # every whitespace/newline token here is paid for on every cache
+        # write (and on any turn that misses cache), never just once.
+        f"{json.dumps(context, separators=(',', ':'), default=str)}"
         "\n=== END DATA ==="
     )
     return INSTRUCTIONS, data_block
