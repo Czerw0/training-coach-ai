@@ -11,4 +11,6 @@ urlpatterns = [
     path('calendar/session/delete/', views.delete_planned_session, name='delete_planned_session'),
     path('usage/', views.usage_page, name='usage_page'),
     path('usage/data/', views.usage_data, name='usage_data'),
+    path('usage/<int:usage_id>/', views.usage_detail_page, name='usage_detail_page'),
+    path('usage/<int:usage_id>/data/', views.usage_detail_data, name='usage_detail_data'),
 ]

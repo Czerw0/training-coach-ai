@@ -1,5 +1,5 @@
 import json
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -10,7 +10,7 @@ from coach.agent import chat
 from coach.models import Message, PlannedSession
 from sync.models import DailyStats, Activity
 import datetime
-from django.db.models import Sum
+from django.db.models import Sum, Avg, Count
 from django.db.models.functions import TruncDate
 from coach.models import ApiUsage
 
@@ -253,6 +253,7 @@ def usage_data(request):
 
     # recent turns (timeline)
     recent = [{
+        "id": u.id,
         "when": u.created_at.strftime("%d %b %H:%M"),
         "cost": round(u.cost_usd, 4),
         "tools": u.tools_used,
@@ -260,6 +261,26 @@ def usage_data(request):
         "input": u.input_tokens,
         "output": u.output_tokens,
     } for u in qs.order_by('-created_at')[:15]]
+
+    # per model+config comparison (the actual A/B — no data deleted, ever)
+    config_rows = (qs.values('model', 'config_version')
+                     .annotate(turns=Count('id'),
+                               total_cost=Sum('cost_usd'),
+                               avg_cost=Avg('cost_usd'),
+                               avg_input=Avg('input_tokens'),
+                               avg_output=Avg('output_tokens'),
+                               cache_reads=Sum('cache_read_tokens'))
+                     .order_by('-turns'))
+    by_config = [{
+        "model": r["model"],
+        "config_version": r["config_version"],
+        "turns": r["turns"],
+        "total_cost": round(r["total_cost"] or 0, 4),
+        "avg_cost": round(r["avg_cost"] or 0, 6),
+        "avg_input": round(r["avg_input"] or 0),
+        "avg_output": round(r["avg_output"] or 0),
+        "cache_reads": r["cache_reads"] or 0,
+    } for r in config_rows]
 
     return JsonResponse({
         "summary": {
@@ -272,4 +293,34 @@ def usage_data(request):
         "daily": daily,
         "token_totals": token_totals,
         "recent": recent,
+        "by_config": by_config,
+    })
+
+
+@login_required
+def usage_detail_page(request, usage_id):
+    get_object_or_404(ApiUsage, id=usage_id)
+    return render(request, 'coach/usage_detail.html', {"usage_id": usage_id})
+
+
+@login_required
+@require_http_methods(["GET"])
+def usage_detail_data(request, usage_id):
+    """One turn's full trace: message -> tool calls (args + result) -> final reply."""
+    u = get_object_or_404(ApiUsage, id=usage_id)
+    return JsonResponse({
+        "id": u.id,
+        "when": u.created_at.strftime("%d %b %Y %H:%M"),
+        "model": u.model,
+        "config_version": u.config_version,
+        "prompt_version": u.prompt_version,
+        "cost": round(u.cost_usd, 6),
+        "api_calls": u.api_calls,
+        "input": u.input_tokens,
+        "output": u.output_tokens,
+        "cache_write": u.cache_creation_tokens,
+        "cache_read": u.cache_read_tokens,
+        "user_message": u.user_message,
+        "tool_trace": u.tool_trace,
+        "final_text": u.final_text,
     })

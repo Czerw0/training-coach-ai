@@ -119,6 +119,18 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if os.getenv('CSRF_TRUSTED_ORIGINS') else []
 
+# HTTPS groundwork (see docker-compose.yml / deploy/Caddyfile) — all default
+# to today's behavior (plain HTTP, direct-to-gunicorn) so nothing changes
+# until Caddy is actually the only thing publicly reachable. Only flip
+# BEHIND_HTTPS_PROXY / SECURE_SSL_REDIRECT / *_COOKIE_SECURE on once gunicorn's
+# port is no longer published on the host — otherwise a direct request could
+# spoof X-Forwarded-Proto and defeat these protections.
+if env.bool('BEHIND_HTTPS_PROXY', default=False):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=False)
+SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=False)
+CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=False)
+
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'

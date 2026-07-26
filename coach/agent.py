@@ -13,10 +13,19 @@ load_dotenv()
 client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
 
-MODEL = "claude-sonnet-5"         
+MODEL = "claude-sonnet-5"
 
 # Safety cap: a tool-loop turn may make several API calls
 MAX_TOOL_ROUNDS = 8
+
+# CONFIG CHANGELOG — bump whenever a system-level knob changes that isn't
+# already its own ApiUsage column (model is; caching/temperature/pricing
+# tier aren't). Lets the usage dashboard split cost/quality by config, not
+# just by model.
+# v1  no temperature (deprecated on Sonnet 5), no prompt caching
+# v2  prompt caching on: instructions + tool defs + per-turn data block,
+#     each with an ephemeral cache_control breakpoint (backlog item 4)
+CONFIG_VERSION = "v2-notemp-cache"
 
 
 # Pricing — MUST match MODEL. Sonnet 5 intro pricing (until Aug 31, 2026):
@@ -155,7 +164,15 @@ that didn't happen.
 
 
 Respond conversationally and practically, like a knowledgeable coach who knows
-this athlete well."""
+this athlete well.
+
+=== TESTING ===
+If "(test)" appears at the beginning of a message, treat it as a test prompt.
+You may still call tools to check that you'd do the right thing — the app
+intercepts them in test mode so nothing is actually written to the database,
+and tool results you see may be simulated rather than real data. Answer as you
+normally would.
+"""
 
 # PROMPT CHANGELOG
 # v1.0.0  initial instructions
@@ -164,24 +181,38 @@ this athlete well."""
 #         indoor sessions prescribed as structured intervals instead;
 #         fixed next_7_days -> next_14_days in INSTRUCTION DAYS;
 #         weekday now required by calendar tools
+# v1.2.1  added TESTING section: "(test)"-prefixed messages skip DB writes
+# v1.2.2  TESTING section now reflects that the (test) skip is enforced in
+#         code (chat()), not by asking the model to self-police — the model
+#         was never a reliable gate for this (see CLAUDE.md standing rules)
 
-PROMPT_VERSION = "v1.2.0"
+PROMPT_VERSION = "v1.2.2"
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
 PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 
 
 def build_system_prompt():
-    """Static instructions + fresh data block, joined into one string."""
+    """Static instructions + fresh data block, returned separately so each
+    can get its own prompt-cache breakpoint (see TOOLS_WITH_CACHE below)."""
     context = build_context()
     data_block = (
         "\n\n=== CURRENT ATHLETE DATA ===\n"
         f"{json.dumps(context, indent=2, default=str)}"
         "\n=== END DATA ==="
     )
-    return INSTRUCTIONS + data_block
+    return INSTRUCTIONS, data_block
 
 
-def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_version=""):
+# Prompt caching: TOOL_DEFINITIONS is static across every turn, so mark its
+# last entry as a cache breakpoint once at import time. Anthropic caches
+# everything up to and including a marked block.
+TOOLS_WITH_CACHE = [dict(t) for t in TOOL_DEFINITIONS]
+if TOOLS_WITH_CACHE:
+    TOOLS_WITH_CACHE[-1]["cache_control"] = {"type": "ephemeral"}
+
+
+def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_version="",
+                   config_version="", tool_trace=None, final_text=""):
     """Persist one ApiUsage row for this chat turn (dashboard data)."""
     inp = agg["input_tokens"]
     cw  = agg["cache_creation_input_tokens"]
@@ -201,6 +232,9 @@ def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_versio
             tools_used=",".join(tools_used),
             user_message=(user_message or "")[:300],
             prompt_version=prompt_version,
+            config_version=config_version,
+            tool_trace=tool_trace or [],
+            final_text=(final_text or "")[:2000],
         )
     except Exception:
         # Never let usage logging break a chat response
@@ -216,10 +250,23 @@ def chat(user_message, conversation_history=None):
     if conversation_history is None:
         conversation_history = []
 
-    system_prompt = build_system_prompt()
+    # Code-level gate, not a prompt request: a "(test)"-prefixed message must
+    # never touch real athlete data, regardless of what the model decides to
+    # do. The model is not trusted to self-police this (see CLAUDE.md).
+    is_test = user_message.strip().lower().startswith("(test)")
+
+    instructions_block, data_block = build_system_prompt()
+    # Two cache breakpoints: instructions are static across every turn;
+    # the data block is fresh per turn but identical across this turn's
+    # own tool-loop round trips — both are worth caching (see backlog item 4).
+    system_prompt = [
+        {"type": "text", "text": instructions_block, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": data_block, "cache_control": {"type": "ephemeral"}},
+    ]
     messages = conversation_history + [{"role": "user", "content": user_message}]
 
     tools_used = []
+    trace = []
     api_calls = 0
     agg = {"input_tokens": 0, "cache_creation_input_tokens": 0,
            "cache_read_input_tokens": 0, "output_tokens": 0}
@@ -229,7 +276,7 @@ def chat(user_message, conversation_history=None):
             model=MODEL,
             max_tokens=4096,            # Sonnet writes longer; 1500 risked
             system=system_prompt,       # truncating mid-tool-call
-            tools=TOOL_DEFINITIONS,
+            tools=TOOLS_WITH_CACHE,
             messages=messages,          # NOTE: no temperature — deprecated
         )
         api_calls += 1
@@ -244,13 +291,14 @@ def chat(user_message, conversation_history=None):
             final_text = "".join(
                 block.text for block in response.content if block.type == "text"
             )
-            CoachRecommendation.objects.create(
-                date=datetime.date.today(),
-                recommendation=final_text,
-                user_message=user_message,
-            )
+            if not is_test:
+                CoachRecommendation.objects.create(
+                    date=datetime.date.today(),
+                    recommendation=final_text,
+                    user_message=user_message,
+                )
             _record_usage(agg, MODEL, api_calls, tools_used, user_message,
-                          PROMPT_TAG)
+                          PROMPT_TAG, CONFIG_VERSION, trace, final_text)
             return final_text, tools_used
 
         # Model requested tools: append its turn, run each tool, return results
@@ -259,7 +307,16 @@ def chat(user_message, conversation_history=None):
         for block in response.content:
             if block.type == "tool_use":
                 tools_used.append(block.name)
-                result = execute_tool(block.name, block.input)
+                if is_test:
+                    result = (f"[test mode] '{block.name}' was not executed — "
+                              "no database write happened.")
+                else:
+                    result = execute_tool(block.name, block.input)
+                trace.append({
+                    "tool": block.name,
+                    "input": block.input,
+                    "result": str(result)[:500],
+                })
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -268,6 +325,8 @@ def chat(user_message, conversation_history=None):
         messages.append({"role": "user", "content": tool_results})
 
     # Loop cap reached — fail loudly but gracefully, and still log the spend
-    _record_usage(agg, MODEL, api_calls, tools_used, user_message, PROMPT_TAG)
-    return ("I hit my internal tool-call limit for one turn — the actions so "
-            "far ran, but please re-ask to continue."), tools_used
+    cap_message = ("I hit my internal tool-call limit for one turn — the actions so "
+                   "far ran, but please re-ask to continue.")
+    _record_usage(agg, MODEL, api_calls, tools_used, user_message, PROMPT_TAG,
+                  CONFIG_VERSION, trace, cap_message)
+    return (cap_message, tools_used)

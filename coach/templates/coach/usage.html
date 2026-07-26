@@ -116,6 +116,8 @@
             <div class="section-title">Token breakdown</div>
             <div class="chart-box"><canvas id="tokenChart"></canvas></div>
 
+            <div class="section-title">By model &amp; config</div>
+            <div class="recent" id="by-config"></div>
             <div class="section-title">Recent messages</div>
             <div class="recent" id="recent"></div>
         </div>
@@ -196,8 +198,12 @@
             }
             wrap.innerHTML = '';
             data.recent.forEach(r => {
-                const div = document.createElement('div');
+                const div = document.createElement('a');
                 div.className = 'turn';
+                div.href = `/usage/${r.id}/`;
+                div.style.display = 'block';
+                div.style.textDecoration = 'none';
+                div.style.color = 'inherit';
                 const tools = r.tools ? `<span class="tools">${r.tools.split(',').join(' · ')}</span> · ` : '';
                 div.innerHTML =
                     `<div class="top"><span class="when">${r.when}</span><span class="cost">${fmt4(r.cost)}</span></div>` +
@@ -205,6 +211,25 @@
                     `<div class="meta">${tools}${r.input.toLocaleString()} in · ${r.output.toLocaleString()} out</div>`;
                 wrap.appendChild(div);
             });
+            // by-model/config comparison table — the actual A/B, no data deleted
+            const cfgWrap = document.getElementById('by-config');
+            if (!data.by_config.length) {
+                cfgWrap.innerHTML = '<div class="empty">No data yet.</div>';
+            } else {
+                cfgWrap.innerHTML = '';
+                data.by_config.forEach(r => {
+                    const div = document.createElement('div');
+                    div.className = 'turn';
+                    div.innerHTML =
+                        `<div class="top"><span class="when">${r.model} &middot; ${r.config_version}</span>` +
+                        `<span class="cost">${fmt4(r.avg_cost)}/msg</span></div>` +
+                        `<div class="meta">${r.turns} turns &middot; total ${fmt(r.total_cost)} &middot; ` +
+                        `avg ${r.avg_input.toLocaleString()} in / ${r.avg_output.toLocaleString()} out` +
+                        (r.cache_reads ? ` &middot; ${r.cache_reads.toLocaleString()} cache-read tokens` : '') +
+                        `</div>`;
+                    cfgWrap.appendChild(div);
+                });
+            }
         }
 
         function escapeHtml(s) {

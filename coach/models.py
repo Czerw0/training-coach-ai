@@ -116,7 +116,10 @@ class ApiUsage(models.Model):
     user_message = models.CharField(max_length=300, blank=True, default="")  
     tools_used = models.CharField(max_length=255, blank=True, default="")
     prompt_version = models.CharField(max_length=40, blank=True, default="")
- 
+    config_version = models.CharField(max_length=40, blank=True, default="baseline")
+    tool_trace = models.JSONField(default=list, blank=True)
+    final_text = models.CharField(max_length=2000, blank=True, default="")
+
     class Meta:
         ordering = ['-created_at']
  
