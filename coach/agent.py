@@ -22,7 +22,12 @@ MAX_TOOL_ROUNDS = 8
 # ApiUsage column (model has one; caching/temperature/pricing don't)
 # v1  no temperature, no caching
 # v2  prompt caching on (instructions + tools + data block)
-CONFIG_VERSION = "v2-notemp-cache"
+# v3  extended thinking on, effort=low — real per-turn cost increase,
+#     chosen deliberately for the chat trace panel after seeing the cost estimate.
+#     sonnet 5 has no budget_tokens (400s) — adaptive thinking + output_config.effort
+#     is the only knob; "low" is the closest match to the originally-approved small budget
+CONFIG_VERSION = "v3-thinking-low"
+THINKING_EFFORT = "low"
 
 
 # pricing — must match MODEL. sonnet 5 intro pricing, until aug 31 2026:
@@ -229,7 +234,7 @@ if TOOLS_WITH_CACHE:
 
 
 def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_version="",
-                   config_version="", tool_trace=None, final_text=""):
+                   config_version="", tool_trace=None, final_text="", round_notes=None):
     """Persist one ApiUsage row for this chat turn (dashboard data)."""
     inp = agg["input_tokens"]
     cw  = agg["cache_creation_input_tokens"]
@@ -252,6 +257,7 @@ def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_versio
             config_version=config_version,
             tool_trace=tool_trace or [],
             final_text=(final_text or "")[:2000],
+            round_notes=round_notes or [],
         )
     except Exception:
         # usage logging must never break a chat reply
@@ -286,17 +292,24 @@ def chat(user_message, conversation_history=None):
 
     tools_used = []
     trace = []
+    round_notes = []
     api_calls = 0
     agg = {"input_tokens": 0, "cache_creation_input_tokens": 0,
            "cache_read_input_tokens": 0, "output_tokens": 0}
 
     for _round in range(MAX_TOOL_ROUNDS):
+        round_num = _round + 1
         response = client.messages.create(
             model=model,
             max_tokens=4096,            # Sonnet writes longer; 1500 risked
             system=system_prompt,       # truncating mid-tool-call
             tools=TOOLS_WITH_CACHE,
             messages=messages,          # NOTE: no temperature — deprecated
+            # sonnet 5: only adaptive thinking exists (budget_tokens 400s). display
+            # defaults to "omitted" (empty text) on this model — must ask for
+            # "summarized" or the trace panel gets nothing to show.
+            thinking={"type": "adaptive", "display": "summarized"},
+            output_config={"effort": THINKING_EFFORT},
         )
         api_calls += 1
 
@@ -305,6 +318,14 @@ def chat(user_message, conversation_history=None):
         agg["cache_creation_input_tokens"] += getattr(u, "cache_creation_input_tokens", 0) or 0
         agg["cache_read_input_tokens"]     += getattr(u, "cache_read_input_tokens", 0) or 0
         agg["output_tokens"]               += getattr(u, "output_tokens", 0) or 0
+
+        # captured for every round (final answer's reasoning included, not
+        # just tool-calling rounds) — this is what the chat trace panel shows
+        thinking_text = "".join(
+            block.thinking for block in response.content if block.type == "thinking"
+        )
+        if thinking_text:
+            round_notes.append({"round": round_num, "text": thinking_text})
 
         if response.stop_reason != "tool_use":
             final_text = "".join(
@@ -317,7 +338,7 @@ def chat(user_message, conversation_history=None):
                     user_message=user_message,
                 )
             _record_usage(agg, model, api_calls, tools_used, user_message,
-                          PROMPT_TAG, CONFIG_VERSION, trace, final_text)
+                          PROMPT_TAG, CONFIG_VERSION, trace, final_text, round_notes)
             return final_text, tools_used
 
         # model wants tools — run them, feed results back
@@ -332,6 +353,7 @@ def chat(user_message, conversation_history=None):
                 else:
                     result = execute_tool(block.name, block.input)
                 trace.append({
+                    "round": round_num,
                     "tool": block.name,
                     "input": block.input,
                     "result": str(result)[:500],
@@ -347,5 +369,5 @@ def chat(user_message, conversation_history=None):
     cap_message = ("I hit my internal tool-call limit for one turn — the actions so "
                    "far ran, but please re-ask to continue.")
     _record_usage(agg, model, api_calls, tools_used, user_message, PROMPT_TAG,
-                  CONFIG_VERSION, trace, cap_message)
+                  CONFIG_VERSION, trace, cap_message, round_notes)
     return (cap_message, tools_used)

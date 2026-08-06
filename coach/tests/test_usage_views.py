@@ -1,6 +1,9 @@
+import datetime
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.utils import timezone
 
 from coach.models import ApiUsage
 
@@ -88,3 +91,84 @@ def test_usage_page_renders_with_persistent_nav(client, user):
         assert marker in content
     # the old single "back to Coach" pill is gone, replaced by the shared nav
     assert 'class="back"' not in content
+
+
+@pytest.mark.django_db
+def test_usage_page_renders_filter_bar_and_reset_button(client, user):
+    client.force_login(user)
+    resp = client.get(reverse("usage_page"))
+    content = resp.content.decode()
+    for marker in ['id="f-model"', 'id="f-config"', 'id="f-since"', 'id="f-until"', 'id="f-reset"']:
+        assert marker in content
+
+
+def _make_usage_row(model, config_version, created_at, cost=0.01):
+    row = ApiUsage.objects.create(
+        model=model, config_version=config_version, cost_usd=cost,
+        input_tokens=10, output_tokens=10,
+    )
+    ApiUsage.objects.filter(pk=row.pk).update(created_at=created_at)  # bypass auto_now_add
+    return row
+
+
+@pytest.mark.django_db
+def test_usage_data_filters_by_model(client, user):
+    client.force_login(user)
+    now = timezone.now()
+    _make_usage_row("claude-sonnet-5", "v3-thinking-1024", now)
+    _make_usage_row("claude-haiku-4-5", "v3-thinking-1024", now)
+
+    resp = client.get(reverse("usage_data"), {"model": "claude-haiku-4-5"})
+    data = resp.json()
+    assert data["summary"]["total_turns"] == 1
+    assert len(data["by_config"]) == 1
+    assert data["by_config"][0]["model"] == "claude-haiku-4-5"
+
+
+@pytest.mark.django_db
+def test_usage_data_filters_by_config_version(client, user):
+    client.force_login(user)
+    now = timezone.now()
+    _make_usage_row("claude-sonnet-5", "v2-notemp-cache", now)
+    _make_usage_row("claude-sonnet-5", "v3-thinking-1024", now)
+
+    resp = client.get(reverse("usage_data"), {"config_version": "v3-thinking-1024"})
+    assert resp.json()["summary"]["total_turns"] == 1
+
+
+@pytest.mark.django_db
+def test_usage_data_filters_by_date_range(client, user):
+    client.force_login(user)
+    today = timezone.now()
+    old = today - datetime.timedelta(days=10)
+    _make_usage_row("claude-sonnet-5", "v3-thinking-1024", today)
+    _make_usage_row("claude-sonnet-5", "v3-thinking-1024", old)
+
+    since = (today - datetime.timedelta(days=1)).date().isoformat()
+    resp = client.get(reverse("usage_data"), {"since": since})
+    assert resp.json()["summary"]["total_turns"] == 1
+
+
+@pytest.mark.django_db
+def test_usage_data_filter_options_reflect_full_table_even_when_filtered(client, user):
+    client.force_login(user)
+    now = timezone.now()
+    _make_usage_row("claude-sonnet-5", "v2-notemp-cache", now)
+    _make_usage_row("claude-haiku-4-5", "v3-thinking-1024", now)
+
+    resp = client.get(reverse("usage_data"), {"model": "claude-sonnet-5"})
+    data = resp.json()
+    assert data["summary"]["total_turns"] == 1  # filtered view
+    assert set(data["filter_options"]["models"]) == {"claude-sonnet-5", "claude-haiku-4-5"}
+    assert set(data["filter_options"]["config_versions"]) == {"v2-notemp-cache", "v3-thinking-1024"}
+
+
+@pytest.mark.django_db
+def test_usage_data_no_filters_returns_everything(client, user):
+    client.force_login(user)
+    now = timezone.now()
+    _make_usage_row("claude-sonnet-5", "v2-notemp-cache", now)
+    _make_usage_row("claude-haiku-4-5", "v3-thinking-1024", now)
+
+    resp = client.get(reverse("usage_data"))
+    assert resp.json()["summary"]["total_turns"] == 2

@@ -57,6 +57,18 @@
 
         .scroll { flex:1; overflow-y:auto; padding:14px; -webkit-overflow-scrolling:touch; }
 
+        /* Filters */
+        .filters { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+        .filters select, .filters input {
+            flex:1; min-width:110px; padding:8px 10px; border:1px solid var(--line);
+            border-radius:10px; background:var(--surface); font-size:12.5px; color:var(--ink);
+        }
+        @media (min-width:600px) { .filters select, .filters input { background:var(--bg); } }
+        .filter-reset-btn {
+            flex-shrink:0; padding:8px 14px; border-radius:10px; border:1px solid var(--line);
+            background:none; color:var(--navy); font-size:12.5px; font-weight:600; cursor:pointer;
+        }
+
         /* Summary cards */
         .cards { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:16px; }
         .card {
@@ -104,6 +116,14 @@
         </div>
 
         <div class="scroll">
+            <div class="filters">
+                <select id="f-model"><option value="">All models</option></select>
+                <select id="f-config"><option value="">All configs</option></select>
+                <input type="date" id="f-since" aria-label="Since date">
+                <input type="date" id="f-until" aria-label="Until date">
+                <button id="f-reset" class="filter-reset-btn" type="button">Reset filters</button>
+            </div>
+
             <div class="cards">
                 <div class="card"><div class="k">Total spend</div><div class="v" id="c-total">—</div></div>
                 <div class="card"><div class="k">This month</div><div class="v" id="c-month">—</div></div>
@@ -128,13 +148,55 @@
         const fmt = n => '$' + Number(n).toFixed(2);
         const fmt4 = n => '$' + Number(n).toFixed(4);
 
+        let dailyChart = null;
+        let tokenChart = null;
+        let filtersPopulated = false;
+
+        function currentFilterParams() {
+            const params = new URLSearchParams();
+            const model = document.getElementById('f-model').value;
+            const config = document.getElementById('f-config').value;
+            const since = document.getElementById('f-since').value;
+            const until = document.getElementById('f-until').value;
+            if (model) params.set('model', model);
+            if (config) params.set('config_version', config);
+            if (since) params.set('since', since);
+            if (until) params.set('until', until);
+            return params.toString();
+        }
+
+        // filter_options always reflects the full unfiltered table, so this
+        // only needs to run once — repopulating on a filtered reload would
+        // shrink the dropdowns to whatever's currently visible
+        function populateFilterOptions(options) {
+            if (!options) return;
+            const modelSel = document.getElementById('f-model');
+            options.models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m; opt.textContent = m;
+                modelSel.appendChild(opt);
+            });
+            const configSel = document.getElementById('f-config');
+            options.config_versions.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c; opt.textContent = c;
+                configSel.appendChild(opt);
+            });
+        }
+
         async function load() {
             let data;
             try {
-                data = await fetch('/usage/data/').then(r => r.json());
+                const qs = currentFilterParams();
+                data = await fetch('/usage/data/' + (qs ? '?' + qs : '')).then(r => r.json());
             } catch (e) {
                 document.getElementById('recent').innerHTML = '<div class="empty">Could not load usage data.</div>';
                 return;
+            }
+
+            if (!filtersPopulated) {
+                populateFilterOptions(data.filter_options);
+                filtersPopulated = true;
             }
 
             // summary cards
@@ -144,9 +206,12 @@
             document.getElementById('c-today').textContent = fmt(s.today_cost);
             document.getElementById('c-avg').innerHTML = fmt4(s.avg_cost) + ' <small>· ' + s.total_turns + ' msgs</small>';
 
-            // daily cost bar chart
+            // daily cost bar chart — destroy the previous instance first;
+            // load() can now run repeatedly (filters), Chart.js errors on a
+            // canvas that's already bound to a chart
             const d = data.daily;
-            new Chart(document.getElementById('dailyChart'), {
+            if (dailyChart) dailyChart.destroy();
+            dailyChart = new Chart(document.getElementById('dailyChart'), {
                 type: 'bar',
                 data: {
                     labels: d.map(x => x.date.slice(5)),   // MM-DD
@@ -172,7 +237,8 @@
 
             // token breakdown doughnut
             const t = data.token_totals;
-            new Chart(document.getElementById('tokenChart'), {
+            if (tokenChart) tokenChart.destroy();
+            tokenChart = new Chart(document.getElementById('tokenChart'), {
                 type: 'doughnut',
                 data: {
                     labels: ['Input', 'Output', 'Cache write', 'Cache read'],
@@ -238,6 +304,18 @@
             d.textContent = s;
             return d.innerHTML;
         }
+
+        ['f-model', 'f-config', 'f-since', 'f-until'].forEach(id => {
+            document.getElementById(id).addEventListener('change', load);
+        });
+        // resets the filter controls, not any data — never touches ApiUsage rows
+        document.getElementById('f-reset').addEventListener('click', () => {
+            document.getElementById('f-model').value = '';
+            document.getElementById('f-config').value = '';
+            document.getElementById('f-since').value = '';
+            document.getElementById('f-until').value = '';
+            load();
+        });
 
         document.addEventListener('DOMContentLoaded', load);
     </script>

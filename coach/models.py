@@ -119,6 +119,7 @@ class ApiUsage(models.Model):
     config_version = models.CharField(max_length=40, blank=True, default="baseline")
     tool_trace = models.JSONField(default=list, blank=True)
     final_text = models.CharField(max_length=2000, blank=True, default="")
+    round_notes = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ['-created_at']

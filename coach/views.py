@@ -78,7 +78,12 @@ def chat_message(request):
 
     actions = [TOOL_LABELS.get(t, t) for t in tools_used]
 
-    return JsonResponse({'reply': reply, 'actions': actions})
+    # read back off the row chat() just wrote, same pattern evals/harness.py
+    # uses — no need to change chat()'s own return signature for this
+    usage_row = ApiUsage.objects.latest("created_at")
+    trace = {"tool_trace": usage_row.tool_trace, "round_notes": usage_row.round_notes}
+
+    return JsonResponse({'reply': reply, 'actions': actions, 'trace': trace})
 
 
 @login_required
@@ -270,8 +275,35 @@ def usage_page(request):
 @login_required
 @require_http_methods(["GET"])
 def usage_data(request):
-    """Aggregated usage/cost data for the dashboard charts."""
+    """Aggregated usage/cost data for the dashboard charts.
+
+    Optional GET filters: model, config_version, since (YYYY-MM-DD),
+    until (YYYY-MM-DD). Every aggregate below derives from the same
+    filtered `qs`, so filtering is a single change at the top, not a change
+    per chart. filter_options always reflects the FULL unfiltered table so
+    the dropdowns don't shrink to whatever's currently visible.
+    """
+    filter_options = {
+        "models": list(ApiUsage.objects.order_by('model').values_list('model', flat=True).distinct()),
+        "config_versions": list(
+            ApiUsage.objects.order_by('config_version').values_list('config_version', flat=True).distinct()
+        ),
+    }
+
     qs = ApiUsage.objects.all()
+    model_filter = request.GET.get('model')
+    if model_filter:
+        qs = qs.filter(model=model_filter)
+    config_filter = request.GET.get('config_version')
+    if config_filter:
+        qs = qs.filter(config_version=config_filter)
+    since = request.GET.get('since')
+    if since:
+        qs = qs.filter(created_at__date__gte=since)
+    until = request.GET.get('until')
+    if until:
+        qs = qs.filter(created_at__date__lte=until)
+
     today = datetime.date.today()
     month_start = today.replace(day=1)
 
@@ -355,6 +387,7 @@ def usage_data(request):
         "token_totals": token_totals,
         "recent": recent,
         "by_config": by_config,
+        "filter_options": filter_options,
     })
 
 
