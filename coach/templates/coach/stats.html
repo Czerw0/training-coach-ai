@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Stats · Training Coach</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --navy:#0B1F3A; --blue:#2D6CDF; --ink:#11151C;
+            --ink-soft:#6B7585; --line:#E4E8EF; --surface:#FFFFFF;
+            --bg:#F4F6F9; --pill-bg:#EDF0F5; --green:#1D9E75; --amber:#BA7517;
+        }
+        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+        html, body { height:100%; }
+        body {
+            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+            background:var(--bg); color:var(--ink);
+            height:100dvh; display:flex; justify-content:center; align-items:stretch;
+        }
+        .app {
+            width:100%; max-width:520px; display:flex; flex-direction:column;
+            height:100dvh; background:var(--bg); overflow:hidden;
+        }
+        @media (min-width:600px) {
+            body { padding:24px; align-items:center; }
+            .app {
+                height:min(900px, calc(100dvh - 48px));
+                border:1px solid var(--line); border-radius:22px;
+                box-shadow:0 10px 40px rgba(11,31,58,0.10); background:var(--surface);
+            }
+        }
+
+        .topbar { flex-shrink:0; padding:max(12px, env(safe-area-inset-top)) 12px 0; }
+        .pill {
+            display:flex; align-items:center; gap:10px;
+            background:var(--pill-bg); border-radius:999px; padding:8px 8px 8px 12px;
+        }
+        .logo {
+            width:30px; height:30px; border-radius:50%; background:var(--navy); color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:700; font-size:14px; flex-shrink:0;
+        }
+        .nav-links {
+            display:flex; align-items:center; gap:4px; flex:1;
+            overflow-x:auto; scrollbar-width:none;
+        }
+        .nav-links::-webkit-scrollbar { display:none; }
+        .nav-link {
+            flex-shrink:0; padding:6px 11px; border-radius:999px;
+            font-size:12.5px; font-weight:600; color:var(--ink-soft);
+            text-decoration:none; white-space:nowrap;
+        }
+        .nav-link.active {
+            background:var(--surface); border:1px solid var(--line); color:var(--navy);
+        }
+
+        .scroll { flex:1; overflow-y:auto; padding:14px; -webkit-overflow-scrolling:touch; }
+
+        .cards { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:16px; }
+        .card {
+            background:var(--surface); border:1px solid var(--line);
+            border-radius:14px; padding:13px 14px;
+        }
+        @media (min-width:600px) { .card { background:var(--bg); } }
+        .card .k { font-size:12px; color:var(--ink-soft); font-weight:600; margin-bottom:4px; }
+        .card .v { font-size:20px; font-weight:700; color:var(--navy); font-variant-numeric:tabular-nums; }
+        .card .v small { font-size:12px; font-weight:600; color:var(--ink-soft); }
+
+        .section-title { font-size:13px; font-weight:700; color:var(--ink-soft); margin:6px 2px 8px; }
+
+        .chart-box {
+            background:var(--surface); border:1px solid var(--line);
+            border-radius:14px; padding:14px; margin-bottom:16px;
+        }
+        @media (min-width:600px) { .chart-box { background:var(--bg); } }
+        .chart-box canvas { max-height:240px; }
+
+        /* Adherence headline */
+        .adherence-headline {
+            display:flex; align-items:baseline; gap:10px; margin-bottom:10px;
+        }
+        .adherence-headline .rate { font-size:28px; font-weight:700; color:var(--navy); }
+        .adherence-headline .sub { font-size:12.5px; color:var(--ink-soft); }
+
+        .recent { display:flex; flex-direction:column; gap:8px; }
+        .turn {
+            background:var(--surface); border:1px solid var(--line);
+            border-radius:12px; padding:11px 13px;
+        }
+        @media (min-width:600px) { .turn { background:var(--bg); } }
+        .turn .top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+        .turn .when { font-size:12px; color:var(--ink-soft); }
+        .turn .title { font-size:13px; font-weight:600; color:var(--ink); }
+        .turn .type { font-size:11px; color:var(--amber); font-weight:600; }
+
+        .empty { text-align:center; color:var(--ink-soft); padding:30px; font-size:14px; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="topbar">
+            <div class="pill">
+                <div class="logo">TC</div>
+                {% include "coach/_nav.html" with active="stats" %}
+            </div>
+        </div>
+
+        <div class="scroll">
+            <div class="cards">
+                <div class="card"><div class="k">Total activities</div><div class="v" id="c-total">—</div></div>
+                <div class="card"><div class="k">Training since</div><div class="v" id="c-since">—</div></div>
+                <div class="card"><div class="k">Active goals</div><div class="v" id="c-goals">—</div></div>
+                <div class="card"><div class="k">Active injuries</div><div class="v" id="c-injuries">—</div></div>
+            </div>
+
+            <div class="section-title">Planned vs. actually done</div>
+            <div class="chart-box">
+                <div class="adherence-headline">
+                    <span class="rate" id="a-rate">—</span>
+                    <span class="sub" id="a-sub">matched to a logged activity</span>
+                </div>
+                <div class="recent" id="a-missed"></div>
+            </div>
+
+            <div class="section-title">Training by type (last 90 days)</div>
+            <div class="chart-box"><canvas id="typeChart"></canvas></div>
+
+            <div class="section-title">Weekly volume (last 12 weeks)</div>
+            <div class="chart-box"><canvas id="volumeChart"></canvas></div>
+        </div>
+    </div>
+
+    <script>
+        const TYPE_COLORS = ['#2D6CDF', '#7A5CCC', '#1D9E75', '#BA7517', '#378ADD', '#C0392B', '#645F43', '#6B7585'];
+
+        function labelize(t) { return (t || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
+
+        async function load() {
+            let data;
+            try {
+                data = await fetch('/stats/data/').then(r => r.json());
+            } catch (e) {
+                document.getElementById('a-missed').innerHTML = '<div class="empty">Could not load stats.</div>';
+                return;
+            }
+
+            const s = data.summary;
+            document.getElementById('c-total').textContent = s.total_activities.toLocaleString();
+            document.getElementById('c-since').textContent = s.first_activity_date || '—';
+            document.getElementById('c-goals').textContent = s.active_goals;
+            document.getElementById('c-injuries').textContent = s.active_injuries;
+
+            // adherence
+            const a = data.adherence;
+            document.getElementById('a-rate').textContent = a.rate === null ? '—' : a.rate + '%';
+            document.getElementById('a-sub').textContent =
+                a.total ? `${a.matched} of ${a.total} planned sessions matched to a logged activity` : 'No past planned sessions yet';
+            const missedWrap = document.getElementById('a-missed');
+            if (!a.missed.length) {
+                missedWrap.innerHTML = a.total ? '' : '<div class="empty">Plan a session to start tracking this.</div>';
+            } else {
+                missedWrap.innerHTML = '<div class="section-title" style="margin-top:10px;">Recently missed</div>' +
+                    a.missed.map(m =>
+                        `<div class="turn"><div class="top"><span class="title">${escapeHtml(m.title)}</span>` +
+                        `<span class="when">${m.date}</span></div>` +
+                        `<div class="type">${labelize(m.activity_type)}</div></div>`
+                    ).join('');
+            }
+
+            // not cycling-power-centric — whatever gets done most shows up biggest
+            const byType = data.by_type_90d;
+            if (byType.length) {
+                new Chart(document.getElementById('typeChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: byType.map(t => labelize(t.activity_type)),
+                        datasets: [{
+                            data: byType.map(t => t.n),
+                            backgroundColor: byType.map((_, i) => TYPE_COLORS[i % TYPE_COLORS.length]),
+                            borderWidth: 0,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } },
+                            tooltip: { callbacks: { label: c => `${c.label}: ${c.parsed} session${c.parsed === 1 ? '' : 's'}` } },
+                        },
+                    },
+                });
+            } else {
+                document.getElementById('typeChart').parentElement.innerHTML = '<div class="empty">No activity in the last 90 days.</div>';
+            }
+
+            // weekly volume bar chart
+            const wv = data.weekly_volume;
+            if (wv.length) {
+                new Chart(document.getElementById('volumeChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: wv.map(w => w.week_start.slice(5)),
+                        datasets: [{
+                            label: 'Minutes',
+                            data: wv.map(w => w.minutes),
+                            backgroundColor: '#2D6CDF',
+                            borderRadius: 4,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { callbacks: { label: c => `${c.parsed.y} min` } },
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                            y: { beginAtZero: true, ticks: { font: { size: 10 } } },
+                        },
+                    },
+                });
+            } else {
+                document.getElementById('volumeChart').parentElement.innerHTML = '<div class="empty">No activity in the last 12 weeks.</div>';
+            }
+        }
+
+        function escapeHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', load);
+    </script>
+</body>
+</html>

@@ -6,15 +6,18 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.timesince import timesince
 from django.contrib.auth.decorators import login_required
 
+from pydantic import ValidationError
+
 from coach.agent import chat
-from coach.models import Message, PlannedSession
-from sync.models import DailyStats, Activity
+from coach.models import Goal, Injury, Message, PlannedExercise, PlannedSession
+from coach.schemas import PlannedExerciseIn
+from sync.models import DailyStats, Activity, Exercise
 import datetime
 from django.db.models import Sum, Avg, Count
 from django.db.models.functions import TruncDate
 from coach.models import ApiUsage
 
-# Maps internal tool names -> friendly labels shown under the coach's reply
+# tool name -> friendly label shown under the coach's reply
 TOOL_LABELS = {
     "log_daily_feeling": "Logged how you feel",
     "log_injury": "Logged injury",
@@ -23,6 +26,10 @@ TOOL_LABELS = {
     "append_athlete_note": "Saved a note",
     "create_planned_session": "Planned a session",
     "clear_planned_sessions": "Cleared planned sessions",
+    "get_workout_detail": "Looked up workout detail",
+    "get_exercise_detail": "Looked up exercise detail",
+    "get_fitness_trend": "Checked fitness trend",
+    "get_resolved_injury_history": "Checked injury history",
 }
 
 
@@ -54,24 +61,21 @@ def chat_message(request):
     if not user_message:
         return JsonResponse({'error': 'Empty message'}, status=400)
 
-    # Build history for the model: last 20 messages, oldest-first
+    # last 20 messages, oldest-first
     recent = Message.objects.order_by('-created_at')[:20]
     history = [
         {"role": m.role, "content": m.content}
         for m in reversed(recent)
     ]
 
-    # Call the agent ONCE
     try:
         reply, tools_used = chat(user_message, history)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-    # Persist both sides
     Message.objects.create(role="user", content=user_message)
     Message.objects.create(role="assistant", content=reply)
 
-    # Friendly labels for the tools that ran this turn
     actions = [TOOL_LABELS.get(t, t) for t in tools_used]
 
     return JsonResponse({'reply': reply, 'actions': actions})
@@ -84,7 +88,7 @@ def chat_reset(request):
     Message.objects.all().delete()
     return JsonResponse({'status': 'reset'})
 
-# --- colour map shared by activities + planned sessions ---
+# colour map shared by activities + planned sessions
 def _activity_color(activity_type):
     t = (activity_type or "").lower()
     if "cycl" in t or "bik" in t:                          return "#2D6CDF"   # blue
@@ -97,25 +101,24 @@ def _activity_color(activity_type):
     if "mountaineering" in t:                              return "#645F43D6" # brown
     return "#D6D6D696"                                                        # grey (rest/other)
 
- 
-# --- the calendar page ---
+
 @login_required
 def calendar_page(request):
     return render(request, 'coach/calendar.html')
- 
- 
-# --- JSON feed FullCalendar reads ---
+
+
+# JSON feed FullCalendar reads
 @login_required
 @require_http_methods(["GET"])
 def calendar_events(request):
     events = []
 
-    # ---- synced activities: solid colour bar, short label ----
+    # synced activities: solid colour bar, short label
     for a in Activity.objects.exclude(start_time__isnull=True):
         color = _activity_color(a.activity_type)
         label = (a.activity_type or "activity").replace("_", " ").title()
 
-        # full detail for the popup
+        # detail line for the popup
         mins = round(a.duration_seconds / 60) if a.duration_seconds else None
         bits = [label]
         if mins:
@@ -129,23 +132,26 @@ def calendar_events(request):
         detail = " · ".join(bits)
 
         events.append({
-            "title": label,                       # SHORT — just the type
+            "title": label,
             "start": a.start_time.date().isoformat(),   # date only -> clean all-day bar in month view
             "allDay": True,
             "backgroundColor": color,
             "borderColor": color,
             "textColor": "#fff",
+            "editable": False,   # real Garmin data, never draggable
             "extendedProps": {"kind": "activity", "detail": detail},
         })
 
-    # ---- planned sessions (editable, outline style) ----
-    for p in PlannedSession.objects.all():
+    # planned sessions: editable, outline style
+    for p in PlannedSession.objects.all().prefetch_related('exercises'):
         color = _activity_color(p.activity_type)
         label = p.title or p.activity_type.replace("_", " ").title()
-        who = "User" if p.created_by == "user" else "Coach"
-        status = "🟢" if p.completed else "🟡"
+        # created_by: "ai" (tool path) / "human" (UI) / legacy "coach" value —
+        # anything not "human" counts as coach-planned, matches the edit
+        # modal's own "planned by AI coach" / "planned by you" wording
+        who = "You" if p.created_by == "human" else "Coach"
         events.append({
-            "title": f"{status} {who} {label}",
+            "title": f"{who} · {label}",
             "start": p.date.isoformat(),
             "allDay": True,
             "classNames": ["planned"],
@@ -162,13 +168,13 @@ def calendar_events(request):
                 "intensity": p.intensity,
                 "completed": p.completed,
                 "created_by": p.created_by,
+                "exercises": list(p.exercises.values('name', 'sets', 'reps', 'weight_kg', 'notes')),
             },
         })
 
     return JsonResponse(events, safe=False)
- 
- 
-# --- create or update a planned session from the UI modal ---
+
+
 @login_required
 @require_http_methods(["POST"])
 def save_planned_session(request):
@@ -183,15 +189,70 @@ def save_planned_session(request):
         "intensity": data.get("intensity", "") or "",
         "completed": bool(data.get("completed", False)),
     }
+
+    # same validation as the LLM tool path — skip a bad row, don't fail the whole save
+    exercises_in = []
+    for row in data.get("exercises", []) or []:
+        try:
+            exercises_in.append(PlannedExerciseIn(**row))
+        except ValidationError:
+            continue
+
     if sid:
-        PlannedSession.objects.filter(id=sid).update(**fields)   # edit: keep original created_by        
+        PlannedSession.objects.filter(id=sid).update(**fields)   # keep original created_by
+        session = PlannedSession.objects.get(id=sid)
     else:
-        fields["created_by"] = "human"                            # new via UI
-        PlannedSession.objects.create(**fields)
+        fields["created_by"] = "human"
+        session = PlannedSession.objects.create(**fields)
+
+    # replace all children — simpler than diffing against existing ids
+    session.exercises.all().delete()
+    if exercises_in:
+        PlannedExercise.objects.bulk_create([
+            PlannedExercise(session=session, order=i, **ex.model_dump())
+            for i, ex in enumerate(exercises_in)
+        ])
+
     return JsonResponse({"ok": True})
- 
- 
-# --- delete a planned session from the UI modal ---
+
+
+# move a planned session to a new date (calendar drag-and-drop)
+@login_required
+@require_http_methods(["POST"])
+def move_planned_session(request):
+    data = json.loads(request.body)
+    session = get_object_or_404(PlannedSession, id=data.get("id"))
+    try:
+        new_date = datetime.date.fromisoformat(data.get("date", ""))
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "Invalid date."}, status=400)
+
+    # no PLANNING_WINDOW_DAYS check here on purpose — that's the LLM's
+    # visible-date guard (next_14_days), not a human's. Someone dragging on
+    # the real calendar grid can target any date it shows. Only real rule:
+    # no moving a session into the past.
+    today = datetime.date.today()
+    if new_date < today:
+        return JsonResponse({
+            "ok": False,
+            "error": "Can't move a session into the past.",
+        }, status=400)
+
+    session.date = new_date
+    session.save(update_fields=["date"])
+    return JsonResponse({"ok": True})
+
+
+# exercise catalog for the calendar modal's autocomplete
+@login_required
+@require_http_methods(["GET"])
+def exercise_options(request):
+    return JsonResponse(
+        list(Exercise.objects.order_by('name').values('name', 'category')),
+        safe=False,
+    )
+
+
 @login_required
 @require_http_methods(["POST"])
 def delete_planned_session(request):
@@ -262,7 +323,7 @@ def usage_data(request):
         "output": u.output_tokens,
     } for u in qs.order_by('-created_at')[:15]]
 
-    # per model+config comparison (the actual A/B — no data deleted, ever)
+    # per model+config comparison — the actual A/B, nothing ever deleted
     config_rows = (qs.values('model', 'config_version')
                      .annotate(turns=Count('id'),
                                total_cost=Sum('cost_usd'),
@@ -323,4 +384,82 @@ def usage_detail_data(request, usage_id):
         "user_message": u.user_message,
         "tool_trace": u.tool_trace,
         "final_text": u.final_text,
+    })
+
+
+@login_required
+def stats_page(request):
+    return render(request, 'coach/stats.html')
+
+
+@login_required
+@require_http_methods(["GET"])
+def stats_data(request):
+    """Training volume + adherence — real Activity data, not cycling-power
+    metrics; the athlete's actual training is mostly strength + skating."""
+    today = datetime.date.today()
+
+    total_activities = Activity.objects.count()
+    first_activity = Activity.objects.order_by('start_time').first()
+    summary = {
+        "total_activities": total_activities,
+        "first_activity_date": first_activity.start_time.date().isoformat() if first_activity else None,
+        "active_goals": Goal.objects.filter(is_active=True).count(),
+        "active_injuries": Injury.objects.filter(date_resolved__isnull=True).count(),
+    }
+
+    # training by type, last 90 days
+    since_90 = today - datetime.timedelta(days=90)
+    by_type_90d = list(
+        Activity.objects.filter(start_time__date__gte=since_90)
+        .values('activity_type')
+        .annotate(n=Count('id'), minutes=Sum('duration_seconds'))
+        .order_by('-n')
+    )
+    for row in by_type_90d:
+        row['minutes'] = round((row['minutes'] or 0) / 60)
+
+    # weekly volume, last 12 weeks, Monday-start buckets
+    since_12w = today - datetime.timedelta(weeks=12)
+    recent = Activity.objects.filter(start_time__date__gte=since_12w).values('start_time', 'duration_seconds')
+    weeks = {}
+    for a in recent:
+        d = a['start_time'].date()
+        monday = d - datetime.timedelta(days=d.weekday())
+        bucket = weeks.setdefault(monday.isoformat(), {"count": 0, "minutes": 0})
+        bucket["count"] += 1
+        bucket["minutes"] += round((a['duration_seconds'] or 0) / 60)
+    weekly_volume = [{"week_start": k, **v} for k, v in sorted(weeks.items())]
+
+    # adherence: date-only match against any logged activity — Garmin's
+    # activity types and the planner's don't line up 1:1, so no type
+    # matching. rest days excluded, they're not supposed to produce an activity
+    past_sessions = PlannedSession.objects.filter(date__lt=today).exclude(activity_type='rest').order_by('-date')
+    activity_dates = set(
+        Activity.objects.filter(start_time__date__lt=today).values_list('start_time__date', flat=True)
+    )
+    matched = 0
+    missed = []
+    for s in past_sessions:
+        if s.date in activity_dates:
+            matched += 1
+        elif len(missed) < 10:
+            missed.append({
+                "date": s.date.isoformat(),
+                "title": s.title or s.activity_type,
+                "activity_type": s.activity_type,
+            })
+    total = past_sessions.count()
+    adherence = {
+        "matched": matched,
+        "total": total,
+        "rate": round(matched / total * 100) if total else None,
+        "missed": missed,
+    }
+
+    return JsonResponse({
+        "summary": summary,
+        "by_type_90d": by_type_90d,
+        "weekly_volume": weekly_volume,
+        "adherence": adherence,
     })

@@ -41,14 +41,19 @@
             display:flex; align-items:center; justify-content:center;
             font-weight:700; font-size:14px; flex-shrink:0;
         }
-        .pill .name { font-size:15px; font-weight:650; flex:1; }
-        #view-toggle {
-            display:flex; align-items:center; gap:6px;
-            background:var(--surface); border:1px solid var(--line); border-radius:999px;
-            padding:6px 13px; font-size:13px; font-weight:600; color:var(--navy); cursor:pointer;
+        .nav-links {
+            display:flex; align-items:center; gap:4px; flex:1;
+            overflow-x:auto; scrollbar-width:none;
         }
-        #view-toggle:active { background:var(--pill-bg); }
-        #view-toggle svg { width:16px; height:16px; stroke:var(--navy); fill:none; stroke-width:1.9; }
+        .nav-links::-webkit-scrollbar { display:none; }
+        .nav-link {
+            flex-shrink:0; padding:6px 11px; border-radius:999px;
+            font-size:12.5px; font-weight:600; color:var(--ink-soft);
+            text-decoration:none; white-space:nowrap;
+        }
+        .nav-link.active {
+            background:var(--surface); border:1px solid var(--line); color:var(--navy);
+        }
 
         .update-line {
             flex-shrink:0; text-align:center; color:var(--ink-soft);
@@ -132,21 +137,6 @@
         #send svg { width:20px; height:20px; stroke:#fff; fill:none; stroke-width:2.2; }
         #send:disabled { opacity:.4; }
         #send:active { background:var(--navy); }
-
-        .view { display:none; flex:1; flex-direction:column; overflow:hidden; }
-        .view.active { display:flex; }
-        .placeholder {
-            flex:1; display:flex; flex-direction:column;
-            align-items:center; justify-content:center;
-            gap:8px; padding:30px; text-align:center; color:var(--ink-soft);
-        }
-        .placeholder .big { font-size:18px; font-weight:650; color:var(--ink); }
-
-        .nav-pill {
-            background:var(--surface); border:1px solid var(--line); border-radius:999px;
-            padding:6px 11px; font-size:12.5px; font-weight:600; color:var(--navy); cursor:pointer;
-        }
-        .nav-pill:active { background:var(--pill-bg); }
     </style>
 </head>
 <body>
@@ -154,41 +144,28 @@
         <div class="topbar">
             <div class="pill">
                 <div class="logo">TC</div>
-                <div class="name">Training Coach</div>
-                <button id="cal-btn" class="nav-pill">Calendar</button>
-                <button id="use-btn" class="nav-pill">Usage</button>
+                {% include "coach/_nav.html" with active="chat" %}
             </div>
         </div>
 
         <div class="update-line" id="update-line">
             <span class="dot"></span><span id="update-text">Last update: {{ last_update|default:"recently" }}</span>
         </div>
-        
+
         <div class="divider"></div>
 
-        <!-- CHAT VIEW -->
-        <div class="view active" id="view-chat">
-            <div id="messages">
-                {% for m in past_messages %}
-                    <div class="msg {% if m.role == 'user' %}user{% else %}coach{% endif %}"
-                         data-raw="{{ m.content|escape }}">{{ m.content }}</div>
-                {% endfor %}
-            </div>
-            <div class="bottom">
-                <div class="input-pill">
-                    <input id="input" type="text" placeholder="How do you feel today?" autocomplete="off">
-                    <button id="send" aria-label="Send">
-                        <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                    </button>
-                </div>
-            </div>
+        <div id="messages">
+            {% for m in past_messages %}
+                <div class="msg {% if m.role == 'user' %}user{% else %}coach{% endif %}"
+                     data-raw="{{ m.content|escape }}">{{ m.content }}</div>
+            {% endfor %}
         </div>
-
-        <!-- CALENDAR VIEW (placeholder) -->
-        <div class="view" id="view-calendar">
-            <div class="placeholder">
-                <div class="big">Calendar</div>
-                <div>Your activities and planned sessions will show here soon.</div>
+        <div class="bottom">
+            <div class="input-pill">
+                <input id="input" type="text" placeholder="How do you feel today?" autocomplete="off">
+                <button id="send" aria-label="Send">
+                    <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                </button>
             </div>
         </div>
     </div>
@@ -276,10 +253,6 @@
         send.addEventListener('click', sendMessage);
         input.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
 
-        // Calendar button -> navigate to the calendar page
-        document.getElementById('cal-btn').addEventListener('click', () => location.href = '/calendar/');
-        document.getElementById('use-btn').addEventListener('click', () => location.href = '/usage/');
-        
         messages.scrollTop = messages.scrollHeight;
     </script>
 </body>

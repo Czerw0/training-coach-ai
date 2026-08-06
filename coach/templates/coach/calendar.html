@@ -42,14 +42,19 @@
             display:flex; align-items:center; justify-content:center;
             font-weight:700; font-size:14px; flex-shrink:0;
         }
-        .pill .name { font-size:15px; font-weight:650; flex:1; }
-        .back {
-            display:flex; align-items:center; gap:6px;
-            background:var(--surface); border:1px solid var(--line); border-radius:999px;
-            padding:6px 13px; font-size:13px; font-weight:600; color:var(--navy);
-            cursor:pointer; text-decoration:none;
+        .nav-links {
+            display:flex; align-items:center; gap:4px; flex:1;
+            overflow-x:auto; scrollbar-width:none;
         }
-        .back svg { width:16px; height:16px; stroke:var(--navy); fill:none; stroke-width:1.9; }
+        .nav-links::-webkit-scrollbar { display:none; }
+        .nav-link {
+            flex-shrink:0; padding:6px 11px; border-radius:999px;
+            font-size:12.5px; font-weight:600; color:var(--ink-soft);
+            text-decoration:none; white-space:nowrap;
+        }
+        .nav-link.active {
+            background:var(--surface); border:1px solid var(--line); color:var(--navy);
+        }
 
         .legend {
             display:flex; flex-wrap:wrap; gap:7px 12px;
@@ -139,6 +144,23 @@
             border-radius:12px; padding:13px 16px; font-size:15px; font-weight:600; cursor:pointer;
         }
         .readonly-note { font-size:14px; color:var(--ink); margin-top:6px; line-height:1.5; }
+
+        /* ---- Structured exercise rows (gym sessions) ---- */
+        #exercise-rows { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+        .exercise-row {
+            display:grid; grid-template-columns:2fr 1fr 1fr 1fr auto; gap:6px;
+            align-items:center; padding:8px; background:var(--bg); border-radius:10px;
+        }
+        .exercise-row input { padding:8px 9px; font-size:14px; }
+        .exercise-row .ex-notes { grid-column:1 / -1; }
+        .exercise-row .ex-remove {
+            background:none; border:none; color:var(--danger); font-size:18px;
+            cursor:pointer; padding:4px 8px; line-height:1;
+        }
+        #add-exercise-btn {
+            background:none; border:1px dashed var(--line); color:var(--blue);
+            border-radius:10px; padding:9px; font-size:13px; font-weight:600; cursor:pointer;
+        }
     </style>
 </head>
 <body>
@@ -146,11 +168,7 @@
         <div class="topbar">
             <div class="pill">
                 <div class="logo">TC</div>
-                <div class="name">Calendar</div>
-                <a class="back" href="/">
-                    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    Coach
-                </a>
+                {% include "coach/_nav.html" with active="calendar" %}
             </div>
         </div>
 
@@ -161,7 +179,7 @@
             <div class="item"><span class="sw" style="background:#BA7517"></span>Tennis</div>
             <div class="item"><span class="sw" style="background:#378ADD"></span>Skiing</div>
             <div class="item"><span class="sw" style="background:#645F43D6"></span>Hiking</div>
-            <div class="item"><span class="sw outline"></span>Planned COACH/USER</div>
+            <div class="item"><span class="sw outline"></span>Planned (Coach / You)</div>
         </div>
 
         <div class="cal-wrap">
@@ -208,14 +226,22 @@
                     </div>
                 </div>
 
+                <div id="exercise-section" style="display:none;">
+                    <label>Exercises</label>
+                    <div id="exercise-rows"></div>
+                    <button type="button" id="add-exercise-btn" style="margin-top:8px;">+ Add exercise</button>
+                </div>
+
                 <label>Notes</label>
-                <textarea id="f-notes" placeholder="Details, exercises, etc."></textarea>
+                <textarea id="f-notes" placeholder="Overall comment for the whole session"></textarea>
 
                 <div class="check">
                     <input type="checkbox" id="f-completed">
                     <label for="f-completed" style="margin:0;">Mark as completed</label>
                 </div>
             </div>
+
+            <datalist id="exercise-options"></datalist>
 
             <div id="readonly-area" style="display:none;">
                 <p class="readonly-note" id="readonly-text"></p>
@@ -245,9 +271,66 @@
         const saveBtn = document.getElementById('save-btn');
         const deleteBtn = document.getElementById('delete-btn');
         const cancelBtn = document.getElementById('cancel-btn');
+        const typeSelect = document.getElementById('f-type');
+        const exerciseSection = document.getElementById('exercise-section');
+        const exerciseRows = document.getElementById('exercise-rows');
+        const addExerciseBtn = document.getElementById('add-exercise-btn');
 
         let editingId = null;
         let editingDate = null;
+
+        const GYM_TYPES = ['gym_legs', 'gym_upper'];
+
+        function updateExerciseSectionVisibility() {
+            exerciseSection.style.display = GYM_TYPES.includes(typeSelect.value) ? '' : 'none';
+        }
+        typeSelect.addEventListener('change', updateExerciseSectionVisibility);
+
+        function addExerciseRow(data = {}) {
+            const row = document.createElement('div');
+            row.className = 'exercise-row';
+            row.innerHTML =
+                `<input list="exercise-options" class="ex-name" placeholder="Exercise" value="${data.name ? escapeHtmlAttr(data.name) : ''}">` +
+                `<input type="number" class="ex-sets" placeholder="Sets" value="${data.sets ?? ''}">` +
+                `<input type="number" class="ex-reps" placeholder="Reps" value="${data.reps ?? ''}">` +
+                `<input type="number" class="ex-weight" placeholder="kg" step="0.5" value="${data.weight_kg ?? ''}">` +
+                `<button type="button" class="ex-remove" title="Remove">&times;</button>` +
+                `<input class="ex-notes" placeholder="Note for this exercise (optional)" value="${data.notes ? escapeHtmlAttr(data.notes) : ''}">`;
+            row.querySelector('.ex-remove').addEventListener('click', () => row.remove());
+            exerciseRows.appendChild(row);
+        }
+
+        function renderExerciseRows(list) {
+            exerciseRows.innerHTML = '';
+            (list || []).forEach(ex => addExerciseRow(ex));
+        }
+
+        function collectExercises() {
+            return Array.from(exerciseRows.querySelectorAll('.exercise-row')).map(row => ({
+                name: row.querySelector('.ex-name').value.trim(),
+                sets: row.querySelector('.ex-sets').value || null,
+                reps: row.querySelector('.ex-reps').value || null,
+                weight_kg: row.querySelector('.ex-weight').value || null,
+                notes: row.querySelector('.ex-notes').value.trim(),
+            })).filter(ex => ex.name);
+        }
+
+        function escapeHtmlAttr(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML.replace(/"/g, '&quot;');
+        }
+
+        addExerciseBtn.addEventListener('click', () => addExerciseRow());
+
+        // exercise catalog for the name field's autocomplete, fetched once
+        fetch('/calendar/exercises/')
+            .then(r => r.json())
+            .then(list => {
+                const datalist = document.getElementById('exercise-options');
+                datalist.innerHTML = list.map(e => `<option value="${escapeHtmlAttr(e.name)}">`).join('');
+            })
+            .catch(() => {});
 
         function openCreate(dateStr) {
             editingId = null;
@@ -264,6 +347,8 @@
             document.getElementById('f-intensity').value = '';
             document.getElementById('f-notes').value = '';
             document.getElementById('f-completed').checked = false;
+            renderExerciseRows([]);
+            updateExerciseSectionVisibility();
             overlay.classList.add('open');
         }
 
@@ -284,6 +369,8 @@
             document.getElementById('f-intensity').value = p.intensity || '';
             document.getElementById('f-notes').value = p.description || '';
             document.getElementById('f-completed').checked = !!p.completed;
+            renderExerciseRows(p.exercises || []);
+            updateExerciseSectionVisibility();
             overlay.classList.add('open');
         }
 
@@ -315,6 +402,7 @@
                 intensity: document.getElementById('f-intensity').value,
                 description: document.getElementById('f-notes').value,
                 completed: document.getElementById('f-completed').checked,
+                exercises: GYM_TYPES.includes(document.getElementById('f-type').value) ? collectExercises() : [],
             };
             await fetch('/calendar/session/', {
                 method: 'POST',
@@ -347,7 +435,12 @@
                 headerToolbar: { left: 'prev,next', center: 'title', right: 'today' },
                 dayMaxEventRows: 3,              // cap at 3, then "+N more"
                 fixedWeekCount: false,
-                // Planned sessions get a tinted background matching their colour.
+                editable: true,                  // enables drag-and-drop
+                eventAllow: function(dropInfo, draggedEvent) {
+                    // just a client-side guard, server re-validates on move
+                    return draggedEvent.extendedProps.kind === 'planned';
+                },
+                // planned sessions get a tinted background matching their colour
                 eventDidMount: function(info) {
                     if (info.event.extendedProps.kind === 'planned') {
                         const c = info.event.borderColor || '#888780';
@@ -365,6 +458,19 @@
                 },
                 dateClick: function(info) {
                     openCreate(info.dateStr.slice(0, 10));
+                },
+                eventDrop: async function(info) {
+                    const newDate = info.event.startStr.slice(0, 10);
+                    try {
+                        const resp = await fetch('/calendar/session/move/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                            body: JSON.stringify({ id: info.event.extendedProps.session_id, date: newDate }),
+                        });
+                        if (!resp.ok) info.revert();
+                    } catch (e) {
+                        info.revert();
+                    }
                 },
             });
             calendar.render();

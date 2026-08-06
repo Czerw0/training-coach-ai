@@ -9,8 +9,12 @@ urlpatterns = [
     path('calendar/events/', views.calendar_events, name='calendar_events'),
     path('calendar/session/', views.save_planned_session, name='save_planned_session'),
     path('calendar/session/delete/', views.delete_planned_session, name='delete_planned_session'),
+    path('calendar/session/move/', views.move_planned_session, name='move_planned_session'),
+    path('calendar/exercises/', views.exercise_options, name='exercise_options'),
     path('usage/', views.usage_page, name='usage_page'),
     path('usage/data/', views.usage_data, name='usage_data'),
     path('usage/<int:usage_id>/', views.usage_detail_page, name='usage_detail_page'),
     path('usage/<int:usage_id>/data/', views.usage_detail_data, name='usage_detail_data'),
+    path('stats/', views.stats_page, name='stats_page'),
+    path('stats/data/', views.stats_data, name='stats_data'),
 ]

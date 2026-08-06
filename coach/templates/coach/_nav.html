@@ -1,0 +1,10 @@
+{% comment %}
+shared nav pill — pass active="chat"/"calendar"/"stats"/"usage".
+each page defines its own .nav-links/.nav-link CSS (self-contained pages, see chat.html).
+{% endcomment %}
+<nav class="nav-links">
+    <a href="/" class="nav-link{% if active == 'chat' %} active{% endif %}">Coach</a>
+    <a href="/calendar/" class="nav-link{% if active == 'calendar' %} active{% endif %}">Calendar</a>
+    <a href="/stats/" class="nav-link{% if active == 'stats' %} active{% endif %}">Stats</a>
+    <a href="/usage/" class="nav-link{% if active == 'usage' %} active{% endif %}">Usage</a>
+</nav>
