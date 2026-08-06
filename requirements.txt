@@ -7,7 +7,8 @@ openmeteo-requests
 requests-cache 
 retry-requests
 anthropic==0.107.0
-gunicorn 
+pydantic
+gunicorn
 whitenoise
 pytest
 pytest-django

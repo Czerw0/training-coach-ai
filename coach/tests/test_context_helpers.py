@@ -1,5 +1,8 @@
+import pytest
+
 from coach.agent import compute_cost
-from coach.context import _round, _clean_activities, _summarise_weather
+from coach.context import _round, _clean_activities, _summarise_weather, build_context
+from sync.models import Exercise
 from datetime import datetime
 
 def test_round_returns_none_for_none():
@@ -63,3 +66,26 @@ def test_weather_hour_12_is_afternoon_not_morning():
 # def test_mixed_turn():
 #     # 100k in + 10k out: 0.10 + 0.05 = 0.15
 #     assert compute_cost(100_000, 0, 0, 10_000) == 0.15
+
+
+@pytest.mark.django_db
+def test_build_context_excludes_fitness_trend_and_resolved_injuries():
+    context = build_context()
+    assert "fitness_trend" not in context
+    assert "recent_resolved_injuries" not in context
+
+
+@pytest.mark.django_db
+def test_build_context_includes_exercise_library_index_without_progression_notes():
+    Exercise.objects.create(
+        name="Barbell Back Squat", category="legs", target_muscle="quads",
+        equipment="barbell", progression_notes="add 2.5kg/week",
+        injury_notes="avoid with acute knee pain",
+    )
+    context = build_context()
+    library = context["exercise_library"]
+    assert len(library) == 1
+    entry = library[0]
+    assert entry["name"] == "Barbell Back Squat"
+    assert "progression_notes" not in entry
+    assert "injury_notes" not in entry

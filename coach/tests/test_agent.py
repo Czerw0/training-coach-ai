@@ -129,3 +129,18 @@ def test_non_test_message_still_writes_recommendation():
     with patch("coach.agent.client.messages.create", return_value=response):
         chat("what should I do today?")
     assert CoachRecommendation.objects.count() == before + 1
+
+
+# --- turn triage mechanism (exercised here, but off by default in production —
+# see coach/triage.py) ---
+
+@pytest.mark.django_db
+def test_chat_works_with_turn_triage_enabled():
+    response = make_text_response("Sure, let's plan it.")
+    with patch("coach.triage.ENABLE_TURN_TRIAGE", True), \
+         patch("coach.agent.client.messages.create", return_value=response):
+        final_text, tools_used = chat("plan my next 7 days please")
+
+    assert final_text == "Sure, let's plan it."
+    row = ApiUsage.objects.latest("created_at")
+    assert row.model == "claude-sonnet-5"  # both tiers point here today (see MODEL_TIERS)

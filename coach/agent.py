@@ -15,22 +15,19 @@ client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
 MODEL = "claude-sonnet-5"
 
-# Safety cap: a tool-loop turn may make several API calls
+# safety cap — one turn can trigger several API calls
 MAX_TOOL_ROUNDS = 8
 
-# CONFIG CHANGELOG — bump whenever a system-level knob changes that isn't
-# already its own ApiUsage column (model is; caching/temperature/pricing
-# tier aren't). Lets the usage dashboard split cost/quality by config, not
-# just by model.
-# v1  no temperature (deprecated on Sonnet 5), no prompt caching
-# v2  prompt caching on: instructions + tool defs + per-turn data block,
-#     each with an ephemeral cache_control breakpoint (backlog item 4)
+# config changelog — bump on any system-level knob change without its own
+# ApiUsage column (model has one; caching/temperature/pricing don't)
+# v1  no temperature, no caching
+# v2  prompt caching on (instructions + tools + data block)
 CONFIG_VERSION = "v2-notemp-cache"
 
 
-# Pricing — MUST match MODEL. Sonnet 5 intro pricing (until Aug 31, 2026):
-#   input $2.00 | cache write $2.50 | cache read $0.20 | output $10.00
-# From Sept 1, 2026 it becomes 3.00 / 3.75 / 0.30 / 15.00 — update then.
+# pricing — must match MODEL. sonnet 5 intro pricing, until aug 31 2026:
+#   input $2 | cache write $2.50 | cache read $0.20 | output $10, per mtok
+# rises to 3 / 3.75 / 0.30 / 15 from sept 1 2026 — update then
 PRICE_INPUT       = 2.00 / 1_000_000
 PRICE_CACHE_WRITE = 2.50 / 1_000_000
 PRICE_CACHE_READ  = 0.20 / 1_000_000
@@ -38,7 +35,7 @@ PRICE_OUTPUT      = 10.00 / 1_000_000
 
 
 def compute_cost(inp, cache_write, cache_read, out):
-    """Cost in USD for one turn's token counts. Pure — no DB, no side effects."""
+    """Cost in USD for one turn's tokens. Pure, no side effects."""
     return (inp * PRICE_INPUT + cache_write * PRICE_CACHE_WRITE
             + cache_read * PRICE_CACHE_READ + out * PRICE_OUTPUT)
 
@@ -106,9 +103,15 @@ date match a single row in next_14_days.
   an injury is it healed permanently or is it just short-term better state.
 - For indoor cycling, pick a workout from indoor_workouts, call
   get_workout_detail(name) for exact watts, then prescribe it. Never invent
-  watt numbers. Never prescribe the Ramp Test as training. Always argument for the 
-  chosen workout's suitability (duration, TSS, IF) based on the athlete's current 
+  watt numbers. Never prescribe the Ramp Test as training. Always argument for the
+  chosen workout's suitability (duration, TSS, IF) based on the athlete's current
   load, goals, and recovery status.
+- For gym sessions (gym_legs / gym_upper), pick exercises from exercise_library
+  and call get_exercise_detail(name) before prescribing — especially if the
+  athlete has an active injury that might make an exercise unsuitable. Pass
+  structured exercises (name, sets, reps, weight_kg, notes) to
+  create_planned_session rather than only free-text description. Use
+  description for an overall session-level comment, not per-exercise detail.
 - Do not plan a rest day in the calendar. Every emppty day is a rest day by default. 
   Only plan a session if you have a specific workout recommendation for that day.
 
@@ -184,31 +187,42 @@ normally would.
 # v1.2.1  added TESTING section: "(test)"-prefixed messages skip DB writes
 # v1.2.2  TESTING section now reflects that the (test) skip is enforced in
 #         code (chat()), not by asking the model to self-police — the model
-#         was never a reliable gate for this 
+#         was never a reliable gate for this
+# v1.3.0  added exercise_library index + get_exercise_detail /
+#         get_fitness_trend / get_resolved_injury_history tools;
+#         create_planned_session accepts structured exercises
+#         (name/sets/reps/weight_kg/notes) for gym sessions
 
-PROMPT_VERSION = "v1.2.2"
+PROMPT_VERSION = "v1.3.0"
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
 PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 
 
-def build_system_prompt():
-    """Static instructions + fresh data block, returned separately so each
-    can get its own prompt-cache breakpoint (see TOOLS_WITH_CACHE below)."""
+def build_system_prompt(user_message=None):
+    """Static instructions + fresh data block, split so each gets its own
+    cache breakpoint (see TOOLS_WITH_CACHE below).
+
+    user_message only matters if triage.ENABLE_TURN_TRIAGE is on (off by
+    default, coach/triage.py). Off = instructions is just INSTRUCTIONS.
+    """
+    from coach import skills, triage
+    if triage.ENABLE_TURN_TRIAGE:
+        instructions = skills.assemble_instructions(triage.classify_turn(user_message))
+    else:
+        instructions = INSTRUCTIONS
+
     context = build_context()
     data_block = (
         "\n\n=== CURRENT ATHLETE DATA ===\n"
-        # Compact, not indent=2 — the model doesn't need pretty-printing, and
-        # every whitespace/newline token here is paid for on every cache
-        # write (and on any turn that misses cache), never just once.
+        # compact, not indent=2 — every extra whitespace char is paid for on cache writes
         f"{json.dumps(context, separators=(',', ':'), default=str)}"
         "\n=== END DATA ==="
     )
-    return INSTRUCTIONS, data_block
+    return instructions, data_block
 
 
-# Prompt caching: TOOL_DEFINITIONS is static across every turn, so mark its
-# last entry as a cache breakpoint once at import time. Anthropic caches
-# everything up to and including a marked block.
+# tool defs are static every turn — mark the last one as a cache breakpoint
+# once at import time (anthropic caches everything up to a marked block)
 TOOLS_WITH_CACHE = [dict(t) for t in TOOL_DEFINITIONS]
 if TOOLS_WITH_CACHE:
     TOOLS_WITH_CACHE[-1]["cache_control"] = {"type": "ephemeral"}
@@ -240,7 +254,7 @@ def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_versio
             final_text=(final_text or "")[:2000],
         )
     except Exception:
-        # Never let usage logging break a chat response
+        # usage logging must never break a chat reply
         pass
 
 
@@ -253,15 +267,17 @@ def chat(user_message, conversation_history=None):
     if conversation_history is None:
         conversation_history = []
 
-    # Code-level gate, not a prompt request: a "(test)"-prefixed message must
-    # never touch real athlete data, regardless of what the model decides to
-    # do. The model is not trusted to self-police this (see CLAUDE.md).
+    # code-level gate, not a prompt request — model isn't trusted to self-police this
     is_test = user_message.strip().lower().startswith("(test)")
 
-    instructions_block, data_block = build_system_prompt()
-    # Two cache breakpoints: instructions are static across every turn;
-    # the data block is fresh per turn but identical across this turn's
-    # own tool-loop round trips — both are worth caching (see backlog item 4).
+    from coach import triage
+    if triage.ENABLE_TURN_TRIAGE:
+        model = triage.MODEL_TIERS[triage.classify_turn(user_message)["model_tier"]]
+    else:
+        model = MODEL
+
+    instructions_block, data_block = build_system_prompt(user_message)
+    # two breakpoints — instructions never change within a turn, data block repeats across tool-loop rounds
     system_prompt = [
         {"type": "text", "text": instructions_block, "cache_control": {"type": "ephemeral"}},
         {"type": "text", "text": data_block, "cache_control": {"type": "ephemeral"}},
@@ -276,7 +292,7 @@ def chat(user_message, conversation_history=None):
 
     for _round in range(MAX_TOOL_ROUNDS):
         response = client.messages.create(
-            model=MODEL,
+            model=model,
             max_tokens=4096,            # Sonnet writes longer; 1500 risked
             system=system_prompt,       # truncating mid-tool-call
             tools=TOOLS_WITH_CACHE,
@@ -300,11 +316,11 @@ def chat(user_message, conversation_history=None):
                     recommendation=final_text,
                     user_message=user_message,
                 )
-            _record_usage(agg, MODEL, api_calls, tools_used, user_message,
+            _record_usage(agg, model, api_calls, tools_used, user_message,
                           PROMPT_TAG, CONFIG_VERSION, trace, final_text)
             return final_text, tools_used
 
-        # Model requested tools: append its turn, run each tool, return results
+        # model wants tools — run them, feed results back
         messages.append({"role": "assistant", "content": response.content})
         tool_results = []
         for block in response.content:
@@ -327,9 +343,9 @@ def chat(user_message, conversation_history=None):
                 })
         messages.append({"role": "user", "content": tool_results})
 
-    # Loop cap reached — fail loudly but gracefully, and still log the spend
+    # loop cap hit — still log the spend, fail without crashing
     cap_message = ("I hit my internal tool-call limit for one turn — the actions so "
                    "far ran, but please re-ask to continue.")
-    _record_usage(agg, MODEL, api_calls, tools_used, user_message, PROMPT_TAG,
+    _record_usage(agg, model, api_calls, tools_used, user_message, PROMPT_TAG,
                   CONFIG_VERSION, trace, cap_message)
     return (cap_message, tools_used)

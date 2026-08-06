@@ -1,10 +1,7 @@
-"""Eval harness: send golden-case messages through the real chat() loop
-(real API calls, real cost — this is deliberately not mocked) and check
-tool calls / reply text against declarative assertions.
-
-Golden cases live in cases.json. Run via `python manage.py run_evals`,
-which wraps this in an isolated Django test database so nothing here ever
-touches real athlete data.
+"""Eval harness: sends golden-case messages through the real chat() loop
+(real API calls, deliberately not mocked) and checks tool calls / reply text
+against declarative assertions. Cases live in cases.json, run via
+`python manage.py run_evals` — that wraps this in an isolated test database.
 """
 import datetime
 import json
@@ -25,7 +22,7 @@ def load_cases():
     return json.loads(CASES_PATH.read_text())
 
 
-# ---- pure check functions: (ok: bool, detail: str) ----
+# pure check functions: (ok: bool, detail: str)
 
 def check_expect_tools(tools_used, expect):
     missing = [t for t in expect if t not in tools_used]
@@ -125,15 +122,13 @@ def resolve_date_placeholder(value, today):
     m = re.match(r"next_(\w+)", key)
     if m and m.group(1) in WEEKDAYS:
         target = WEEKDAYS.index(m.group(1))
-        delta = (target - today.weekday()) % 7 or 7  # "next" = strictly upcoming
+        delta = (target - today.weekday()) % 7 or 7  # "next" means strictly upcoming
         return (today + datetime.timedelta(days=delta)).isoformat()
     raise ValueError(f"unknown date placeholder: {value}")
 
 
 def apply_setup(setup, today):
-    """Create the DB fixtures a case needs. Only ever called against the
-    isolated test database the management command sets up — never real data.
-    """
+    """Create the DB fixtures a case needs — isolated test DB only, never real data."""
     from coach.models import DailyFeeling, Goal, Injury, PlannedSession
 
     registry = {
@@ -151,47 +146,58 @@ def apply_setup(setup, today):
 
 
 def run_case(case, chat_fn):
-    """Send every turn in `case` through chat_fn, then run its checks.
+    """Send every turn in `case` through chat_fn (same signature as
+    coach.agent.chat), then run its checks. Tool traces come from the
+    ApiUsage row chat() just wrote, reusing the dashboard instrumentation.
 
-    chat_fn must have the same signature as coach.agent.chat. Tool traces
-    are read back off the ApiUsage row chat() just wrote — reusing the
-    instrumentation built for the usage dashboard instead of duplicating it.
+    Wrapped in a transaction that always rolls back, so cases never leak
+    state into each other despite sharing one DB for the whole run_evals
+    invocation (same nested-atomic trick Django's TestCase uses per test).
+
+    Gotcha: agent.py's _record_usage() swallows ApiUsage.objects.create()
+    errors. If that fires inside this atomic block, the next read here would
+    raise TransactionManagementError instead — pre-existing, not new.
     """
+    from django.db import transaction
+
     from coach.models import ApiUsage
 
-    today = datetime.date.today()
-    apply_setup(case.get("setup"), today)
+    with transaction.atomic():
+        today = datetime.date.today()
+        apply_setup(case.get("setup"), today)
 
-    history = []
-    tools_used_all = []
-    trace_all = []
-    final_text = ""
-    for message in case["turns"]:
-        final_text, tools_used = chat_fn(message, history)
-        row = ApiUsage.objects.latest("created_at")
-        trace_all.extend(row.tool_trace)
-        tools_used_all.extend(tools_used)
-        history = history + [
-            {"role": "user", "content": message},
-            {"role": "assistant", "content": final_text},
-        ]
+        history = []
+        tools_used_all = []
+        trace_all = []
+        final_text = ""
+        for message in case["turns"]:
+            final_text, tools_used = chat_fn(message, history)
+            row = ApiUsage.objects.latest("created_at")
+            trace_all.extend(row.tool_trace)
+            tools_used_all.extend(tools_used)
+            history = history + [
+                {"role": "user", "content": message},
+                {"role": "assistant", "content": final_text},
+            ]
 
-    ctx = {"tools_used": tools_used_all, "tool_trace": trace_all, "final_text": final_text}
-    # Every CHECKS entry is opt-in per case: a case only runs a check if it
-    # sets that key to a truthy value (a non-empty list, or True for a flag).
-    results = []
-    for key, fn in CHECKS.items():
-        if case.get(key):
-            ok, detail = fn(case, ctx)
-            results.append({"check": key, "ok": ok, "detail": detail})
+        ctx = {"tools_used": tools_used_all, "tool_trace": trace_all, "final_text": final_text}
+        # opt-in per case — only runs a check if the case sets that key truthy
+        results = []
+        for key, fn in CHECKS.items():
+            if case.get(key):
+                ok, detail = fn(case, ctx)
+                results.append({"check": key, "ok": ok, "detail": detail})
 
-    return {
-        "id": case["id"],
-        "passed": all(r["ok"] for r in results),
-        "final_text": final_text,
-        "tools_used": tools_used_all,
-        "checks": results,
-    }
+        result = {
+            "id": case["id"],
+            "passed": all(r["ok"] for r in results),
+            "final_text": final_text,
+            "tools_used": tools_used_all,
+            "checks": results,
+        }
+        transaction.set_rollback(True)
+
+    return result
 
 
 def run_all(chat_fn=None, cases=None):

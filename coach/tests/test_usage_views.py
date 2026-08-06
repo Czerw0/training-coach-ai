@@ -76,3 +76,15 @@ def test_usage_detail_data_404_for_missing_row(client, user):
     client.force_login(user)
     resp = client.get(reverse("usage_detail_data", args=[999999]))
     assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_usage_page_renders_with_persistent_nav(client, user):
+    client.force_login(user)
+    resp = client.get(reverse("usage_page"))
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    for marker in ['class="nav-link', 'href="/stats/"', 'href="/calendar/"']:
+        assert marker in content
+    # the old single "back to Coach" pill is gone, replaced by the shared nav
+    assert 'class="back"' not in content

@@ -13,7 +13,9 @@ from coach.evals.harness import (
     check_tool_order,
     load_cases,
     resolve_date_placeholder,
+    run_case,
 )
+from coach.models import ApiUsage, PlannedSession
 
 
 def test_load_cases_returns_nonempty_list_with_unique_ids():
@@ -161,3 +163,37 @@ def test_resolve_date_placeholder_passthrough_for_literal_dates():
 def test_resolve_date_placeholder_unknown_raises():
     with pytest.raises(ValueError):
         resolve_date_placeholder("@not_a_real_placeholder", datetime.date(2026, 8, 3))
+
+
+# --- cross-case isolation: run_case() must roll back everything it did ---
+
+def _fake_chat_that_writes_a_planned_session(message, history):
+    """Stand-in for coach.agent.chat — no real API call. Simulates the model
+    calling a DB-writing tool (like create_planned_session) mid-turn."""
+    ApiUsage.objects.create(model="fake", tool_trace=[])
+    PlannedSession.objects.create(
+        date=datetime.date.today(), activity_type="cycling", title="from case A"
+    )
+    return "WROTE", ["create_planned_session"]
+
+
+def _fake_chat_that_checks_for_leaked_state(message, history):
+    """Stand-in for coach.agent.chat — no real API call. Writes the ApiUsage
+    row run_case() expects to read, and reports whether a PlannedSession
+    already exists (i.e. leaked in from an earlier case)."""
+    ApiUsage.objects.create(model="fake", tool_trace=[])
+    final_text = "LEAK" if PlannedSession.objects.exists() else "CLEAN"
+    return final_text, []
+
+
+@pytest.mark.django_db
+def test_run_case_does_not_leak_state_between_cases():
+    case_a = {"id": "writes_a_planned_session", "turns": ["irrelevant"]}
+    case_b = {"id": "should_see_a_clean_db", "turns": ["irrelevant"]}
+
+    result_a = run_case(case_a, _fake_chat_that_writes_a_planned_session)
+    result_b = run_case(case_b, _fake_chat_that_checks_for_leaked_state)
+
+    assert result_a["final_text"] == "WROTE"
+    assert result_b["final_text"] == "CLEAN"  # must NOT see case A's PlannedSession
+    assert PlannedSession.objects.count() == 0  # nothing survives past either case

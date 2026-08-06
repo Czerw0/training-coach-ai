@@ -1,15 +1,15 @@
 from django.db import models
 
 class Activity(models.Model):
-    #Identification
+    # identification
     garmin_id = models.CharField(max_length=64, unique=True, db_index=True)
     activity_name = models.CharField(max_length=255, null=True, blank=True)
-    activity_type = models.CharField(max_length=50, db_index=True) # e.g., 'running', 'cycling', 'swimming', 'strength_training'
-    start_time = models.DateTimeField(db_index=True, null=True, blank=True) # Map to startTimeLocal
+    activity_type = models.CharField(max_length=50, db_index=True) # e.g. running, cycling, strength_training
+    start_time = models.DateTimeField(db_index=True, null=True, blank=True) # maps to startTimeLocal
     location_name = models.CharField(max_length=255, null=True, blank=True)
     device_id = models.CharField(max_length=64, null=True, blank=True)
 
-    #Primary Metrics
+    # primary metrics
     duration_seconds = models.FloatField()
     moving_duration_seconds = models.FloatField(null=True, blank=True)
     elapsed_duration_seconds = models.FloatField(null=True, blank=True)
@@ -17,24 +17,24 @@ class Activity(models.Model):
     calories = models.IntegerField(null=True, blank=True)
     bmr_calories = models.IntegerField(null=True, blank=True)
 
-    #Heart Rate & Intensity
+    # heart rate & intensity
     avg_hr = models.IntegerField(null=True, blank=True)
     max_hr = models.IntegerField(null=True, blank=True)
-    # Heart Rate Time in Zones (Seconds)
+    # HR time in zones, seconds
     hr_zone_1_seconds = models.FloatField(null=True, blank=True)
     hr_zone_2_seconds = models.FloatField(null=True, blank=True)
     hr_zone_3_seconds = models.FloatField(null=True, blank=True)
     hr_zone_4_seconds = models.FloatField(null=True, blank=True)
     hr_zone_5_seconds = models.FloatField(null=True, blank=True)
 
-    #Training Analysis
+    # training analysis
     training_load = models.FloatField(null=True, blank=True)
     training_effect_aerobic = models.FloatField(null=True, blank=True)
     training_effect_anaerobic = models.FloatField(null=True, blank=True)
-    training_effect_label = models.CharField(max_length=100, null=True, blank=True) # e.g., "Base", "VO2 Max"
+    training_effect_label = models.CharField(max_length=100, null=True, blank=True) # e.g. "Base", "VO2 Max"
     vo2_max = models.FloatField(null=True, blank=True)
 
-    #Running Specific (HRM-Pro / Advanced Dynamics)
+    # running-specific (HRM-Pro / advanced dynamics)
     avg_running_cadence = models.IntegerField("Steps per Minute", null=True, blank=True)
     max_running_cadence = models.IntegerField(null=True, blank=True)
     avg_stride_length_cm = models.FloatField(null=True, blank=True)
@@ -45,7 +45,7 @@ class Activity(models.Model):
     avg_running_power = models.FloatField("Watts", null=True, blank=True)
     avg_grade_adjusted_speed = models.FloatField(null=True, blank=True)
 
-    #Cycling Specific (Edge 840 + Power Meter)
+    # cycling-specific (Edge 840 + power meter)
     avg_power = models.IntegerField(null=True, blank=True)
     max_power = models.IntegerField(null=True, blank=True)
     normalized_power = models.IntegerField(null=True, blank=True)
@@ -54,7 +54,7 @@ class Activity(models.Model):
     avg_bike_cadence = models.IntegerField("RPM", null=True, blank=True)
     max_bike_cadence = models.IntegerField(null=True, blank=True)
 
-    # Power Time in Zones (Seconds)
+    # power time in zones, seconds
     power_zone_1_seconds = models.FloatField(null=True, blank=True)
     power_zone_2_seconds = models.FloatField(null=True, blank=True)
     power_zone_3_seconds = models.FloatField(null=True, blank=True)
@@ -62,19 +62,19 @@ class Activity(models.Model):
     power_zone_5_seconds = models.FloatField(null=True, blank=True)
     power_zone_6_seconds = models.FloatField(null=True, blank=True)
 
-    #Swimming Specific
+    # swimming-specific
     avg_swolf = models.IntegerField(null=True, blank=True)
     total_strokes = models.IntegerField(null=True, blank=True)
     avg_stroke_rate = models.FloatField(null=True, blank=True)
     lap_count = models.IntegerField(null=True, blank=True)
 
-    #Strength Training
+    # strength training
     total_sets = models.IntegerField(null=True, blank=True)
     active_sets = models.IntegerField(null=True, blank=True)
     total_reps = models.IntegerField(null=True, blank=True)
-    # Note: For specific exercises, a separate 'Exercise' model linked to Activity is better.
+    # per-exercise detail would need a separate model linked to Activity
 
-    #Environment & Health
+    # environment & health
     elevation_gain_m = models.FloatField(null=True, blank=True)
     elevation_loss_m = models.FloatField(null=True, blank=True)
     max_temp = models.FloatField(null=True, blank=True)
@@ -202,6 +202,30 @@ class IndoorCyclingWorkout(models.Model):
  
     def __str__(self):
         return f"{self.name} ({self.category}, {self.duration_min}min), IF: {self.intensity_factor}, TSS: {self.tss}"
+
+class Exercise(models.Model):
+    CATEGORY_CHOICES = [
+        ('legs', 'Legs'),
+        ('upper', 'Upper Body'),
+        ('core', 'Core'),
+        ('posterior_chain', 'Posterior Chain'),
+        ('mobility', 'Mobility'),
+    ]
+    name = models.CharField(max_length=255, unique=True)
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
+    target_muscle = models.CharField(max_length=100, blank=True, default="")
+    equipment = models.CharField(max_length=100, blank=True, default="")
+    default_sets = models.IntegerField(null=True, blank=True)
+    default_reps = models.IntegerField(null=True, blank=True)
+    progression_notes = models.TextField(blank=True, default="")
+    injury_notes = models.TextField(blank=True, default="")
+    description = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["category", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.category})"
  
     def detail_watts(self, ftp):
         out = []

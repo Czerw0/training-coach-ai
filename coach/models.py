@@ -142,3 +142,19 @@ class PlannedSession(models.Model):
  
     def __str__(self):
         return f"{self.date} {self.activity_type}"
+
+
+class PlannedExercise(models.Model):
+    session = models.ForeignKey(PlannedSession, on_delete=models.CASCADE, related_name="exercises")
+    name = models.CharField(max_length=255)
+    sets = models.IntegerField(null=True, blank=True)
+    reps = models.IntegerField(null=True, blank=True)
+    weight_kg = models.FloatField(null=True, blank=True)
+    notes = models.CharField(max_length=500, blank=True, default="")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.name} ({self.sets}x{self.reps}) for session {self.session_id}"

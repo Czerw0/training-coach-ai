@@ -1,4 +1,5 @@
 import os
+import time
 
 import environ
 from django.conf import settings
@@ -7,6 +8,8 @@ from django.db import connections
 from django.test.runner import DiscoverRunner
 
 DIRECT_DB_ENV = "DIRECT_DATABASE_URL"
+SETUP_ATTEMPTS = 6
+SETUP_RETRY_DELAY_SECONDS = 3
 
 
 class Command(BaseCommand):
@@ -41,13 +44,10 @@ class Command(BaseCommand):
             ))
             return
 
-        # Point 'default' at the direct connection for this whole run — both
-        # for creating/dropping the throwaway test DB and for every ORM call
-        # the eval cases make. .update() only (no .clear()!) — Django applies
-        # one-time defaults to this same dict object at startup (TEST,
-        # CONN_MAX_AGE, OPTIONS, ...); clearing it first wipes those with
-        # nothing left to reapply them, which is exactly what broke this the
-        # first time (KeyError: 'TEST' during setup_databases()).
+        # points 'default' at the direct connection for the whole run.
+        # .update() only, never .clear() — Django puts one-time defaults
+        # (TEST, CONN_MAX_AGE, ...) on this same dict at startup; clearing
+        # first wipes them with nothing left to reapply (KeyError: 'TEST')
         settings.DATABASES['default'].update(environ.Env.db_url_config(direct_url))
         connections.close_all()
 
@@ -64,12 +64,11 @@ class Command(BaseCommand):
             "test database — this costs real API credits.\n"
         )
 
-        # Isolated test DB (same mechanism pytest-django uses) so setup
-        # fixtures and every tool call the model makes never touch real
-        # athlete data. interactive=False so a leftover test DB from a
-        # previous crashed run is just recreated, not a blocking y/n prompt.
+        # isolated test DB, same as pytest-django — setup fixtures and every
+        # tool call stay off real data. interactive=False so a leftover DB
+        # from a crashed run just gets recreated, no y/n prompt
         runner = DiscoverRunner(interactive=False)
-        old_config = runner.setup_databases()
+        old_config = self._setup_databases_with_retry(runner)
         try:
             results = run_all(cases=cases)
         finally:
@@ -83,6 +82,40 @@ class Command(BaseCommand):
                 ))
 
         self._print_scorecard(results)
+
+    def _terminate_test_db_sessions(self):
+        """Best-effort kill of lingering backend sessions on test_postgres —
+        even the session pooler doesn't always release instantly, and the
+        next create/drop can race it. Cheap insurance before each attempt."""
+        conn = connections['default']
+        try:
+            conn.ensure_connection()
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                    "WHERE datname = 'test_postgres' AND pid <> pg_backend_pid()"
+                )
+        except Exception:
+            pass
+        finally:
+            connections.close_all()
+
+    def _setup_databases_with_retry(self, runner):
+        """runner.setup_databases() calls sys.exit(2) on failure, no
+        exception to catch — so retry the whole call ourselves. Failure is
+        transient (Supavisor releasing a connection a beat late), not real."""
+        for attempt in range(1, SETUP_ATTEMPTS + 1):
+            self._terminate_test_db_sessions()
+            try:
+                return runner.setup_databases()
+            except SystemExit:
+                if attempt == SETUP_ATTEMPTS:
+                    raise
+                self.stdout.write(self.style.WARNING(
+                    f"Test database still busy (attempt {attempt}/{SETUP_ATTEMPTS}), "
+                    f"retrying in {SETUP_RETRY_DELAY_SECONDS}s..."
+                ))
+                time.sleep(SETUP_RETRY_DELAY_SECONDS)
 
     def _print_scorecard(self, results):
         passed = sum(1 for r in results if r["passed"])
