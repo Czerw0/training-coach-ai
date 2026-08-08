@@ -3,6 +3,7 @@ import json
 from pydantic import ValidationError
 from coach.models import DailyFeeling, Goal, Injury, PlannedExercise, PlannedSession
 from coach.schemas import ClearPlannedSessionsIn, PlannedSessionIn, format_validation_error
+from coach.training_skills import check_week, load_principles, load_skill
 from sync.models import DailyStats, Exercise, IndoorCyclingWorkout, UserProfile
 
 PLANNING_WINDOW_DAYS = 14   # must match next_14_days in context.py
@@ -248,6 +249,33 @@ def get_resolved_injury_history(days=60):
     if not rows:
         return f"No resolved injuries in the last {days} days."
     return json.dumps(rows, default=str)
+
+
+def load_training_skill(category, skill):
+    """Full planning/scheduling methodology for one training modality.
+
+    Reads one session leaf on demand — the context only carries the short
+    index. Returns the file body or a helpful error string.
+    """
+    return load_skill(category, skill)
+
+
+def get_training_principles():
+    """Shared load-management reasoning behind the per-session training skills.
+
+    Fatigue axes, interference, progression, readiness, deload/taper — read
+    once when planning a week, before loading individual session skills.
+    """
+    return load_principles()
+
+
+def check_training_week(sessions):
+    """Deterministically validate a proposed week against the skill's rules.
+
+    Runs the skill's own checker (spacing, same-day conflicts, per-axis
+    saturation). `sessions` is a list of {id, start}. Returns a text report.
+    """
+    return check_week(sessions)
 
 
 TOOL_DEFINITIONS = [
@@ -505,6 +533,66 @@ TOOL_DEFINITIONS = [
             "required": [],
         },
     },
+    {
+        "name": "load_training_skill",
+        "description": (
+            "Load the planning-and-scheduling methodology for one training "
+            "modality BEFORE prescribing that kind of session. The context's "
+            "training_skills index lists what's available (category + skill + "
+            "when to use). Call this whenever planning a gym, plyometric, "
+            "cycling, or running session so the prescription follows the right "
+            "volume, intensity, and recovery/spacing rules. Copy category and "
+            "skill exactly from the training_skills index."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string", "description": "Skill category, exactly as in training_skills (e.g. 'gym')."},
+                "skill": {"type": "string", "description": "Skill name, exactly as in training_skills (e.g. 'lower-eccentric')."},
+            },
+            "required": ["category", "skill"],
+        },
+    },
+    {
+        "name": "get_training_principles",
+        "description": (
+            "Load the shared training-planning principles — fatigue axes, "
+            "interference, load progression, the readiness/downgrade ladder, "
+            "deload and taper. Read these once when planning a week or "
+            "microcycle, before loading individual session skills; the session "
+            "skills defer to them for the shared 'why'."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "check_training_week",
+        "description": (
+            "Deterministically check a proposed week for scheduling violations "
+            "— same-day conflicts, insufficient spacing between hard sessions, "
+            "and per-axis fatigue saturation. Call this on a draft week BEFORE "
+            "writing any of it to the calendar. Fix every error; for every "
+            "warning, either fix it or state the compromise explicitly in the "
+            "plan. Pass every session you intend to schedule."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sessions": {
+                    "type": "array",
+                    "description": "The proposed week's sessions.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string", "description": "category/skill from the training_skills index, e.g. 'gym/lower-eccentric'."},
+                            "start": {"type": "string", "description": "ISO-8601 start datetime, e.g. '2026-08-10T17:00'."},
+                        },
+                        "required": ["id", "start"],
+                    },
+                },
+            },
+            "required": ["sessions"],
+        },
+    },
 ]
 
 
@@ -520,6 +608,9 @@ TOOL_FUNCTIONS = {
     "get_exercise_detail": get_exercise_detail,
     "get_fitness_trend": get_fitness_trend,
     "get_resolved_injury_history": get_resolved_injury_history,
+    "load_training_skill": load_training_skill,
+    "get_training_principles": get_training_principles,
+    "check_training_week": check_training_week,
 }
 
 

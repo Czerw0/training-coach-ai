@@ -3,6 +3,7 @@ from django.db.models import Sum, Q
 from django.utils import timezone
 from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, UserProfile, FTPRecord, IndoorCyclingWorkout, Exercise
 from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, PlannedSession
+from coach.training_skills import list_skills
 
 
 # skating instruction days, Mon=0..Sun=6 — empty while paused for July/August,
@@ -238,4 +239,5 @@ def build_context():
         'weather_next_48h': weather_summary,
         'indoor_cycling_workouts': indoor_cyc_workouts,
         'exercise_library': exercise_library,
+        'training_skills': list_skills(),
     }

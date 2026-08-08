@@ -117,7 +117,23 @@ date match a single row in next_14_days.
   structured exercises (name, sets, reps, weight_kg, notes) to
   create_planned_session rather than only free-text description. Use
   description for an overall session-level comment, not per-exercise detail.
-- Do not plan a rest day in the calendar. Every emppty day is a rest day by default. 
+- The training_skills index lists on-demand planning/scheduling methodology for
+  each session type (gym, plyometrics, cycling, running). Before prescribing a
+  session of a given type, call load_training_skill(category, skill) to load that
+  skill — it gives the volume, intensity, progression, and recovery/spacing rules
+  for that modality. Copy category and skill exactly from the index. Follow the
+  loaded skill's Hard rules; its Preferences may be traded away when the calendar
+  forces it. This complements indoor_workouts and exercise_library, which give
+  the concrete workouts/exercises to fill the session with.
+- When planning a WHOLE week or several sessions at once (not a single day's
+  tweak), first call get_training_principles once for the shared load-management
+  rules (fatigue axes, interference, progression, readiness, taper). Then draft
+  the week and call check_training_week(sessions) with every session you intend
+  to schedule. The checker is the gatekeeper: fix every error it reports before
+  writing anything, and for every warning either fix it or state the compromise
+  plainly in your reply. Do not create_planned_session for a week that still
+  has check errors.
+- Do not plan a rest day in the calendar. Every empty day is a rest day by default.
   Only plan a session if you have a specific workout recommendation for that day.
 
 === INSTRUCTION DAYS ===
@@ -197,8 +213,13 @@ normally would.
 #         get_fitness_trend / get_resolved_injury_history tools;
 #         create_planned_session accepts structured exercises
 #         (name/sets/reps/weight_kg/notes) for gym sessions
+# v1.4.0  told the model about the training_skills index and to call
+#         load_training_skill(category, skill) before prescribing a session —
+#         on-demand planning/scheduling methodology per modality
+# v1.5.0  week-level planning: get_training_principles (shared reasoning) +
+#         check_training_week (deterministic gatekeeper) before writing a week
 
-PROMPT_VERSION = "v1.3.0"
+PROMPT_VERSION = "v1.5.0"
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
 PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 

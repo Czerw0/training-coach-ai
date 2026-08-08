@@ -19,8 +19,13 @@ every single message costs me (about half a cent).
   into a calendar it can also read back.
 - A month-view calendar mixing what I actually did (from Garmin) with what is
   planned — each plan tagged with who made it, the AI or me.
+- A trace panel next to the chat that shows the agent's actual reasoning,
+  round by round: which data it pulled, what it saw, and how that led to the
+  plan — surfaced from the model's extended thinking, not a paraphrase.
+- A stats view: training by type, weekly volume, and plan adherence (did the
+  planned sessions actually happen?).
 - A live cost dashboard: tokens and dollars per message, spend over time, and
-  which tools fired on every turn.
+  which tools fired on every turn, filterable by model and config version.
 
 ## Architecture
 
@@ -38,13 +43,14 @@ Context builder ------ token-optimized snapshot:
       |                precomputed dates, summarized weather,
       |                windowed history, ACWR, planned sessions
       v
-Claude Haiku agent -- tool loop: feelings, injuries, goals,
-      |               athlete notes, calendar writes
+Claude Sonnet 5 agent - tool loop (extended thinking): feelings,
+      |               injuries, goals, athlete notes, calendar
+      |               writes, exercise/workout lookups
       v
-Django web app ------ chat / calendar / usage dashboard
+Django web app ------ chat / calendar / stats / usage dashboard
       |
       v
-Docker on Oracle Cloud VM (deployed only if tests pass)
+Docker on Oracle Cloud VM behind Caddy (HTTPS; deployed only if tests pass)
 ```
 
 Two Django apps, clean boundary: `sync` ingests data, `coach` owns the agent,
@@ -52,9 +58,9 @@ its tools, the context builder and the UI.
 
 ## Stack
 
-Python, Django, PostgreSQL (Supabase), Anthropic API (Claude Haiku),
-garminconnect, Open-Meteo, FullCalendar, Chart.js, Docker, gunicorn,
-whitenoise, GitHub Actions, pytest.
+Python, Django, PostgreSQL (Supabase), Anthropic API (Claude Sonnet 5),
+Pydantic, garminconnect, Open-Meteo, FullCalendar, Chart.js, Docker, gunicorn,
+whitenoise, Caddy, GitHub Actions, pytest.
 
 ## Engineering decisions I would defend in a review
 
@@ -67,19 +73,41 @@ sessions it could never see again, so it duplicated plans and could not answer
 sessions became part of the context it receives. If an agent mutates state, it
 must be able to read that state back. This one principle fixed half my bugs.
 
+**I swapped Haiku for Sonnet 5 when I hit a capability ceiling, not a prompt
+bug.** Haiku 4.5 kept producing wrong-day plans on multi-day date arithmetic
+and would not reliably hold the anti-fabrication rules no matter how I wrote
+the prompt. I precompute the dates now so the model never does calendar math
+(below), but the fabrication problem was the model, not the instructions — I
+confirmed it was a ceiling by trying to prompt around it and failing. A model
+swap is not a one-line change either: Sonnet 5 dropped `temperature` and
+`budget_tokens` entirely, so the switch meant re-checking every accepted
+parameter and the pricing, not just the model string. (The `budget_tokens`
+removal bit me again later — the old extended-thinking shape 400s on Sonnet 5.)
+
+**LLM output never reaches the database unvalidated.** Calendar-writing tools
+run the model's arguments through Pydantic schemas and a date-vs-weekday check
+before anything is written — the code is the gatekeeper, the model is not
+trusted to self-check. A model told the weekday for every date can still hand
+back a mismatched pair; catching it in code turns a class of silent wrong-day
+bugs into a tool error the model has to fix and retry.
+
 **I removed the sync button.** A "sync now" feature ran a full Garmin sync
 inside the web request — on a 1 GB VM that killed the worker mid-call, so I
 paid for API responses that never arrived. Deleted the feature. Syncs now run
 on GitHub's machines on a schedule, and the UI shows data freshness instead of
 faking real-time. Removing it was the right call and I would do it again.
 
-**I benchmarked prompt caching and then turned it off.** Implemented it, hit
-the model's 2,048-token caching minimum, extended the cached prefix through the
-tool definitions to clear it, watched a 46k-token cache write land — and then
-measured reads: zero. Five-minute TTL versus my bursty, infrequent usage meant
-I paid the 1.25x write premium and never collected the discount. Caching was
-making things worse, so I reverted it and kept the measurement rig. Optimize
-against real usage, not vibes.
+**I benchmarked prompt caching, killed it, then brought it back for a reason
+the first attempt missed.** First try was on Haiku: I hit the model's
+2,048-token caching minimum, extended the cached prefix through the tool
+definitions to clear it, watched a 46k-token cache write land — and then
+measured reads: zero. A five-minute TTL against my bursty, infrequent usage
+meant I paid the 1.25x write premium and never collected the discount, so I
+reverted it and kept the measurement rig. On Sonnet 5 it earns its place,
+because a single coaching turn isn't one API call — the tool-use loop re-sends
+an identical instructions+tools+data prefix milliseconds apart on each round.
+That's a guaranteed same-turn cache hit, not a bet on the TTL. Same feature,
+opposite verdict, because the usage pattern I measured against changed.
 
 **Every message has a price tag.** Each chat turn writes one row: all four
 token counts, computed cost, tools used, prompt version. The dashboard sits on
@@ -87,6 +115,15 @@ top. Total damage: about $5/month. After trimming the context windows to what
 coaching actually needs (28 days of load for ACWR, 14 of activities, 30 of FTP
 history), I stopped optimizing — because chasing pennies past that point is
 bad engineering too.
+
+**I turned the agent's reasoning on, and chose to pay for it.** Sonnet 5's
+extended thinking (adaptive, low effort) drives the trace panel — I can watch
+the round-by-round reasoning instead of guessing at it. Thinking bills as
+output tokens, so this is a standing per-turn cost increase, not a free
+feature. I estimated it against a real measured turn before flipping it on and
+took the trade deliberately, because seeing *why* the coach decided something
+is worth more to me than the cents. It carries its own config version so I can
+compare cost with and without.
 
 **One worker, 120-second timeout.** Free-tier VM, 1 GB RAM, 2 GB swap. Three
 gunicorn workers meant OOM crash-loops; one worker is boring and stable.
@@ -113,7 +150,7 @@ guessing. Treat the prompt as config, because it is.
 Standard tool-use loop — instructions plus a fresh data snapshot, tools that
 hit the database, loop until a final reply. The details that actually mattered:
 
-- Dates are precomputed. The model receives today and the next seven days with
+- Dates are precomputed. The model receives today and the next 14 days with
   weekdays already resolved, because LLM calendar math produced wrong-day plans.
 - Weather is compressed into day-part blocks instead of hourly rows. Same
   decision value, fraction of the tokens.
@@ -129,7 +166,15 @@ hit the database, loop until a final reply. The details that actually mattered:
 pytest + pytest-django. Pure logic first: context helpers (unit conversion,
 null handling, weather bucketing including the block boundaries) and the cost
 math, which I extracted into a pure function specifically so it could be
-tested. Factory helpers with realistic data. Runs in CI before every deploy.
+tested. Factory helpers with realistic data. The agent tests mock the Anthropic
+response, so the whole suite runs in CI before every deploy at zero API cost.
+
+On top of that sits an eval harness (`manage.py run_evals`): a golden set of
+conversations with the tool calls I expect, run against the real model so a
+prompt or model change gets scored instead of eyeballed. It runs against a
+throwaway test database with per-case rollback, so it never touches real data.
+This is the layer that would have caught the extended-thinking API-shape bug
+the mocked suite could not — mocks assert the code, not the live API contract.
 
 ## Running locally
 
@@ -167,13 +212,20 @@ Tests: `pytest -v`.
 
 ## What is next
 
-- HTTPS behind a reverse proxy (currently plain HTTP on the VM).
-- An eval harness for the agent: a golden set of conversations with expected
-  tool calls, so prompt changes get scored instead of eyeballed.
+- Wire the training-planner skill into the live agent. `skills/training-planner`
+  is a self-contained, portable Anthropic Agent Skill: per-session
+  planning/scheduling methodology behind progressive disclosure, plus a
+  *deterministic* week checker (`check_week.py`) that enforces spacing, same-day
+  conflicts and per-axis fatigue saturation in code rather than in prose — so a
+  persuasive prompt can't argue the plan out of a hard rule. It is built and
+  passes its own self-tests; the remaining step is pointing the Django agent's
+  loader at it (the file layout moved, which is a deliberate, flagged break).
 - Email digest of the weekly plan (management command built, SMTP + schedule
   pending).
-- Per-exercise strength history as a new data source, so the coach can program
-  progression, not just sessions.
+- Per-exercise strength history as a data source. The exercise library and
+  on-demand detail lookups exist ("index always, detail on demand"); the missing
+  piece is logged set/rep/load history so the coach can program progression, not
+  just prescribe sessions.
 
 One athlete, one dataset, one system: real data in, decisions out, every step
 deployed, tested, measured — and honest about its trade-offs.
