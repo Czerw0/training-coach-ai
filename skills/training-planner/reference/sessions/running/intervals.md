@@ -1,7 +1,7 @@
 ---
 name: intervals
 category: running
-description: Use when planning VO2max or speed running intervals — the highest-intensity running session; do it fresh, protect the 48–72 h either side, and never as the first hard session back.
+description: Use when planning VO2max or speed running intervals — the highest-intensity running session; do it fresh, protect the 48–72 h either side, and never as the first hard session back. For this athlete, plan running ONLY on explicit request (knee); when running is requested, this and tempo-threshold are the priority modes.
 load: {neural: high, mechanical: high, metabolic: high, damage: moderate}
 residual_fatigue_h: 48
 same_day_conflicts: [gym/lower-eccentric, gym/lower-power, plyometrics/intensive, running/tempo-threshold, cycling/intervals]
@@ -16,6 +16,14 @@ see_also: [principles/load-and-recovery, principles/planning-the-week, running/t
 
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
+
+> **This athlete —** running is **not proposed unless the athlete explicitly asks
+> for it** (knee injury; the agent should reach for `cycling/*` for hard aerobic
+> work by default). When running *is* requested, this session and
+> `running/tempo-threshold` are the two priority modes — they carry the training
+> value the athlete wants from running, so protect them over easy volume. Return
+> to running is capped hard by tissue tolerance (see Don't use when): reintroduce
+> as short reps, never as the first hard session back.
 
 ## Use when
 

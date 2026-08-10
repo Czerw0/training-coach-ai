@@ -12,6 +12,65 @@ description: Intensity distribution, the order in which a week gets built, deloa
 Read `principles/load-and-recovery` first — this file assumes the four fatigue
 axes and the interference rules from it.
 
+## 0. This athlete — priorities, structure and season
+
+The generic principles below still hold; this section is the standing context
+they get applied within. It is the first thing to load when planning a week.
+
+**North star: skiing.** Skiing is the main sport and the winter goal. It is
+**not trained inside this system** — it happens on-snow, in season. Everything
+here is summer/shoulder-season preparation, so **every session should be
+justifiable by its transfer to winter ski performance and to long-term gains,
+not short-term numbers.** When two options are close, pick the one that serves
+the ski goal and the athlete's durability over the one that flatters a weekly
+metric.
+
+**Current priorities:** cycling, gym, plyometrics. Cycling is the second main
+sport and the default aerobic engine. **Running is not proposed unless the
+athlete explicitly asks** (knee) — default to `cycling/*` for aerobic work; see
+the `running/*` leaves for how to handle it when requested.
+
+**Plan around injuries and schedule first — flexibility is a feature, not a
+fallback.** The immovables in step 2 below are, for this athlete, primarily
+*current injury status* and *life/schedule*, not races. Re-plan freely as those
+change; a rigid week is the wrong output here.
+
+**Standing healthy-week shape (when uninjured):**
+- **~2× cycling** (flexes **1–2×** with time, weather, injuries and other
+  activity) — currently easy/consistent riding, not big volume.
+- **~2× lower-body gym**, deliberately **rotating the type** across a block —
+  `gym/lower-max-strength`, `gym/lower-eccentric`, `gym/lower-isometric`,
+  `gym/lower-power`, plus the newer `gym/full-body` and `gym/strength-endurance`.
+  Variety of stimulus is a stated goal, not a nice-to-have.
+- **~1× upper-body gym** (`gym/upper-body`), swappable for a **climbing** session.
+- **A lower-gym slot can be replaced by plyometrics or by
+  `gym/strength-endurance`** (stair machine / loaded vertical) to blend endurance
+  with strength.
+- **1–3 rest days** per week is the normal range.
+- Optional extra movement (volleyball, casual activity) may happen but is **not
+  counted as a training session** — don't plan load around it, just note it as
+  fatigue if it was significant.
+- **When a week is cycling-primary, ease the lower-body gym** (submaximal loads,
+  fewer hard leg sessions) so the strength work supports the riding rather than
+  competing with it.
+
+**Seasonal periodization (ski-focused annual arc).** Phase drives what a "good
+week" looks like; state which phase a plan is in.
+
+| Phase | Months | Primary focus | Endurance | Strength / power |
+|---|---|---|---|---|
+| Base | Apr–Jul | Endurance base | Primary, building volume | Early-block strength, then maintain |
+| **Strength build** | **Aug–Sep (now)** | **Strength for skiing** | Moderate/hard, consistent — hold aerobic base, don't chase km | Build — the priority; plus a little aerobic |
+| Pre-season power | Oct | Convert strength → power/speed | Reduced, easy | Transfer the Aug–Sep strength base into power and speed — `gym/lower-power`, plyometrics; sharpen, don't keep grinding max-strength |
+| Pre-season down | Nov | Arrive fresh for snow | Light | Still a slight improvement, not a full taper — reduce load to be fresh |
+| Ski season | Dec–Mar | Skiing (very hard, on-snow) | Consistency, can be the main aerobic work | **Maintain, not progress** — low-volume/isometric strength; don't accumulate fatigue that compromises ski days |
+
+> **Current caveat (2026):** training was disrupted by illness/injury in June–July,
+> so the aerobic base is **below its usual level right now** — do not benchmark
+> against pre-illness fitness. Rebuild **consistency and frequency first** (see
+> §7, Returning to load) before adding volume or intensity, even though the
+> calendar phase is "strength build".
+
 ## 1. Intensity distribution
 
 Most endurance training should be easy, and the hard part should be genuinely
@@ -106,6 +165,11 @@ the distinction the checker draws between an `error` (fix it) and a `warning`
 Starting templates, not prescriptions. Adjust to the athlete's actual
 availability before proposing.
 
+> **For this athlete (§0):** in every template below, read "key intensity" and
+> "long session" as **cycling** by default — running appears only when the athlete
+> asks for it. The two athlete-specific templates at the end of this section are
+> the usual starting points.
+
 **Endurance-primary, gym as support (3 endurance + 2 gym)**
 ```
 Mon  gym/lower-max-strength (or lower-power) + easy aerobic later, ≥6 h apart
@@ -137,6 +201,33 @@ Sun  upper body or isometrics
 ```
 When sessions are few, cut *intensity variety* before cutting frequency —
 frequency is what maintains tissue tolerance.
+
+**This athlete — default week, strength-build phase (§0), uninjured**
+```
+Mon  lower-body gym (rotate: max-strength / eccentric / full-body) — key strength
+Tue  cycling/endurance — easy Z2 (protects Mon, low interference)
+Wed  gym/upper-body (or climbing)
+Thu  lower-body gym (a DIFFERENT type from Mon) or plyometrics, fresh
+Fri  cycling/endurance — easy Z2
+Sat  rest / optional non-training movement (not counted)
+Sun  rest
+```
+2 rides + 2 lower gym (rotated for variety) + 1 upper, 2 rest days. Skiing is the
+season goal, so the leg work is the priority and the riding is deliberately easy.
+Returning-to-load caveat (§0) applies right now — hold loads conservative.
+
+**This athlete — cycling-primary week (more riding available)**
+```
+Mon  lower-body gym, kept SUBMAXIMAL (supports the riding, doesn't fight it)
+Tue  cycling/endurance — easy Z2
+Wed  gym/upper-body (or climbing) + optional plyometrics/extensive in warm-up
+Thu  cycling — longer or slightly harder ride (the week's aerobic key)
+Fri  gym/strength-endurance (stairs) OR rest, athlete's choice
+Sat  cycling/endurance or mountain hike if a trip is on
+Sun  rest
+```
+When cycling steps up to 3×, lower-body gym eases to one submaximal session plus
+optional strength-endurance, so total leg load stays manageable (§0).
 
 ## 5. Deload
 

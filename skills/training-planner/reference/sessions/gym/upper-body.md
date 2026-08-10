@@ -17,6 +17,14 @@ see_also: [principles/planning-the-week, gym/lower-max-strength]
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
 
+> **This athlete —** the once-a-week upper slot in the usual template. It can be
+> **swapped for a climbing-gym session**, which covers the same
+> pull-dominant/upper-and-grip stimulus with more variety and fun — treat climbing
+> as a like-for-like substitute here, keeping the same low-interference,
+> legs-spared scheduling role. If a climbing session is unusually leg-intensive
+> (lots of high steps, slab) or hard on the fingers, count it as a real session
+> and don't stack a fresh-legs power/plyo day right after.
+
 ## Use when
 
 Training the upper body — horizontal/vertical push and pull, direct arm and

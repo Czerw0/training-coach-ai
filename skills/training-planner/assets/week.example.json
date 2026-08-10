@@ -1,0 +1,7 @@
+[
+  {"id": "gym/lower-max-strength", "start": "2026-08-10T17:00"},
+  {"id": "cycling/endurance",       "start": "2026-08-11T09:00"},
+  {"id": "gym/upper-body",          "start": "2026-08-12T17:00"},
+  {"id": "gym/strength-endurance",  "start": "2026-08-13T17:00"},
+  {"id": "cycling/endurance",       "start": "2026-08-14T09:00"}
+]

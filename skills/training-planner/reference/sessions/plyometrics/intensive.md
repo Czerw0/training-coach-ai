@@ -17,6 +17,15 @@ see_also: [principles/load-and-recovery, plyometrics/extensive, gym/lower-power]
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
 
+> **This athlete —** a **build-toward target, not a right-now session.** The
+> athlete is only just returning to plyometrics, so the default is
+> `plyometrics/extensive` until several weeks of clean tolerance are logged
+> (prerequisite 2 below). When intensive work does come in, keep the priority on
+> **jump height and landing quality** and on **speed** (short ground contact,
+> reactive stiffness) — those are the ski-relevant qualities — and progress
+> **volume slowly** (contacts before amplitude). Do not rush box height or
+> single-leg work; the return is capped by tissue tolerance, not by motivation.
+
 ## Use when
 
 Maximal reactive output from few, high-quality ground contacts: depth jumps,

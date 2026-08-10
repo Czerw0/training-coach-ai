@@ -17,6 +17,15 @@ see_also: [principles/load-and-recovery, plyometrics/intensive]
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
 
+> **This athlete —** this is the **current entry point**: the athlete is returning
+> to plyometrics after time away, so start here and stay conservative — low
+> contacts, quiet landings — and **build weekly volume gradually** (contacts
+> first, per Dosing) before any move toward `plyometrics/intensive`. The qualities
+> that matter most are **the jump and — especially — the landing**, plus **foot
+> and ground-contact speed**; cue those every session. These transfer directly to
+> skiing (absorbing and redirecting force, reactive control), which is the point
+> of doing them at all right now.
+
 ## Use when
 
 Building elastic quality, foot and ankle stiffness, and tissue tolerance with

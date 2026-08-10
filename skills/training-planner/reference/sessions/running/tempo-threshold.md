@@ -1,7 +1,7 @@
 ---
 name: tempo-threshold
 category: running
-description: Use when planning tempo or threshold running (continuous or cruise intervals) — a key day, less taxing than full VO2max intervals; keep 48 h from other hard running or cycling.
+description: Use when planning tempo or threshold running (continuous or cruise intervals) — a key day, less taxing than full VO2max intervals; keep 48 h from other hard running or cycling. For this athlete, plan running ONLY on explicit request (knee); when running is requested, this and running/intervals are the priority modes.
 load: {neural: moderate, mechanical: moderate, metabolic: high, damage: moderate}
 residual_fatigue_h: 48
 same_day_conflicts: [gym/lower-eccentric, gym/lower-power, gym/lower-max-strength, plyometrics/intensive, running/intervals, cycling/intervals]
@@ -16,6 +16,12 @@ see_also: [principles/load-and-recovery, running/intervals]
 
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
+
+> **This athlete —** running is **not proposed unless the athlete explicitly asks
+> for it** (knee injury; default to `cycling/*` for hard aerobic work). When
+> running *is* requested, this and `running/intervals` are the two priority modes
+> — they are what running is *for* in this plan; `running/easy-long` is kept only
+> as a base/recovery frame, not a goal in itself.
 
 ## Use when
 

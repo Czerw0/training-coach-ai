@@ -17,6 +17,17 @@ see_also: [principles/planning-the-week, cycling/intervals]
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
 
+> **This athlete —** cycling is the **second main sport** and the default aerobic
+> engine (running is off the table unless requested, per `running/*`). A
+> **direct-drive smart trainer** is available, so structured indoor Z2 is always
+> an option regardless of weather — pull a matching workout with
+> `get_workout_detail`; outdoor rides still get checked against `weather_next_48h`.
+> **Right now (August–September, ski-strength phase) the emphasis is easy,
+> consistent riding — rebuilding aerobic consistency rather than chasing big
+> kilometres or FTP.** Cycling frequency flexes 1–2× per week around the athlete's
+> injuries, time and other activities; when the week is cycling-primary, lower-body
+> gym eases off to support it (`principles/planning-the-week`).
+
 ## Use when
 
 Steady Zone 2 aerobic riding. This is the highest-value **structural** session

@@ -1,7 +1,7 @@
 ---
 name: easy-long
 category: running
-description: Use when planning easy aerobic runs or the weekly long run — easy runs are near-free; the long run is the week's key running stressor and needs real recovery and distance from heavy-leg work.
+description: Use when planning easy aerobic runs or the weekly long run — easy runs are near-free; the long run is the week's key running stressor and needs real recovery and distance from heavy-leg work. For this athlete, DEPRIORITIZED (knee) — only on explicit request, and cycling/endurance is the default easy-aerobic substitute; running priority when requested is intervals + tempo-threshold.
 load: {neural: low, mechanical: moderate, metabolic: moderate, damage: moderate}
 residual_fatigue_h: 24
 same_day_conflicts: []
@@ -16,6 +16,14 @@ see_also: [principles/planning-the-week, running/intervals, running/tempo-thresh
 
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
+
+> **This athlete —** **deprioritized.** Running is not proposed unless the athlete
+> asks, and even then easy/long running is *not* the point — the knee tolerates
+> impact volume poorly, and `cycling/endurance` is the default easy-aerobic
+> substitute (same aerobic stimulus, a fraction of the impact). Keep this session
+> in the library because the athlete plans to run more in future; when running is
+> requested now, the priority is `running/intervals` and `running/tempo-threshold`,
+> with easy running only as a minimal base/recovery frame around them.
 
 ## Use when
 
