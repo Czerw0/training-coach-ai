@@ -77,6 +77,9 @@ def _clean_activities(rows):
             'tss': _round(a['tss'], 0),
             'avg_power': a['avg_power'],
             'norm_power': a['normalized_power'],
+            # the agent's own prior insight for this workout (notify_new_workouts),
+            # so it stays consistent with what it already emailed me; None if unset
+            'coach_insight': a.get('coach_insight') or None,
         })
     return cleaned
 
@@ -132,7 +135,7 @@ def build_context():
     ).order_by('-start_time').values(
         'start_time', 'activity_type', 'duration_seconds', 'distance_meters',
         'avg_hr', 'training_load', 'training_effect_label', 'tss',
-        'avg_power', 'normalized_power',
+        'avg_power', 'normalized_power', 'coach_insight',
     ))
     activities = _clean_activities(activities_raw)
 

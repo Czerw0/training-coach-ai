@@ -81,6 +81,14 @@ class Activity(models.Model):
     min_temp = models.FloatField(null=True, blank=True)
     body_battery_delta = models.IntegerField(null=True, blank=True) # differenceBodyBattery
 
+    # AI-coach insight email (notify_new_workouts command)
+    # notified_at: null = this activity hasn't been emailed yet (the pickup
+    # filter); stamped only on a successful send so failures retry next run.
+    # coach_insight: the agent's own words about this workout, fed back into
+    # context (coach/context.py) so it sees what it already told me.
+    notified_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    coach_insight = models.TextField(blank=True, default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

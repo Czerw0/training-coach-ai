@@ -285,14 +285,24 @@ def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_versio
         pass
 
 
-def chat(user_message, conversation_history=None):
+def chat(user_message, conversation_history=None, config_version=None,
+         record_recommendation=True):
     """Run one coaching turn.
 
     Returns (reply_text, tools_used).
     Records one ApiUsage row summarising the whole turn's token use + cost.
+
+    config_version: overrides the module CONFIG_VERSION tag on the logged
+        ApiUsage row. Non-interactive callers (e.g. notify_new_workouts) pass
+        their own tag so their turns stay filterable out of the chat baseline.
+    record_recommendation: when False, skip writing a CoachRecommendation row.
+        The workout-email path stores its insight on the Activity instead, so a
+        recommendation row here would double-surface the same text in context.
     """
     if conversation_history is None:
         conversation_history = []
+    if config_version is None:
+        config_version = CONFIG_VERSION
 
     # code-level gate, not a prompt request — model isn't trusted to self-police this
     is_test = user_message.strip().lower().startswith("(test)")
@@ -352,14 +362,14 @@ def chat(user_message, conversation_history=None):
             final_text = "".join(
                 block.text for block in response.content if block.type == "text"
             )
-            if not is_test:
+            if not is_test and record_recommendation:
                 CoachRecommendation.objects.create(
                     date=datetime.date.today(),
                     recommendation=final_text,
                     user_message=user_message,
                 )
             _record_usage(agg, model, api_calls, tools_used, user_message,
-                          PROMPT_TAG, CONFIG_VERSION, trace, final_text, round_notes)
+                          PROMPT_TAG, config_version, trace, final_text, round_notes)
             return final_text, tools_used
 
         # model wants tools — run them, feed results back
@@ -390,5 +400,5 @@ def chat(user_message, conversation_history=None):
     cap_message = ("I hit my internal tool-call limit for one turn — the actions so "
                    "far ran, but please re-ask to continue.")
     _record_usage(agg, model, api_calls, tools_used, user_message, PROMPT_TAG,
-                  CONFIG_VERSION, trace, cap_message, round_notes)
+                  config_version, trace, cap_message, round_notes)
     return (cap_message, tools_used)

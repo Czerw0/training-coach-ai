@@ -30,3 +30,17 @@ jobs:
           GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
           GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
         run: python manage.py sync_garmin
+
+      # Emails an AI-coach insight for each newly synced endurance/strength
+      # workout. Runs after the sync so new activities are already in the DB.
+      # Needs ANTHROPIC_API_KEY (agent) + EMAIL/EMAIL_PASSWORD (Gmail SMTP).
+      - name: Notify new workouts
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DEBUG: 'False'
+          ALLOWED_HOSTS: 'localhost'
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EMAIL: ${{ secrets.EMAIL }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        run: python manage.py notify_new_workouts

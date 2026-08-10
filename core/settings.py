@@ -135,4 +135,23 @@ LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# Email — Gmail SMTP when credentials are present, console otherwise.
+# EMAIL / EMAIL_PASSWORD come from .env (EMAIL_PASSWORD must be a Gmail
+# *App Password*, not the account password — see the go-live checklist).
+# Defaults keep CI and any credential-less environment importable and on the
+# console backend (no real sends) rather than crashing. Django's test runner
+# forces the locmem backend during tests regardless of this.
+EMAIL_HOST_USER = env('EMAIL', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_PASSWORD', default='')
+
+if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.gmail.com'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Gmail sends as the authenticated account regardless of the From header, so
+# point DEFAULT_FROM_EMAIL at it to avoid a mismatch/rewrite.
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or 'ai-coach.noreply@gmail.com'
