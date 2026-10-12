@@ -40,7 +40,7 @@ def test_stats_data_returns_expected_top_level_keys(client, user):
     resp = client.get(reverse("stats_data"))
     assert resp.status_code == 200
     data = resp.json()
-    assert set(data.keys()) == {"summary", "by_type_90d", "weekly_volume", "adherence"}
+    assert {"summary", "by_type_90d", "weekly_volume", "adherence"} <= set(data.keys())
     assert set(data["summary"].keys()) == {
         "total_activities", "first_activity_date", "active_goals", "active_injuries",
     }

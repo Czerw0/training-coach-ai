@@ -1,5 +1,5 @@
 from django.urls import path
-from . import dashboard, views
+from . import dashboard, stats, views
 
 urlpatterns = [
     path('', dashboard.today_page, name='today_page'),
@@ -18,5 +18,5 @@ urlpatterns = [
     path('usage/<int:usage_id>/', views.usage_detail_page, name='usage_detail_page'),
     path('usage/<int:usage_id>/data/', views.usage_detail_data, name='usage_detail_data'),
     path('stats/', views.stats_page, name='stats_page'),
-    path('stats/data/', views.stats_data, name='stats_data'),
+    path('stats/data/', stats.stats_data, name='stats_data'),
 ]

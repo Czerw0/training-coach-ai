@@ -77,6 +77,23 @@
       });
     },
 
+    // activity type -> palette slot (matches TYPE_KEYS in coach/views.py)
+    typeKey(t) {
+      t = (t || '').toLowerCase();
+      if (t.includes('cycl') || t.includes('bik')) return 'cycling';
+      if (t.includes('run') || t.includes('treadmill')) return 'running';
+      if (t.includes('skat')) return 'skating';
+      if (t.includes('tennis')) return 'tennis';
+      if (t.includes('plyo')) return 'plyometrics';
+      if (t.includes('ski') || t.includes('hik') || t.includes('mountain') || t.includes('walk')) return 'outdoor';
+      if (t.includes('strength') || t.includes('gym') || t.includes('weight')) return 'strength';
+      return 'other';
+    },
+    TYPE_ORDER: ['cycling', 'running', 'skating', 'tennis', 'plyometrics', 'outdoor', 'strength', 'other'],
+    TYPE_LABELS: { cycling: 'Cycling', running: 'Running', skating: 'Skating', tennis: 'Tennis',
+      plyometrics: 'Plyometrics', outdoor: 'Ski & hike', strength: 'Strength', other: 'Other' },
+    typeColor(t) { return TC.css('--t-' + TC.typeKey(t)); },
+
     label(t) { return (t || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); },
 
     // canvas can't parse color-mix(); turn a #RRGGBB token into rgba()

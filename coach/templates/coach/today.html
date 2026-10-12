@@ -170,9 +170,7 @@
 {% block scripts %}
 <script>
   const e = TC.escapeHtml;
-  const TYPE_COLORS = [['cycl', '#2D6CDF'], ['bik', '#2D6CDF'], ['strength', '#7A5CCC'], ['gym', '#7A5CCC'], ['weight', '#7A5CCC'],
-    ['skat', '#1D9E75'], ['tennis', '#BA7517'], ['ski', '#378ADD'], ['run', '#E24B4A'], ['plyo', '#D85A30'], ['swim', '#15A0A6'], ['mountaineering', '#645F43']];
-  const typeColor = t => (TYPE_COLORS.find(([k]) => (t || '').toLowerCase().includes(k)) || [null, '#8FA0B6'])[1];
+  const typeColor = t => TC.typeColor(t);
   const chip = (text, level) => `<span class="chip ${level}">${e(text)}</span>`;
   const fmtDate = iso => new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   const hm = h => h == null ? '–' : `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
@@ -246,7 +244,7 @@
     const s = d.sleep, body = document.getElementById('sleep-body');
     if (!s) { body.innerHTML = '<div class="empty">No sleep data yet.</div>'; return; }
     document.getElementById('sleep-sub').textContent = fmtDate(s.date);
-    const st = [['Deep', s.deep, 'var(--accent)'], ['REM', s.rem, '#7A5CCC'], ['Light', s.light, 'var(--z1)'], ['Awake', s.awake, 'var(--warn)']].filter(x => x[1]);
+    const st = [['Deep', s.deep, 'var(--accent)'], ['REM', s.rem, 'var(--t-strength)'], ['Light', s.light, 'var(--z1)'], ['Awake', s.awake, 'var(--warn)']].filter(x => x[1]);
     // Garmin sometimes reports only some stages — keep the bar proportional to total sleep
     const rest = (s.hours || 0) - st.reduce((n, x) => n + x[1], 0);
     if (st.length && rest > 0.1) st.push(['Other', rest, 'var(--chart-muted)']);

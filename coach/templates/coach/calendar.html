@@ -30,6 +30,8 @@
   .fc-daygrid-dot-event:hover { background: inherit; }
   .fc .fc-more-link { font-size: 11px; font-weight: 700; color: var(--accent); }
   .fc-daygrid-event.planned { border: 1.5px dashed currentColor !important; }
+  .fc-daygrid-event.activity { background: color-mix(in srgb, var(--c) 20%, var(--surface)) !important; color: var(--fg) !important; border: 0 !important; border-left: 3px solid var(--c) !important; border-radius: 4px; }
+  .fc-daygrid-event.activity .fc-event-title { color: var(--fg); }
   .fc .fc-list { border-radius: var(--r-sm); overflow: hidden; }
   .fc .fc-list-day-cushion { background: var(--sunken); }
   .fc .fc-list-day-text, .fc .fc-list-day-side-text { font-weight: 700; text-decoration: none; color: var(--fg); }
@@ -64,14 +66,13 @@
   </div>
 
   <div class="legend">
-    <span class="item"><span class="sw" style="background:#2D6CDF"></span>Cycling</span>
-    <span class="item"><span class="sw" style="background:#E24B4A"></span>Running</span>
-    <span class="item"><span class="sw" style="background:#7A5CCC"></span>Gym</span>
-    <span class="item"><span class="sw" style="background:#D85A30"></span>Plyometrics</span>
-    <span class="item"><span class="sw" style="background:#1D9E75"></span>Skating</span>
-    <span class="item"><span class="sw" style="background:#BA7517"></span>Tennis</span>
-    <span class="item"><span class="sw" style="background:#378ADD"></span>Skiing</span>
-    <span class="item"><span class="sw" style="background:#645F43"></span>Hiking</span>
+    <span class="item"><span class="sw" style="background:var(--t-cycling)"></span>Cycling</span>
+    <span class="item"><span class="sw" style="background:var(--t-running)"></span>Running</span>
+    <span class="item"><span class="sw" style="background:var(--t-skating)"></span>Skating</span>
+    <span class="item"><span class="sw" style="background:var(--t-tennis)"></span>Tennis</span>
+    <span class="item"><span class="sw" style="background:var(--t-plyometrics)"></span>Plyometrics</span>
+    <span class="item"><span class="sw" style="background:var(--t-outdoor)"></span>Ski &amp; hike</span>
+    <span class="item"><span class="sw" style="background:var(--t-strength)"></span>Strength</span>
     <span class="item"><span class="sw outline"></span>Planned (Coach / You)</span>
   </div>
 
@@ -309,6 +310,7 @@
       editable: true,
       eventAllow: (dropInfo, dragged) => dragged.extendedProps.kind === 'planned',
       eventDidMount(info) {
+        info.el.style.setProperty('--c', info.event.borderColor);
         if (info.event.extendedProps.kind === 'planned' && info.view.type === 'dayGridMonth') {
           const c = info.event.borderColor || TC.css('--muted');
           info.el.style.background = 'transparent';

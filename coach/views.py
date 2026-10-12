@@ -92,19 +92,20 @@ def chat_reset(request):
     Message.objects.all().delete()
     return JsonResponse({'status': 'reset'})
 
-# colour map shared by activities + planned sessions
+# activity type -> palette slot; colors live in app.css (--t-*) so they follow
+# the theme. Must match TC.typeKey in static/coach/js/app.js.
+TYPE_KEYS = [
+    ("cycl", "cycling"), ("bik", "cycling"), ("run", "running"), ("treadmill", "running"),
+    ("skat", "skating"), ("tennis", "tennis"), ("plyo", "plyometrics"),
+    ("ski", "outdoor"), ("hik", "outdoor"), ("mountain", "outdoor"), ("walk", "outdoor"),
+    ("strength", "strength"), ("gym", "strength"), ("weight", "strength"),
+]
+
+
 def _activity_color(activity_type):
     t = (activity_type or "").lower()
-    if "cycl" in t or "bik" in t:                          return "#2D6CDF"   # blue
-    if "strength" in t or "gym" in t or "weight" in t:     return "#7A5CCC"   # purple
-    if "skat" in t:                                        return "#1D9E75"   # teal
-    if "tennis" in t:                                      return "#BA7517"   # amber
-    if "ski" in t:                                         return "#378ADD"   # light blue
-    if "run" in t:                                         return "#E24B4A"   # red
-    if "plyo" in t:                                        return "#D85A30"   # orange
-    if "swim" in t:                                        return "#15A0A6"   # cyan
-    if "mountaineering" in t:                              return "#645F43D6" # brown
-    return "#D6D6D696"                                                        # grey (rest/other)
+    key = next((k for needle, k in TYPE_KEYS if needle in t), "other")
+    return f"var(--t-{key})"
 
 
 @login_required
@@ -142,7 +143,7 @@ def calendar_events(request):
             "allDay": True,
             "backgroundColor": color,
             "borderColor": color,
-            "textColor": "#fff",
+            "classNames": ["activity"],
             "editable": False,   # real Garmin data, never draggable
             "extendedProps": {"kind": "activity", "detail": detail},
         })
@@ -417,74 +418,3 @@ def usage_detail_data(request, usage_id):
 @login_required
 def stats_page(request):
     return render(request, 'coach/stats.html')
-
-
-@login_required
-@require_http_methods(["GET"])
-def stats_data(request):
-    """Training volume by type, weekly volume, and plan adherence."""
-    today = datetime.date.today()
-
-    total_activities = Activity.objects.count()
-    first_activity = Activity.objects.order_by('start_time').first()
-    summary = {
-        "total_activities": total_activities,
-        "first_activity_date": first_activity.start_time.date().isoformat() if first_activity else None,
-        "active_goals": Goal.objects.filter(is_active=True).count(),
-        "active_injuries": Injury.objects.filter(date_resolved__isnull=True).count(),
-    }
-
-    # training by type, last 90 days
-    since_90 = today - datetime.timedelta(days=90)
-    by_type_90d = list(
-        Activity.objects.filter(start_time__date__gte=since_90)
-        .values('activity_type')
-        .annotate(n=Count('id'), minutes=Sum('duration_seconds'))
-        .order_by('-n')
-    )
-    for row in by_type_90d:
-        row['minutes'] = round((row['minutes'] or 0) / 60)
-
-    # weekly volume, last 12 weeks, Monday-start buckets
-    since_12w = today - datetime.timedelta(weeks=12)
-    recent = Activity.objects.filter(start_time__date__gte=since_12w).values('start_time', 'duration_seconds')
-    weeks = {}
-    for a in recent:
-        d = a['start_time'].date()
-        monday = d - datetime.timedelta(days=d.weekday())
-        bucket = weeks.setdefault(monday.isoformat(), {"count": 0, "minutes": 0})
-        bucket["count"] += 1
-        bucket["minutes"] += round((a['duration_seconds'] or 0) / 60)
-    weekly_volume = [{"week_start": k, **v} for k, v in sorted(weeks.items())]
-
-    # adherence: date-only match (Garmin and planner types don't map 1:1),
-    # rest days excluded
-    past_sessions = PlannedSession.objects.filter(date__lt=today).exclude(activity_type='rest').order_by('-date')
-    activity_dates = set(
-        Activity.objects.filter(start_time__date__lt=today).values_list('start_time__date', flat=True)
-    )
-    matched = 0
-    missed = []
-    for s in past_sessions:
-        if s.date in activity_dates:
-            matched += 1
-        elif len(missed) < 10:
-            missed.append({
-                "date": s.date.isoformat(),
-                "title": s.title or s.activity_type,
-                "activity_type": s.activity_type,
-            })
-    total = past_sessions.count()
-    adherence = {
-        "matched": matched,
-        "total": total,
-        "rate": round(matched / total * 100) if total else None,
-        "missed": missed,
-    }
-
-    return JsonResponse({
-        "summary": summary,
-        "by_type_90d": by_type_90d,
-        "weekly_volume": weekly_volume,
-        "adherence": adherence,
-    })

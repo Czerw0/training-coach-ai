@@ -42,6 +42,17 @@
   --z4: #E0A100;
   --z5: #E5484D;
 
+  /* activity types — validated categorical palette, fixed slot order:
+     cycling, running, skating, tennis, plyometrics, outdoor, strength */
+  --t-cycling: #2a78d6;
+  --t-running: #eb6834;
+  --t-skating: #1baf7a;
+  --t-tennis: #eda100;
+  --t-plyometrics: #e87ba4;
+  --t-outdoor: #008300;
+  --t-strength: #4a3aa7;
+  --t-other: #8FA0B6;
+
   /* type */
   --f-ui: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-num: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
@@ -67,6 +78,8 @@
     --overlay: rgba(0, 0, 0, .6);
     --nav-bg: #060C16; --nav-muted: #7F92AB; --nav-active: #14233A;
     --warn: #E0A100;
+    --t-cycling: #3987e5; --t-running: #d95926; --t-skating: #199e70; --t-tennis: #c98500;
+    --t-plyometrics: #d55181; --t-outdoor: #008300; --t-strength: #9085e9; --t-other: #6F8299;
     color-scheme: dark;
   }
 }
@@ -79,6 +92,8 @@
   --overlay: rgba(0, 0, 0, .6);
   --nav-bg: #060C16; --nav-muted: #7F92AB; --nav-active: #14233A;
   --warn: #E0A100;
+  --t-cycling: #3987e5; --t-running: #d95926; --t-skating: #199e70; --t-tennis: #c98500;
+  --t-plyometrics: #d55181; --t-outdoor: #008300; --t-strength: #9085e9; --t-other: #6F8299;
   color-scheme: dark;
 }
 
