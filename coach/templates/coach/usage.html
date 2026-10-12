@@ -4,6 +4,36 @@
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  .filters-card { padding: 12px; }
+  .filters .input { flex: 1 1 160px; }
+  .hero { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) { .hero { grid-template-columns: 1.1fr 2fr; } }
+  .spend { display: grid; gap: 12px; align-content: start; }
+  .spend .big { font-size: 48px; }
+  .spend-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .spend-row .v { font-size: 22px; }
+  .meter { height: 8px; border-radius: 99px; background: var(--sunken); overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); display: inline-block; }
+  .bars-h { display: grid; gap: 9px; }
+  .bar-h { display: grid; grid-template-columns: minmax(0, 170px) minmax(0, 1fr) 40px; gap: 10px; align-items: center; font-size: 13px; }
+  .bar-h > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-h .track { height: 10px; background: var(--sunken); border-radius: 99px; overflow: hidden; }
+  .bar-h .fill { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+  .bar-h .val { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  table.data th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table.data td { padding: 8px; border-bottom: 1px solid var(--line); }
+  table.data .n { text-align: right; }
+  table.data tr:last-child td { border-bottom: 0; }
+  .table-wrap { overflow-x: auto; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); margin-right: 8px; vertical-align: middle; }
+  .compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .compare .v { font-size: 24px; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -11,40 +41,71 @@
   <div class="page-head">
     <div>
       <h1>Usage</h1>
-      <div class="sub">What every message to the coach costs, by model and config version.</div>
+      <div class="sub">What the coach costs, per message, model and config version.</div>
     </div>
   </div>
 
-  <div class="filters">
-    <select class="input" id="f-model" aria-label="Model"><option value="">All models</option></select>
-    <select class="input" id="f-config" aria-label="Config version"><option value="">All configs</option></select>
-    <input class="input" type="date" id="f-since" aria-label="Since date">
-    <input class="input" type="date" id="f-until" aria-label="Until date">
-    <button id="f-reset" class="btn ghost" type="button">Reset filters</button>
+  <div class="card filters-card">
+    <div class="filters">
+      <select class="input" id="f-model" aria-label="Model"><option value="">All models</option></select>
+      <select class="input" id="f-config" aria-label="Config version"><option value="">All configs</option></select>
+      <input class="input" type="date" id="f-since" aria-label="Since date">
+      <input class="input" type="date" id="f-until" aria-label="Until date">
+      <button id="f-reset" class="btn ghost" type="button">Reset filters</button>
+    </div>
+  </div>
+
+  <div class="hero">
+    <section class="card spend">
+      <div class="k">This month</div>
+      <div class="big" id="c-month">–</div>
+      <div class="meter" aria-hidden="true"><i id="m-month" style="width:0"></i></div>
+      <div class="meta" id="c-proj"></div>
+      <div class="spend-row">
+        <div><div class="k">Today</div><div class="v" id="c-today">–</div></div>
+        <div><div class="k">All time</div><div class="v" id="c-total">–</div></div>
+        <div><div class="k">Per message</div><div class="v" id="c-avg">–</div></div>
+        <div><div class="k">Messages</div><div class="v" id="c-turns">–</div></div>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Daily cost</h2><span class="sub">last 30 days, by config version</span></div>
+      <div class="legend" id="cfg-legend"></div>
+      <div class="chart-box"><canvas id="dailyChart" aria-label="Daily cost by config version"></canvas></div>
+    </section>
   </div>
 
   <div class="tiles">
-    <div class="tile"><div class="k">Total spend</div><div class="v" id="c-total">—</div></div>
-    <div class="tile"><div class="k">This month</div><div class="v" id="c-month">—</div></div>
-    <div class="tile"><div class="k">Today</div><div class="v" id="c-today">—</div></div>
-    <div class="tile"><div class="k">Avg / message</div><div class="v" id="c-avg">—</div></div>
+    <div class="tile"><div class="k">Cache hit rate</div><div class="v" id="c-cache">–</div><div class="meta">input tokens served from cache</div></div>
+    <div class="tile"><div class="k">API calls / message</div><div class="v" id="c-calls">–</div><div class="meta">tool rounds per turn</div></div>
+    <div class="tile"><div class="k">Message with tools</div><div class="v" id="c-tools">–</div><div class="meta">average cost</div></div>
+    <div class="tile"><div class="k">Plain reply</div><div class="v" id="c-plain">–</div><div class="meta">average cost</div></div>
   </div>
 
   <div class="grid grid-2">
     <section class="card">
-      <div class="card-head"><h2>Daily cost</h2><span class="sub">last 30 days</span></div>
-      <div class="chart-box"><canvas id="dailyChart"></canvas></div>
+      <div class="card-head"><h2>Where the tokens go</h2></div>
+      <div class="legend" id="tok-legend"></div>
+      <div class="chart-box sm"><canvas id="tokenChart" aria-label="Token breakdown"></canvas></div>
     </section>
     <section class="card">
-      <div class="card-head"><h2>Token breakdown</h2></div>
-      <div class="chart-box"><canvas id="tokenChart"></canvas></div>
+      <div class="card-head"><h2>Cost per message</h2><span class="sub">how many messages fall in each range</span></div>
+      <div class="chart-box sm"><canvas id="histChart" aria-label="Distribution of cost per message"></canvas></div>
     </section>
     <section class="card">
-      <div class="card-head"><h2>By model &amp; config</h2></div>
-      <div class="rows" id="by-config"></div>
+      <div class="card-head"><h2>Tools used</h2><span class="sub">times called</span></div>
+      <div class="bars-h" id="tools"></div>
     </section>
     <section class="card">
-      <div class="card-head"><h2>Recent messages</h2></div>
+      <div class="card-head"><h2>Prompt versions</h2></div>
+      <div class="table-wrap"><table class="data" id="by-prompt"></table></div>
+    </section>
+    <section class="card span-all">
+      <div class="card-head"><h2>Model &amp; config</h2><span class="sub">the A/B record</span></div>
+      <div class="table-wrap"><table class="data" id="by-config"></table></div>
+    </section>
+    <section class="card span-all">
+      <div class="card-head"><h2>Recent messages</h2><span class="sub">open one for the full trace</span></div>
       <div class="rows" id="recent"></div>
     </section>
   </div>
@@ -53,78 +114,106 @@
 
 {% block scripts %}
 <script>
+  const e = TC.escapeHtml;
   const fmt = n => '$' + Number(n).toFixed(2);
-  const fmt4 = n => '$' + Number(n).toFixed(4);
-  let data = null, dailyChart = null, tokenChart = null, filtersPopulated = false;
+  const fmt4 = n => n == null ? '–' : '$' + Number(n).toFixed(4);
+  const SLOTS = ['--t-cycling', '--t-running', '--t-skating', '--t-tennis', '--t-plyometrics', '--t-outdoor', '--t-strength'];
+  let data = null, charts = [], configs = [];
+
+  // colour follows the config, not its rank: index in the full, unfiltered list
+  const cfgColor = c => { const i = configs.indexOf(c); return i < 0 || i >= SLOTS.length ? TC.css('--t-other') : TC.css(SLOTS[i]); };
 
   function params() {
     const p = new URLSearchParams();
-    const map = { 'f-model': 'model', 'f-config': 'config_version', 'f-since': 'since', 'f-until': 'until' };
-    Object.entries(map).forEach(([id, key]) => { const v = document.getElementById(id).value; if (v) p.set(key, v); });
+    Object.entries({ 'f-model': 'model', 'f-config': 'config_version', 'f-since': 'since', 'f-until': 'until' })
+      .forEach(([id, key]) => { const v = document.getElementById(id).value; if (v) p.set(key, v); });
     return p.toString();
   }
 
-  // filter_options reflects the full table, so populate only once
-  function populateFilterOptions(o) {
-    if (!o) return;
-    o.models.forEach(m => document.getElementById('f-model').add(new Option(m, m)));
-    o.config_versions.forEach(c => document.getElementById('f-config').add(new Option(c, c)));
+  function drawCharts() {
+    charts.forEach(c => c.destroy()); charts = [];
+    if (!data) return;
+    const line = TC.css('--line'), surface = TC.css('--surface');
+
+    const days = [...new Set(data.daily.map(d => d.date))];
+    const present = configs.filter(c => data.daily_by_config.some(r => r.config === c));
+    document.getElementById('cfg-legend').innerHTML = present.map(c => `<span><i style="--c:${cfgColor(c)}"></i>${e(c)}</span>`).join('');
+    charts.push(new Chart(document.getElementById('dailyChart'), {
+      type: 'bar',
+      data: { labels: days.map(d => d.slice(5).replace('-', '/')), datasets: present.map(c => ({
+        label: c, data: days.map(d => (data.daily_by_config.find(r => r.date === d && r.config === c) || {}).cost || 0),
+        backgroundColor: cfgColor(c), borderColor: surface, borderWidth: { top: 2 }, borderSkipped: false, maxBarThickness: 26 })) },
+      options: { interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false },
+        tooltip: { filter: i => i.parsed.y > 0, callbacks: { label: c => `${c.dataset.label}: ${fmt4(c.parsed.y)}`,
+          footer: it => 'Total: ' + fmt4(it.reduce((a, i) => a + i.parsed.y, 0)) } } },
+        scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
+          y: { stacked: true, beginAtZero: true, grid: { color: line }, ticks: { callback: v => '$' + v.toFixed(2) } } } },
+    }));
+
+    const t = data.token_totals;
+    const tok = [['Input', t.input, TC.css('--t-cycling')], ['Cache read', t.cache_read, TC.css('--t-skating')],
+      ['Cache write', t.cache_write, TC.css('--t-tennis')], ['Output', t.output, TC.css('--t-strength')]];
+    const tokSum = tok.reduce((a, x) => a + x[1], 0) || 1;
+    document.getElementById('tok-legend').innerHTML = tok.map(([l, v, c]) => `<span><i style="--c:${c}"></i>${l} ${Math.round(v / tokSum * 100)}%</span>`).join('');
+    charts.push(new Chart(document.getElementById('tokenChart'), {
+      type: 'bar',
+      data: { labels: tok.map(x => x[0]), datasets: [{ data: tok.map(x => x[1]), backgroundColor: tok.map(x => x[2]), borderRadius: 4, maxBarThickness: 30 }] },
+      options: { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.parsed.x.toLocaleString() + ' tokens' } } },
+        scales: { x: { beginAtZero: true, grid: { color: line }, ticks: { callback: v => v >= 1e6 ? (v / 1e6) + 'M' : v >= 1e3 ? (v / 1e3) + 'k' : v } }, y: { grid: { display: false } } } },
+    }));
+
+    const h = data.cost_hist;
+    charts.push(new Chart(document.getElementById('histChart'), {
+      type: 'bar',
+      data: { labels: h.map(x => x.label), datasets: [{ data: h.map(x => x.n), backgroundColor: TC.css('--accent'), borderRadius: 4, maxBarThickness: 40 }] },
+      options: { plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.parsed.y} message${c.parsed.y === 1 ? '' : 's'}` } } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: line }, ticks: { precision: 0 } } } },
+    }));
   }
 
-  function drawCharts() {
-    if (!data) return;
-    if (dailyChart) dailyChart.destroy();
-    if (tokenChart) tokenChart.destroy();
-    const d = data.daily;
-    dailyChart = new Chart(document.getElementById('dailyChart'), {
-      type: 'bar',
-      data: { labels: d.map(x => x.date.slice(5)), datasets: [{ label: 'Cost', data: d.map(x => x.cost), backgroundColor: TC.css('--accent'), borderRadius: 4, maxBarThickness: 28 }] },
-      options: { plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmt4(c.parsed.y) } } },
-        scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } }, y: { beginAtZero: true, ticks: { callback: v => '$' + v.toFixed(2) } } } },
-    });
-    const t = data.token_totals;
-    tokenChart = new Chart(document.getElementById('tokenChart'), {
-      type: 'doughnut',
-      data: { labels: ['Input', 'Output', 'Cache write', 'Cache read'],
-        datasets: [{ data: [t.input, t.output, t.cache_write, t.cache_read],
-          backgroundColor: [TC.css('--accent'), '#7A5CCC', TC.css('--gold'), TC.css('--good')], borderWidth: 2, borderColor: TC.css('--surface') }] },
-      options: { cutout: '62%', plugins: { legend: { position: 'bottom' },
-        tooltip: { callbacks: { label: c => c.label + ': ' + c.parsed.toLocaleString() + ' tokens' } } } },
-    });
+  function render() {
+    const s = data.summary;
+    document.getElementById('c-month').textContent = fmt(s.month_cost);
+    document.getElementById('c-today').textContent = fmt(s.today_cost);
+    document.getElementById('c-total').textContent = fmt(s.total_cost);
+    document.getElementById('c-avg').textContent = fmt4(s.avg_cost);
+    document.getElementById('c-turns').textContent = s.total_turns.toLocaleString();
+    document.getElementById('c-proj').textContent = s.month_projection ? `On track for about ${fmt(s.month_projection)} this month.` : 'No spend this month yet.';
+    document.getElementById('m-month').style.width = s.month_projection ? Math.min(100, s.month_cost / s.month_projection * 100) + '%' : '0';
+    document.getElementById('c-cache').textContent = s.cache_hit_rate == null ? '–' : s.cache_hit_rate + '%';
+    document.getElementById('c-calls').textContent = s.avg_api_calls || '–';
+    document.getElementById('c-tools').textContent = fmt4(s.avg_cost_with_tools);
+    document.getElementById('c-plain').textContent = fmt4(s.avg_cost_without_tools);
+
+    const maxTool = Math.max(1, ...data.tools.map(t => t.n));
+    document.getElementById('tools').innerHTML = data.tools.length ? data.tools.slice(0, 10).map(t =>
+      `<div class="bar-h"><span title="${e(t.tool)}">${e(t.tool)}</span><span class="track"><span class="fill" style="width:${t.n / maxTool * 100}%"></span></span><span class="val">${t.n}</span></div>`).join('')
+      : '<div class="empty">No tool calls yet.</div>';
+
+    document.getElementById('by-config').innerHTML = '<thead><tr><th>Config</th><th>Model</th><th class="n">Msgs</th><th class="n">Avg</th><th class="n">Total</th><th class="n">Avg in / out</th></tr></thead><tbody>' +
+      data.by_config.map(r => `<tr><td><span class="sw" style="--c:${cfgColor(r.config_version)}"></span>${e(r.config_version)}</td><td>${e(r.model)}</td>` +
+        `<td class="n">${r.turns}</td><td class="n">${fmt4(r.avg_cost)}</td><td class="n">${fmt(r.total_cost)}</td><td class="n">${r.avg_input.toLocaleString()} / ${r.avg_output.toLocaleString()}</td></tr>`).join('') + '</tbody>';
+    document.getElementById('by-prompt').innerHTML = '<thead><tr><th>Prompt</th><th class="n">Msgs</th><th class="n">Avg cost</th><th class="n">Calls / msg</th></tr></thead><tbody>' +
+      data.by_prompt.map(r => `<tr><td>${e(r.prompt_version)}</td><td class="n">${r.turns}</td><td class="n">${fmt4(r.avg_cost)}</td><td class="n">${r.avg_calls}</td></tr>`).join('') + '</tbody>';
+
+    document.getElementById('recent').innerHTML = data.recent.length ? data.recent.map(r => {
+      const tools = r.tools ? `<span class="tools">${e(r.tools.split(',').join(' · '))}</span> · ` : '';
+      return `<a class="row-item" href="/usage/${r.id}/"><div class="top"><span class="when">${e(r.when)}</span><span class="val">${fmt4(r.cost)}</span></div>` +
+        `<div class="text">${r.message ? e(r.message) : '(no message)'}</div>` +
+        `<div class="meta">${tools}${r.input.toLocaleString()} in · ${r.output.toLocaleString()} out</div></a>`;
+    }).join('') : '<div class="empty">No messages logged yet.</div>';
   }
 
   async function load() {
-    try {
-      const qs = params();
-      data = await fetch('/usage/data/' + (qs ? '?' + qs : '')).then(r => r.json());
-    } catch (e) {
-      document.getElementById('recent').innerHTML = '<div class="empty">Could not load usage data.</div>';
-      return;
+    try { const qs = params(); data = await fetch('/usage/data/' + (qs ? '?' + qs : '')).then(r => r.json()); }
+    catch (err) { document.getElementById('recent').innerHTML = '<div class="empty">Could not load usage data.</div>'; return; }
+    if (!configs.length) {
+      configs = data.filter_options.config_versions.slice();
+      data.filter_options.models.forEach(m => document.getElementById('f-model').add(new Option(m, m)));
+      configs.forEach(c => document.getElementById('f-config').add(new Option(c, c)));
     }
-    if (!filtersPopulated) { populateFilterOptions(data.filter_options); filtersPopulated = true; }
-
-    const s = data.summary;
-    document.getElementById('c-total').textContent = fmt(s.total_cost);
-    document.getElementById('c-month').textContent = fmt(s.month_cost);
-    document.getElementById('c-today').textContent = fmt(s.today_cost);
-    document.getElementById('c-avg').innerHTML = fmt4(s.avg_cost) + ` <small>· ${s.total_turns} msgs</small>`;
+    render();
     drawCharts();
-
-    const cfg = document.getElementById('by-config');
-    cfg.innerHTML = data.by_config.length ? data.by_config.map(r =>
-      `<div class="row-item"><div class="top"><span class="when">${TC.escapeHtml(r.model)} · ${TC.escapeHtml(r.config_version)}</span>` +
-      `<span class="val">${fmt4(r.avg_cost)}/msg</span></div>` +
-      `<div class="meta">${r.turns} turns · total ${fmt(r.total_cost)} · avg ${r.avg_input.toLocaleString()} in / ${r.avg_output.toLocaleString()} out` +
-      (r.cache_reads ? ` · ${r.cache_reads.toLocaleString()} cache-read tokens` : '') + `</div></div>`).join('')
-      : '<div class="empty">No data yet.</div>';
-
-    const recent = document.getElementById('recent');
-    recent.innerHTML = data.recent.length ? data.recent.map(r => {
-      const tools = r.tools ? `<span class="tools">${TC.escapeHtml(r.tools.split(',').join(' · '))}</span> · ` : '';
-      return `<a class="row-item" href="/usage/${r.id}/"><div class="top"><span class="when">${r.when}</span><span class="val">${fmt4(r.cost)}</span></div>` +
-        `<div class="text">${r.message ? TC.escapeHtml(r.message) : '(no message)'}</div>` +
-        `<div class="meta">${tools}${r.input.toLocaleString()} in · ${r.output.toLocaleString()} out</div></a>`;
-    }).join('') : '<div class="empty">No messages logged yet.</div>';
   }
 
   ['f-model', 'f-config', 'f-since', 'f-until'].forEach(id => document.getElementById(id).addEventListener('change', load));

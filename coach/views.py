@@ -370,6 +370,41 @@ def usage_data(request):
         "cache_reads": r["cache_reads"] or 0,
     } for r in config_rows]
 
+    # daily cost split by config version (stacked chart)
+    daily_by_config = [{
+        "date": r["d"].isoformat(), "config": r["config_version"] or "baseline", "cost": round(r["cost"] or 0, 4),
+    } for r in (qs.filter(created_at__date__gte=start_30).annotate(d=TruncDate('created_at'))
+                  .values('d', 'config_version').annotate(cost=Sum('cost_usd')).order_by('d'))]
+
+    # cost per message distribution
+    edges = [0.01, 0.02, 0.05, 0.10, 0.20, 0.50]
+    labels = ["<1¢", "1–2¢", "2–5¢", "5–10¢", "10–20¢", "20–50¢", "50¢+"]
+    buckets = [0] * len(labels)
+    for c in qs.values_list('cost_usd', flat=True):
+        buckets[next((i for i, edge in enumerate(edges) if c < edge), len(edges))] += 1
+    cost_hist = [{"label": l, "n": n} for l, n in zip(labels, buckets)]
+
+    # tools: how often each fires, and what tool turns cost vs plain replies
+    tool_counts = {}
+    with_tools, without_tools = [], []
+    for u in qs.values('tools_used', 'cost_usd', 'api_calls'):
+        names = [t for t in (u["tools_used"] or "").split(",") if t]
+        for t in names:
+            tool_counts[t] = tool_counts.get(t, 0) + 1
+        (with_tools if names else without_tools).append(u["cost_usd"])
+    tools = [{"tool": k, "n": v} for k, v in sorted(tool_counts.items(), key=lambda kv: -kv[1])]
+
+    cached_in = token_totals["cache_read"]
+    all_in = token_totals["input"] + token_totals["cache_write"] + cached_in
+    days_in_month = (month_start.replace(month=month_start.month % 12 + 1, year=month_start.year + month_start.month // 12)
+                     - month_start).days
+
+    by_prompt = [{
+        "prompt_version": r["prompt_version"] or "—", "turns": r["turns"],
+        "avg_cost": round(r["avg_cost"] or 0, 6), "avg_calls": round(r["avg_calls"] or 0, 1),
+    } for r in qs.values('prompt_version').annotate(turns=Count('id'), avg_cost=Avg('cost_usd'), avg_calls=Avg('api_calls'))
+                 .order_by('-turns')[:8]]
+
     return JsonResponse({
         "summary": {
             "total_cost": round(all_cost, 4),
@@ -377,7 +412,16 @@ def usage_data(request):
             "today_cost": round(today_cost, 4),
             "total_turns": turns,
             "avg_cost": round(avg_cost, 6),
+            "month_projection": round(month_cost / today.day * days_in_month, 2) if month_cost else 0,
+            "cache_hit_rate": round(cached_in / all_in * 100) if all_in else None,
+            "avg_api_calls": round(qs.aggregate(a=Avg('api_calls'))['a'] or 0, 1),
+            "avg_cost_with_tools": round(sum(with_tools) / len(with_tools), 4) if with_tools else None,
+            "avg_cost_without_tools": round(sum(without_tools) / len(without_tools), 4) if without_tools else None,
         },
+        "daily_by_config": daily_by_config,
+        "cost_hist": cost_hist,
+        "tools": tools,
+        "by_prompt": by_prompt,
         "daily": daily,
         "token_totals": token_totals,
         "recent": recent,

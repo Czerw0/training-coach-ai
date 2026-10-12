@@ -172,3 +172,18 @@ def test_usage_data_no_filters_returns_everything(client, user):
 
     resp = client.get(reverse("usage_data"))
     assert resp.json()["summary"]["total_turns"] == 2
+
+
+@pytest.mark.django_db
+def test_usage_data_extras_tools_histogram_and_cache(client, user):
+    client.force_login(user)
+    ApiUsage.objects.create(model="m", config_version="v5", cost_usd=0.15, input_tokens=100,
+                            cache_read_tokens=300, tools_used="log_injury,create_planned_session", api_calls=3)
+    ApiUsage.objects.create(model="m", config_version="v5", cost_usd=0.004, input_tokens=100, api_calls=1)
+    data = client.get(reverse("usage_data")).json()
+    assert data["summary"]["cache_hit_rate"] == 60          # 300 of 500 input tokens
+    assert data["summary"]["avg_cost_with_tools"] == 0.15
+    assert data["summary"]["avg_cost_without_tools"] == 0.004
+    assert {t["tool"] for t in data["tools"]} == {"log_injury", "create_planned_session"}
+    hist = {h["label"]: h["n"] for h in data["cost_hist"]}
+    assert hist["<1¢"] == 1 and hist["10–20¢"] == 1
