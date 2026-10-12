@@ -1,0 +1,241 @@
+{% extends "coach/base.html" %}
+{% block title %}Settings · Training Coach{% endblock %}
+{% block mobile_title %}Settings{% endblock %}
+
+{% block head %}
+<style>
+  .settings { display: grid; gap: 16px; max-width: 900px; }
+  .card h2 { font-family: var(--f-num); font-size: 20px; font-weight: 700; }
+  .card .lede { color: var(--muted); font-size: 13.5px; margin-top: -4px; }
+
+  .locs { display: grid; gap: 8px; }
+  .loc { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border-radius: var(--r-sm); background: var(--sunken); border: 1.5px solid transparent; }
+  .loc.active { border-color: var(--accent); background: var(--accent-soft); }
+  .loc input[type=radio] { width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; }
+  .loc .name { font-weight: 700; }
+  .loc .meta { font-size: 12px; }
+  .loc .del { background: none; border: 0; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px; }
+  .loc .del:hover { color: var(--bad); }
+  .search { display: flex; gap: 8px; }
+  .search .input { flex: 1; }
+  .results { display: grid; gap: 6px; }
+  .result { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+  .result .meta { font-size: 12px; }
+
+  .form-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: 700px) { .form-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .form-grid .wide { grid-column: 1 / -1; }
+  .unit { position: relative; }
+  .unit .input { padding-right: 44px; }
+  .unit span { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
+
+  .zones { display: grid; gap: 8px; }
+  .zone { display: grid; grid-template-columns: 46px minmax(0, 1fr) 20px minmax(0, 1fr) 36px; gap: 8px; align-items: center; }
+  .zone b { display: inline-flex; align-items: center; justify-content: center; height: 34px; border-radius: 8px; color: #fff; font-family: var(--f-num); font-size: 15px; }
+  .zone .dash { text-align: center; color: var(--muted); }
+  .zone .bpm { font-size: 12px; color: var(--muted); }
+  .zone-bar { display: flex; height: 10px; border-radius: 99px; overflow: hidden; gap: 2px; }
+  .zone-bar i { display: block; }
+
+  .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .day { position: relative; }
+  .day input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .day span { display: flex; justify-content: center; padding: 10px 0; border-radius: var(--r-sm); background: var(--sunken); font-weight: 700; font-size: 13px; border: 1.5px solid transparent; }
+  .day input:checked + span { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .day input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .savebar[hidden] { display: none !important; }
+  .savebar { position: sticky; bottom: calc(var(--tabbar-h) + 10px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 12px; justify-content: flex-end; padding: 10px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); z-index: 5; }
+  @media (min-width: 900px) { .savebar { bottom: 16px; } }
+  .status { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .status.ok { color: var(--good); } .status.err { color: var(--bad); }
+  .kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  @media (min-width: 700px) { .kv { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+  .kv .v { font-size: 16px; font-family: var(--f-ui); font-weight: 700; overflow-wrap: anywhere; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-inner">
+  <div class="page-head">
+    <div>
+      <h1>Settings</h1>
+      <div class="sub">What the coach knows about you, and where you are.</div>
+    </div>
+  </div>
+
+  <div class="settings">
+    <section class="card" aria-labelledby="h-loc">
+      <h2 id="h-loc">Location</h2>
+      <p class="lede">The coach plans around the weather where you are now. Switch when you travel.</p>
+      <div class="locs" id="locs"><div class="empty">Loading…</div></div>
+      <div class="status" id="loc-status" role="status"></div>
+      <div class="section-title">Add a place</div>
+      <form class="search" id="search-form">
+        <input class="input" id="search-q" type="search" placeholder="City, e.g. Innsbruck" autocomplete="off" aria-label="Search for a city">
+        <button class="btn ghost" type="submit">Search</button>
+      </form>
+      <div class="results" id="results"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-prof">
+      <h2 id="h-prof">Athlete profile</h2>
+      <p class="lede">FTP is also updated from Garmin on every sync.</p>
+      <div class="form-grid">
+        <div class="field"><label for="p-ftp">FTP</label><div class="unit"><input class="input" id="p-ftp" type="number" inputmode="numeric"><span>W</span></div></div>
+        <div class="field"><label for="p-maxhr">Max HR</label><div class="unit"><input class="input" id="p-maxhr" type="number" inputmode="numeric"><span>bpm</span></div></div>
+        <div class="field"><label for="p-lthr">Threshold HR</label><div class="unit"><input class="input" id="p-lthr" type="number" inputmode="numeric"><span>bpm</span></div></div>
+        <div class="field"><label for="p-weight">Weight</label><div class="unit"><input class="input" id="p-weight" type="number" inputmode="decimal" step="0.1"><span>kg</span></div></div>
+        <div class="field wide"><label for="p-sport">Primary sport</label><input class="input" id="p-sport" type="text"></div>
+        <div class="field wide"><label for="p-injury">Injury history</label><textarea class="input" id="p-injury" rows="4" placeholder="Old injuries and what aggravates them"></textarea></div>
+        <div class="field wide"><label for="p-notes">Notes for the coach</label><textarea class="input" id="p-notes" rows="7" placeholder="Schedule, equipment, preferences. The coach also adds dated notes here."></textarea></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-zones">
+      <h2 id="h-zones">Heart-rate zones</h2>
+      <p class="lede">Used for session targets and time-in-zone. Keep them the same as in Garmin Connect.</p>
+      <div class="zone-bar" id="zone-bar"></div>
+      <div class="zones" id="zones"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-days">
+      <h2 id="h-days">Skating instruction days</h2>
+      <p class="lede">Your usual teaching days. Instruction is light work, so the coach only avoids maximal leg intervals on them. Leave all off while the season is paused.</p>
+      <div class="days" id="days"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-coach">
+      <h2 id="h-coach">Coach</h2>
+      <p class="lede">Changed in code, versioned on every logged message.</p>
+      <div class="kv" id="coach-info"></div>
+    </section>
+
+    <div class="savebar" id="savebar" hidden>
+      <span class="status" id="save-status" role="status"></span>
+      <button class="btn" id="save-btn" type="button">Save changes</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const $ = id => document.getElementById(id), e = TC.escapeHtml;
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const DEFAULT_ZONES = [[0, 150], [151, 165], [166, 179], [180, 195], [196, null]];
+  let dirty = false;
+
+  function setStatus(el, text, cls = '') { el.textContent = text; el.className = 'status ' + cls; }
+  const markDirty = () => { dirty = true; $('savebar').hidden = false; setStatus($('save-status'), 'Unsaved changes'); };
+
+  // ---- locations ----
+  function renderLocations(locs) {
+    $('locs').innerHTML = locs.length ? locs.map(l => `
+      <div class="loc${l.is_active ? ' active' : ''}">
+        <input type="radio" name="loc" value="${l.id}" ${l.is_active ? 'checked' : ''} aria-label="I'm in ${e(l.name)}">
+        <div><div class="name">${e(l.name)}${l.is_active ? ' · you are here' : ''}</div>
+          <div class="meta">${l.latitude}, ${l.longitude} · ${e(l.timezone)}${l.has_forecast ? '' : ' · no forecast yet'}</div></div>
+        ${l.is_active ? '' : `<button class="del" type="button" data-id="${l.id}">Remove</button>`}
+      </div>`).join('') : '<div class="empty">No locations yet. Search for a city below.</div>';
+    document.querySelectorAll('input[name=loc]').forEach(r => r.addEventListener('change', () => activate(r.value)));
+    document.querySelectorAll('.loc .del').forEach(b => b.addEventListener('click', () => removeLoc(b.dataset.id)));
+  }
+  async function activate(id) {
+    setStatus($('loc-status'), 'Switching and fetching the forecast…');
+    const r = await TC.postJSON('/settings/location/activate/', { id: +id }).then(x => x.json());
+    if (r.locations) renderLocations(r.locations);
+    setStatus($('loc-status'), r.ok ? (r.warning || 'Location updated. The coach uses this forecast from now on.') : r.error, r.ok && !r.warning ? 'ok' : 'err');
+  }
+  async function removeLoc(id) {
+    const r = await TC.postJSON('/settings/location/delete/', { id: +id }).then(x => x.json());
+    if (r.locations) renderLocations(r.locations);
+    setStatus($('loc-status'), r.ok ? 'Removed.' : r.error, r.ok ? 'ok' : 'err');
+  }
+  $('search-form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const q = $('search-q').value.trim();
+    if (q.length < 2) return;
+    $('results').innerHTML = '<div class="meta">Searching…</div>';
+    const r = await fetch('/settings/location/search/?q=' + encodeURIComponent(q)).then(x => x.json()).catch(() => ({ results: [], error: 'Search failed.' }));
+    $('results').innerHTML = r.results.length ? r.results.map((x, i) => `
+      <div class="result"><div><b>${e(x.name)}</b><div class="meta">${e([x.admin, x.country].filter(Boolean).join(', '))} · ${e(x.timezone)}</div></div>
+        <button class="btn ghost" type="button" data-i="${i}">Add</button></div>`).join('') : `<div class="meta">${e(r.error || 'No places found.')}</div>`;
+    document.querySelectorAll('.result .btn').forEach(b => b.addEventListener('click', async () => {
+      const x = r.results[+b.dataset.i];
+      const res = await TC.postJSON('/settings/location/add/', { name: x.name, latitude: x.latitude, longitude: x.longitude, timezone: x.timezone }).then(y => y.json());
+      if (res.locations) renderLocations(res.locations);
+      $('results').innerHTML = ''; $('search-q').value = '';
+      setStatus($('loc-status'), res.ok ? `${x.name} added. Select it when you're there.` : res.error, res.ok ? 'ok' : 'err');
+    }));
+  });
+
+  // ---- zones ----
+  function renderZones(zones) {
+    const z = zones.length === 5 ? zones.map(x => [x.min_bpm, x.max_bpm]) : DEFAULT_ZONES;
+    $('zones').innerHTML = z.map(([lo, hi], i) => `
+      <div class="zone"><b style="background:var(--z${i + 1})">Z${i + 1}</b>
+        <input class="input z-lo" type="number" inputmode="numeric" value="${lo ?? ''}" aria-label="Zone ${i + 1} from (bpm)" ${i === 0 ? 'readonly' : ''}>
+        <span class="dash">–</span>
+        <input class="input z-hi" type="number" inputmode="numeric" value="${hi ?? ''}" aria-label="Zone ${i + 1} to (bpm)" ${i === 4 ? 'placeholder="max"' : ''}>
+        <span class="bpm">bpm</span></div>`).join('');
+    // a zone's lower bound follows the previous zone's upper bound
+    document.querySelectorAll('.z-hi').forEach((inp, i) => inp.addEventListener('input', () => {
+      const next = document.querySelectorAll('.z-lo')[i + 1];
+      if (next && inp.value) next.value = +inp.value + 1;
+      drawZoneBar(); markDirty();
+    }));
+    document.querySelectorAll('.z-lo').forEach(inp => inp.addEventListener('input', () => { drawZoneBar(); markDirty(); }));
+    drawZoneBar();
+  }
+  function readZones() {
+    const lo = [...document.querySelectorAll('.z-lo')], hi = [...document.querySelectorAll('.z-hi')];
+    return lo.map((l, i) => ({ zone: 'Z' + (i + 1), min_bpm: +l.value || 0, max_bpm: hi[i].value === '' ? null : +hi[i].value }));
+  }
+  function drawZoneBar() {
+    const z = readZones(), top = (z[3].max_bpm || 195) + 10, base = z[1].min_bpm ? z[1].min_bpm - 20 : 120;
+    $('zone-bar').innerHTML = z.map((x, i) => {
+      const lo = Math.max(x.min_bpm, base), hi = x.max_bpm == null ? top : x.max_bpm;
+      return `<i style="flex:${Math.max(1, hi - lo)};background:var(--z${i + 1})"></i>`;
+    }).join('');
+  }
+
+  // ---- load + save ----
+  async function load() {
+    const d = await fetch('/settings/data/').then(r => r.json());
+    const p = d.profile;
+    $('p-ftp').value = p.ftp_watts ?? ''; $('p-maxhr').value = p.max_hr ?? ''; $('p-lthr').value = p.lthr ?? '';
+    $('p-weight').value = p.weight_kg ?? ''; $('p-sport').value = p.primary_sport || '';
+    $('p-injury').value = p.injury_history; $('p-notes').value = p.athlete_notes;
+    $('days').innerHTML = DAYS.map((name, i) => `<label class="day"><input type="checkbox" value="${i}" ${p.instruction_days.includes(i) ? 'checked' : ''}><span>${name}</span></label>`).join('');
+    renderZones(p.hr_zones);
+    renderLocations(d.locations);
+    const c = d.coach;
+    $('coach-info').innerHTML = [['Model', c.model], ['Prompt', c.prompt], ['Config', c.config], ['Thinking', c.thinking], ['Max tokens', c.max_tokens.toLocaleString()]]
+      .map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${e(v)}</div></div>`).join('');
+    document.querySelectorAll('.form-grid input, .form-grid textarea').forEach(el => el.addEventListener('input', markDirty));
+    document.querySelectorAll('#days input').forEach(el => el.addEventListener('change', markDirty));
+  }
+
+  const num = id => $(id).value === '' ? null : +$(id).value;
+  $('save-btn').addEventListener('click', async () => {
+    $('save-btn').disabled = true;
+    setStatus($('save-status'), 'Saving…');
+    try {
+      const res = await TC.postJSON('/settings/profile/', {
+        ftp_watts: num('p-ftp'), max_hr: num('p-maxhr'), lthr: num('p-lthr'), weight_kg: num('p-weight'),
+        primary_sport: $('p-sport').value.trim() || 'cycling', injury_history: $('p-injury').value, athlete_notes: $('p-notes').value,
+        instruction_days: [...document.querySelectorAll('#days input:checked')].map(x => +x.value), hr_zones: readZones(),
+      }).then(r => r.json());
+      dirty = !res.ok;
+      setStatus($('save-status'), res.ok ? 'Saved. The coach sees this from the next message.' : res.error, res.ok ? 'ok' : 'err');
+      if (res.ok) setTimeout(() => { if (!dirty) $('savebar').hidden = true; }, 2500);
+    } catch (err) {
+      setStatus($('save-status'), 'Could not save. Check your connection and try again.', 'err');
+    }
+    $('save-btn').disabled = false;
+  });
+  window.addEventListener('beforeunload', ev => { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
+  document.addEventListener('DOMContentLoaded', load);
+</script>
+{% endblock %}

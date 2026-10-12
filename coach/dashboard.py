@@ -1,6 +1,7 @@
 """Today page: one JSON payload with readiness, today's sessions, the week,
 recovery trends, load and rule-based insights. Read-only."""
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
@@ -10,7 +11,8 @@ from django.views.decorators.http import require_http_methods
 
 from coach import metrics
 from coach.models import PlannedSession
-from sync.models import Activity, DailyStats, FTPRecord, HRVRecord, SleepRecord, UserProfile
+from coach.context import _summarise_weather
+from sync.models import Activity, DailyStats, FTPRecord, HRVRecord, SleepRecord, UserProfile, WeatherHourly, WeatherLocation
 
 ZONES = range(1, 6)
 
@@ -157,6 +159,25 @@ def build_insights(today, hrv_today, baseline, ratio, week):
     return sorted(out, key=lambda i: order[i["level"]])
 
 
+def _weather():
+    loc = WeatherLocation.active()
+    if not loc:
+        return None
+    from django.utils import timezone
+    now = timezone.now()
+    hours = list(WeatherHourly.objects.filter(location=loc, datetime__gte=now - dt.timedelta(hours=1),
+                                              datetime__lte=now + dt.timedelta(hours=48))
+                 .order_by("datetime").values("datetime", "temp", "precipitation_probability", "wind_speed", "weather_code"))
+    tz = ZoneInfo(loc.timezone)
+    current = hours[0] if hours else None
+    return {
+        "location": loc.name,
+        "now": None if not current else {"temp": current["temp"], "rain": current["precipitation_probability"],
+                                         "wind": current["wind_speed"], "code": current["weather_code"]},
+        "days": _summarise_weather(hours, tz),
+    }
+
+
 @login_required
 def today_page(request):
     return render(request, "coach/today.html")
@@ -211,4 +232,5 @@ def today_data(request):
         "latest_activity": _latest_activity(),
         "hr_zones": (UserProfile.objects.filter(pk=1).values_list("hr_zones", flat=True).first()),
         "insights": build_insights(today, hrv_today, baseline, ratio, week),
+        "weather": _weather(),
     })

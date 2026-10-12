@@ -1,14 +1,13 @@
 import datetime
 from django.db.models import Q
 from django.utils import timezone
-from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, UserProfile, FTPRecord, IndoorCyclingWorkout, Exercise
+from zoneinfo import ZoneInfo
+
+from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, WeatherLocation, UserProfile, FTPRecord, IndoorCyclingWorkout, Exercise
 from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, PlannedSession
 from coach.metrics import acwr
 from coach.training_skills import list_skills
 
-
-# skating instruction days, Mon=0..Sun=6 (e.g. {0, 1, 2, 6}); empty = paused
-INSTRUCTION_DAYS = set()
 
 # open-meteo codes: https://open-meteo.com/en/docs#api-formats
 WEATHER_CODES = {
@@ -27,11 +26,14 @@ def _round(value, ndigits=1):
     return round(value, ndigits) if value is not None else None
 
 
-def _summarise_weather(hours):
-    """Collapse hourly rows into one short line per day-part"""
+def _summarise_weather(hours, tz=None):
+    """Collapse hourly rows into one short line per day-part, in the
+    location's local time when `tz` is given"""
     blocks = {}
     for h in hours:
         dt = h['datetime']
+        if tz and dt.tzinfo:
+            dt = dt.astimezone(tz)
         hour = dt.hour
         day = dt.date().isoformat()
         if 6 <= hour < 12:
@@ -85,6 +87,9 @@ def build_context():
     today = datetime.date.today()
     now = timezone.now()
 
+    profile = UserProfile.objects.first()
+    instruction_days = set((profile.instruction_days or []) if profile else [])
+
     # must match PLANNING_WINDOW_DAYS in tools.py
     next_14_days = []
     for i in range(14):
@@ -92,7 +97,7 @@ def build_context():
         next_14_days.append({
             'date': d.isoformat(),
             'weekday': d.strftime('%A'),
-            'usual_instruction_day': d.weekday() in INSTRUCTION_DAYS,
+            'usual_instruction_day': d.weekday() in instruction_days,
         })
 
     calendar = PlannedSession.objects.filter(
@@ -100,7 +105,6 @@ def build_context():
         date__lte=today + datetime.timedelta(days=28),
     ).order_by('date').values('date', 'title', 'activity_type', 'created_by', 'completed')
 
-    profile = UserProfile.objects.first()
     profile_data = {
         'ftp_watts': profile.ftp_watts if profile else None,
         'max_hr': profile.max_hr if profile else None,
@@ -175,13 +179,15 @@ def build_context():
         'title', 'goal_type', 'target_date', 'description',
     ))
 
+    location = WeatherLocation.active()
     weather_hours = list(WeatherHourly.objects.filter(
+        location=location,
         datetime__gte=now,
         datetime__lte=now + datetime.timedelta(hours=48)
     ).order_by('datetime').values(
         'datetime', 'temp', 'precipitation_probability', 'wind_speed', 'weather_code',
     ))
-    weather_summary = _summarise_weather(weather_hours)
+    weather_summary = _summarise_weather(weather_hours, ZoneInfo(location.timezone) if location else None)
 
     indoor_cyc_workouts = list(IndoorCyclingWorkout.objects.all().values(
         'name', 'category', 'duration_min', 'intensity_factor', 'tss', 'description'
@@ -223,6 +229,7 @@ def build_context():
         'daily_feelings_last_14_days': feelings,
         'active_injuries': active_injuries,
         'active_goals': active_goals,
+        'location': location.name if location else None,
         'weather_next_48h': weather_summary,
         'indoor_cycling_workouts': indoor_cyc_workouts,
         'exercise_library': exercise_library,

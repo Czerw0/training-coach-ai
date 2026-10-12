@@ -158,6 +158,8 @@ class UserProfile(models.Model):
     athlete_notes = models.TextField(null=True, blank=True)
     # [{"zone": "Z1", "min_bpm": 0, "max_bpm": 150}, ...]; max_bpm null = open-ended
     hr_zones = models.JSONField(null=True, blank=True)
+    # usual skating-instruction weekdays, Mon=0..Sun=6; empty = paused
+    instruction_days = models.JSONField(default=list, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def clean(self):
@@ -175,8 +177,30 @@ class UserProfile(models.Model):
             raise ValidationError({"hr_zones": 'Use [{"zone": "Z1", "min_bpm": 0, "max_bpm": 150}, ...]'})
 
 
+class WeatherLocation(models.Model):
+    """Places to fetch forecasts for. The single is_active one is where the
+    athlete is now — the agent's context and the Today page use it."""
+    name = models.CharField(max_length=80)
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    timezone = models.CharField(max_length=50, default="Europe/Warsaw")
+    is_active = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-is_active", "name"]
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def active(cls):
+        return cls.objects.filter(is_active=True).first() or cls.objects.first()
+
+
 class WeatherHourly(models.Model):
-    datetime = models.DateTimeField(unique=True)
+    location = models.ForeignKey(WeatherLocation, on_delete=models.CASCADE, null=True, related_name="hours")
+    datetime = models.DateTimeField()
     temp = models.FloatField(null=True, blank=True)
     humidity = models.FloatField(null=True, blank=True)
     wind_speed = models.FloatField(null=True, blank=True)
@@ -190,6 +214,7 @@ class WeatherHourly(models.Model):
 
     class Meta:
         ordering = ['datetime']
+        constraints = [models.UniqueConstraint(fields=["location", "datetime"], name="weather_unique_location_hour")]
 
     def __str__(self):
         return f"{self.datetime}: {self.temp}°C"

@@ -40,7 +40,8 @@ def compute_cost(inp, cache_write, cache_read, out):
     return (inp * PRICE_INPUT + cache_write * PRICE_CACHE_WRITE
             + cache_read * PRICE_CACHE_READ + out * PRICE_OUTPUT)
 
-INSTRUCTIONS = """You are a personal AI training coach for a multisport athlete in Warsaw.
+INSTRUCTIONS = """You are a personal AI training coach for a multisport athlete based in Warsaw.
+Where they are right now is `location` in the data; the weather forecast is for that place.
 
 You receive real data from their Garmin devices (Forerunner 955, Edge 840 + power
 meter, HRM Pro), a local weather forecast, and the athlete's profile — including
@@ -222,8 +223,9 @@ normally would.
 # v1.5.0  get_training_principles + check_training_week for week planning
 # v1.6.0  running back at max one run/week; SESSION DETAIL card for every
 #         planned session and for plans in chat
+# v1.6.1  current `location` (e.g. Innsbruck) instead of always Warsaw
 
-PROMPT_VERSION = "v1.6.0"
+PROMPT_VERSION = "v1.6.1"
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
 PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 
