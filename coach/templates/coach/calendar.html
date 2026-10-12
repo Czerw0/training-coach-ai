@@ -44,14 +44,60 @@
   .fc .fc-popover-header { background: var(--sunken); }
 
   .readonly-note { font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+
+  /* ---- session sheet ---- */
+  .modal.sheet { max-width: 640px; padding: 0; gap: 0; display: flex; flex-direction: column; }
+  .sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; border-bottom: 1px solid var(--line); }
+  .sheet-head .who-line { margin-top: 2px; }
+  .x { background: var(--sunken); border: 0; width: 34px; height: 34px; border-radius: 50%; font-size: 20px; line-height: 1; color: var(--muted); cursor: pointer; flex-shrink: 0; }
+  .sheet-body { padding: 16px 20px; overflow-y: auto; display: grid; gap: 16px; }
+  .sheet-foot { padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); margin: 0; background: var(--surface); }
+  .form { display: grid; gap: 16px; }
+  .fs { border: 0; display: grid; gap: 8px; }
+  .fs > legend, .sec-label { font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 0; margin-bottom: 8px; }
+
+  .type-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+  .opt { position: relative; }
+  .opt input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .opt span { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border-radius: var(--r-sm); background: var(--sunken); border: 1.5px solid transparent; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .opt span i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex-shrink: 0; }
+  .opt input:checked + span { border-color: var(--accent); background: var(--accent-soft); }
+  .opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .seg { display: flex; background: var(--sunken); border-radius: 999px; padding: 3px; gap: 2px; }
+  .seg .opt { flex: 1; }
+  .seg .opt span { justify-content: center; border-radius: 999px; padding: 7px 10px; background: transparent; border: 0; font-size: 13px; color: var(--muted); }
+  .seg .opt input:checked + span { background: var(--accent); color: var(--on-accent); }
+
+  .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: end; }
+  @media (max-width: 460px) { .row2 { grid-template-columns: 1fr; } }
+  .dur { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .dur .input { width: 96px; }
+  .chip-btn { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 6px 11px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .chip-btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+  .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; font-weight: 600; min-height: 42px; }
+  .switch input { appearance: none; width: 42px; height: 24px; border-radius: 99px; background: var(--line); position: relative; cursor: pointer; transition: background .15s; flex-shrink: 0; }
+  .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .switch input:checked { background: var(--good); }
+  .switch input:checked::after { transform: translateX(18px); }
+
+  .group { display: grid; gap: 10px; padding: 14px; border-radius: var(--r); background: var(--sunken); }
+  .group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .group-head b { font-family: var(--f-num); font-size: 17px; }
+  .group-head span { font-size: 12px; color: var(--muted); }
+  .group .input { background: var(--surface); }
+  .card-fields { display: grid; gap: 10px; }
+  .card-fields textarea.input { min-height: 44px; font-size: 15px; }
+
   #exercise-rows { display: grid; gap: 8px; }
-  .exercise-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 6px; align-items: center; padding: 8px; background: var(--sunken); border-radius: var(--r-sm); }
-  .exercise-row .input { padding: 8px 9px; font-size: 14px; background: var(--surface); }
+  .exercise-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px; background: var(--surface); border-radius: var(--r-sm); border: 1px solid var(--line); }
+  .exercise-row .nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; grid-column: 1 / -1; }
+  .exercise-row label { display: grid; gap: 3px; font-size: 11px; font-weight: 600; color: var(--muted); }
+  .exercise-row .input { padding: 8px 9px; font-size: 15px; background: var(--sunken); }
   .exercise-row .ex-notes { grid-column: 1 / -1; }
-  .exercise-row .ex-remove { background: none; border: 0; color: var(--bad); font-size: 20px; cursor: pointer; padding: 2px 8px; line-height: 1; }
-  @media (max-width: 480px) { .exercise-row { grid-template-columns: 1fr 1fr 1fr auto; } .exercise-row .ex-name { grid-column: 1 / -1; } }
-  #add-exercise-btn { background: none; border: 1px dashed var(--line); color: var(--accent); border-radius: var(--r-sm); padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  #f-notes { min-height: 150px; }
+  .exercise-row .ex-remove { background: none; border: 0; color: var(--bad); font-size: 22px; cursor: pointer; padding: 0 6px; line-height: 1; align-self: center; }
+  #add-exercise-btn { background: var(--surface); border: 1.5px dashed var(--line); color: var(--accent); border-radius: var(--r-sm); padding: 10px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
 </style>
 {% endblock %}
 
@@ -82,224 +128,222 @@
 </div>
 
 <div class="overlay" id="overlay">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <h2 id="modal-title">Plan a session</h2>
-    <div class="who-line" id="who-line"></div>
+  <div class="modal sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <header class="sheet-head">
+      <div><h2 id="modal-title">Plan a session</h2><div class="who-line" id="who-line"></div></div>
+      <button class="x" type="button" id="close-btn" aria-label="Close">&times;</button>
+    </header>
 
-    <div id="form-area" style="display:grid; gap:12px;">
-      <div class="pair">
-        <div class="field">
-          <label for="f-date">Date</label>
-          <input class="input" type="date" id="f-date">
-        </div>
-        <div class="field">
-          <label for="f-type">Type</label>
-          <select class="input" id="f-type">
-            <option value="cycling">Cycling</option>
-            <option value="running">Running</option>
-            <option value="gym_legs">Gym — legs</option>
-            <option value="gym_upper">Gym — upper body</option>
-            <option value="plyometrics">Plyometrics</option>
-            <option value="skating">Skating</option>
-            <option value="tennis">Tennis</option>
-            <option value="skiing">Skiing</option>
-            <option value="mountaineering">Hiking</option>
-            <option value="rest">Rest</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-      </div>
+    <div class="sheet-body">
+      <div id="form-area" class="form">
+        <fieldset class="fs"><legend>Type</legend><div class="type-grid" id="type-grid"></div></fieldset>
 
-      <div class="field">
-        <label for="f-title">Title</label>
-        <input class="input" type="text" id="f-title" placeholder="e.g. Tempo run 3 × 10 min">
-      </div>
-
-      <div class="pair">
-        <div class="field">
-          <label for="f-duration">Duration (min)</label>
-          <input class="input" type="number" id="f-duration" placeholder="60">
+        <div class="row2">
+          <div class="field"><label for="f-date">Date</label><input class="input" type="date" id="f-date"></div>
+          <label class="switch"><input type="checkbox" id="f-completed"> Completed</label>
         </div>
-        <div class="field">
-          <label for="f-intensity">Intensity</label>
-          <select class="input" id="f-intensity">
-            <option value="">—</option>
-            <option value="easy">Easy</option>
-            <option value="moderate">Moderate</option>
-            <option value="hard">Hard</option>
-          </select>
+
+        <div class="field"><label for="f-title">Title</label>
+          <input class="input" type="text" id="f-title" placeholder="e.g. Tempo run 3 × 10 min" autocomplete="off"></div>
+
+        <div class="field"><label for="f-duration">Duration (min)</label>
+          <div class="dur">
+            <input class="input" type="number" id="f-duration" inputmode="numeric" min="0" placeholder="60">
+            <span id="dur-chips"></span>
+          </div>
+        </div>
+
+        <fieldset class="fs"><legend>Intensity</legend><div class="seg" id="intensity"></div></fieldset>
+
+        <div id="exercise-section" class="group" style="display:none;">
+          <div class="group-head"><b>Exercises</b><span>pick from the library or type your own</span></div>
+          <div id="exercise-rows"></div>
+          <button type="button" id="add-exercise-btn">+ Add exercise</button>
+        </div>
+
+        <div class="group">
+          <div class="group-head"><b>Session card</b><span>what the coach fills in when it plans</span></div>
+          <div class="card-fields" id="card-fields"></div>
         </div>
       </div>
 
-      <div id="exercise-section" class="field" style="display:none;">
-        <label>Exercises</label>
-        <div id="exercise-rows"></div>
-        <button type="button" id="add-exercise-btn">+ Add exercise</button>
-      </div>
+      <datalist id="exercise-options"></datalist>
 
-      <div class="field">
-        <label for="f-notes">Session card</label>
-        <textarea class="input" id="f-notes" placeholder="Purpose, warm-up, main set, cool-down, cues, fallback"></textarea>
-      </div>
-
-      <label class="check"><input type="checkbox" id="f-completed"> Mark as completed</label>
+      <div id="readonly-area" style="display:none;"><p class="readonly-note" id="readonly-text"></p></div>
     </div>
 
-    <datalist id="exercise-options"></datalist>
-
-    <div id="readonly-area" style="display:none;">
-      <p class="readonly-note" id="readonly-text"></p>
-    </div>
-
-    <div class="modal-actions">
+    <footer class="modal-actions sheet-foot">
       <button class="btn" type="button" id="save-btn">Save</button>
       <button class="btn danger" type="button" id="delete-btn" style="display:none;">Delete</button>
       <button class="btn ghost" type="button" id="cancel-btn">Cancel</button>
-    </div>
+    </footer>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  const overlay = document.getElementById('overlay');
-  const modalTitle = document.getElementById('modal-title');
-  const whoLine = document.getElementById('who-line');
-  const formArea = document.getElementById('form-area');
-  const readonlyArea = document.getElementById('readonly-area');
-  const readonlyText = document.getElementById('readonly-text');
-  const saveBtn = document.getElementById('save-btn');
-  const deleteBtn = document.getElementById('delete-btn');
-  const typeSelect = document.getElementById('f-type');
-  const dateInput = document.getElementById('f-date');
-  const exerciseSection = document.getElementById('exercise-section');
-  const exerciseRows = document.getElementById('exercise-rows');
+  const TYPES = [['cycling', 'Cycling'], ['running', 'Running'], ['gym_legs', 'Gym · legs'], ['gym_upper', 'Gym · upper'],
+    ['plyometrics', 'Plyometrics'], ['skating', 'Skating'], ['tennis', 'Tennis'], ['skiing', 'Skiing'], ['mountaineering', 'Hiking'], ['other', 'Other']];
+  const INTENSITIES = [['', 'Not set'], ['easy', 'Easy'], ['moderate', 'Moderate'], ['hard', 'Hard']];
+  const DURATIONS = [30, 45, 60, 75, 90, 120];
+  // the parts of a session card, as the agent writes them ("Label: text" per line)
+  const CARD = [['purpose', 'Purpose', 'Why this session, on this day'], ['warmup', 'Warm-up', 'e.g. 12 min Z1–Z2 + 4 strides'],
+    ['main', 'Main set', 'e.g. 3 × 10 min Z3 (166–179 bpm), 3 min easy between'], ['cooldown', 'Cool-down', 'e.g. 8 min easy'],
+    ['cues', 'Cues', 'Technique focus, when to stop'], ['fallback', 'Fallback', 'What to do instead on a bad day'], ['notes', 'Notes', 'Anything else']];
+  const ALIASES = { 'purpose': 'purpose', 'warm-up': 'warmup', 'warm up': 'warmup', 'warmup': 'warmup', 'main set': 'main', 'main': 'main',
+    'cool-down': 'cooldown', 'cool down': 'cooldown', 'cooldown': 'cooldown', 'cues': 'cues', 'fallback': 'fallback', 'notes': 'notes' };
   const GYM_TYPES = ['gym_legs', 'gym_upper'];
-  let editingId = null;
-  let calendar;
 
-  function updateExerciseSectionVisibility() {
-    exerciseSection.style.display = GYM_TYPES.includes(typeSelect.value) ? '' : 'none';
+  const $ = id => document.getElementById(id);
+  const overlay = $('overlay'), saveBtn = $('save-btn'), deleteBtn = $('delete-btn');
+  const exerciseRows = $('exercise-rows');
+  let editingId = null, calendar;
+
+  // ---- build controls ----
+  $('type-grid').innerHTML = TYPES.map(([v, l]) =>
+    `<label class="opt"><input type="radio" name="f-type" value="${v}"><span><i style="--c:var(--t-${TC.typeKey(v)})"></i>${l}</span></label>`).join('');
+  $('intensity').innerHTML = INTENSITIES.map(([v, l]) =>
+    `<label class="opt"><input type="radio" name="f-intensity" value="${v}"><span>${l}</span></label>`).join('');
+  $('dur-chips').innerHTML = DURATIONS.map(m => `<button type="button" class="chip-btn" data-min="${m}">${m}</button>`).join(' ');
+  $('card-fields').innerHTML = CARD.map(([k, l, ph]) =>
+    `<div class="field"><label for="cf-${k}">${l}</label><textarea class="input" id="cf-${k}" rows="1" placeholder="${ph}"></textarea></div>`).join('');
+
+  const typeValue = () => (document.querySelector('input[name=f-type]:checked') || {}).value || 'other';
+  const setType = v => { (document.querySelector(`input[name=f-type][value="${v}"]`) || document.querySelector('input[name=f-type][value=other]')).checked = true; updateExerciseSection(); };
+  const setIntensity = v => { (document.querySelector(`input[name=f-intensity][value="${v || ''}"]`)).checked = true; };
+  document.querySelectorAll('input[name=f-type]').forEach(r => r.addEventListener('change', updateExerciseSection));
+  function updateExerciseSection() { $('exercise-section').style.display = GYM_TYPES.includes(typeValue()) ? '' : 'none'; }
+
+  function syncDurChips() { document.querySelectorAll('#dur-chips .chip-btn').forEach(b => b.classList.toggle('on', +b.dataset.min === +$('f-duration').value)); }
+  $('dur-chips').addEventListener('click', ev => { const b = ev.target.closest('.chip-btn'); if (b) { $('f-duration').value = b.dataset.min; syncDurChips(); } });
+  $('f-duration').addEventListener('input', syncDurChips);
+
+  function autosize(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; }
+  document.querySelectorAll('#card-fields textarea').forEach(t => t.addEventListener('input', () => autosize(t)));
+
+  // ---- session card <-> description text ----
+  function parseCard(text) {
+    const out = {}; let current = 'notes';
+    (text || '').split('\n').forEach(line => {
+      const m = line.match(/^\s*([A-Za-z][A-Za-z -]{1,12}?)\s*:\s*(.*)$/);
+      const key = m && ALIASES[m[1].trim().toLowerCase()];
+      if (key) { current = key; out[key] = (out[key] ? out[key] + '\n' : '') + m[2]; }
+      else if (line.trim()) out[current] = (out[current] ? out[current] + '\n' : '') + line.trim();
+    });
+    return out;
   }
-  typeSelect.addEventListener('change', updateExerciseSectionVisibility);
+  function composeCard() {
+    return CARD.map(([k, l]) => {
+      const v = $('cf-' + k).value.trim();
+      return v ? (k === 'notes' ? v : `${l}: ${v}`) : '';
+    }).filter(Boolean).join('\n');
+  }
+  function fillCard(text) {
+    const parts = parseCard(text);
+    CARD.forEach(([k]) => { const el = $('cf-' + k); el.value = parts[k] || ''; });
+    requestAnimationFrame(() => document.querySelectorAll('#card-fields textarea').forEach(autosize));
+  }
 
-  function attr(s) { return TC.escapeHtml(s).replace(/"/g, '&quot;'); }
-
-  function addExerciseRow(data = {}) {
+  // ---- exercises ----
+  const attr = s => TC.escapeHtml(s).replace(/"/g, '&quot;');
+  function addExerciseRow(d = {}) {
     const row = document.createElement('div');
     row.className = 'exercise-row';
     row.innerHTML =
-      `<input class="input ex-name" list="exercise-options" placeholder="Exercise" value="${data.name ? attr(data.name) : ''}">` +
-      `<input class="input ex-sets" type="number" placeholder="Sets" value="${data.sets ?? ''}">` +
-      `<input class="input ex-reps" type="number" placeholder="Reps" value="${data.reps ?? ''}">` +
-      `<input class="input ex-weight" type="number" step="0.5" placeholder="kg" value="${data.weight_kg ?? ''}">` +
-      `<button type="button" class="ex-remove" title="Remove">&times;</button>` +
-      `<input class="input ex-notes" placeholder="Note for this exercise (optional)" value="${data.notes ? attr(data.notes) : ''}">`;
+      `<input class="input ex-name" list="exercise-options" placeholder="Exercise" aria-label="Exercise" value="${d.name ? attr(d.name) : ''}">` +
+      `<button type="button" class="ex-remove" title="Remove exercise" aria-label="Remove exercise">&times;</button>` +
+      `<div class="nums"><label>Sets<input class="input ex-sets" type="number" inputmode="numeric" min="1" value="${d.sets ?? ''}"></label>` +
+      `<label>Reps<input class="input ex-reps" type="number" inputmode="numeric" min="1" value="${d.reps ?? ''}"></label>` +
+      `<label>kg<input class="input ex-weight" type="number" inputmode="decimal" step="0.5" min="0" value="${d.weight_kg ?? ''}"></label></div>` +
+      `<input class="input ex-notes" placeholder="Note (optional), e.g. RIR 2, tempo 3-1-1" aria-label="Exercise note" value="${d.notes ? attr(d.notes) : ''}">`;
     row.querySelector('.ex-remove').addEventListener('click', () => row.remove());
     exerciseRows.appendChild(row);
+    return row;
   }
-
   function renderExerciseRows(list) { exerciseRows.innerHTML = ''; (list || []).forEach(ex => addExerciseRow(ex)); }
-
   function collectExercises() {
-    return Array.from(exerciseRows.querySelectorAll('.exercise-row')).map(row => ({
-      name: row.querySelector('.ex-name').value.trim(),
-      sets: row.querySelector('.ex-sets').value || null,
-      reps: row.querySelector('.ex-reps').value || null,
-      weight_kg: row.querySelector('.ex-weight').value || null,
-      notes: row.querySelector('.ex-notes').value.trim(),
+    return Array.from(exerciseRows.querySelectorAll('.exercise-row')).map(r => ({
+      name: r.querySelector('.ex-name').value.trim(), sets: r.querySelector('.ex-sets').value || null,
+      reps: r.querySelector('.ex-reps').value || null, weight_kg: r.querySelector('.ex-weight').value || null,
+      notes: r.querySelector('.ex-notes').value.trim(),
     })).filter(ex => ex.name);
   }
-
-  document.getElementById('add-exercise-btn').addEventListener('click', () => addExerciseRow());
-
+  $('add-exercise-btn').addEventListener('click', () => addExerciseRow().querySelector('.ex-name').focus());
   fetch('/calendar/exercises/').then(r => r.json()).then(list => {
-    document.getElementById('exercise-options').innerHTML = list.map(e => `<option value="${attr(e.name)}">`).join('');
+    $('exercise-options').innerHTML = list.map(e => `<option value="${attr(e.name)}">`).join('');
   }).catch(() => {});
 
+  // ---- open / close ----
   function showForm(show) {
-    formArea.style.display = show ? 'grid' : 'none';
-    readonlyArea.style.display = show ? 'none' : '';
+    $('form-area').style.display = show ? 'grid' : 'none';
+    $('readonly-area').style.display = show ? 'none' : '';
     saveBtn.style.display = show ? '' : 'none';
   }
+  function open() { overlay.classList.add('open'); document.body.style.overflow = 'hidden'; }
+  function closeModal() { overlay.classList.remove('open'); document.body.style.overflow = ''; }
 
   function openCreate(dateStr) {
     editingId = null;
-    modalTitle.textContent = 'Plan a session';
-    whoLine.textContent = 'Created by you';
-    showForm(true);
-    deleteBtn.style.display = 'none';
-    dateInput.value = dateStr;
-    typeSelect.value = 'cycling';
-    ['f-title', 'f-duration', 'f-intensity', 'f-notes'].forEach(id => { document.getElementById(id).value = ''; });
-    document.getElementById('f-completed').checked = false;
-    renderExerciseRows([]);
-    updateExerciseSectionVisibility();
-    overlay.classList.add('open');
+    $('modal-title').textContent = 'Plan a session';
+    $('who-line').textContent = 'Created by you';
+    showForm(true); deleteBtn.style.display = 'none';
+    $('f-date').value = dateStr; setType('cycling'); setIntensity('');
+    $('f-title').value = ''; $('f-duration').value = ''; $('f-completed').checked = false;
+    fillCard(''); renderExerciseRows([]); syncDurChips();
+    open(); $('f-title').focus();
   }
 
   function openEdit(ev) {
     const p = ev.extendedProps;
     editingId = p.session_id;
-    modalTitle.textContent = 'Edit session';
-    whoLine.textContent = p.created_by === 'human' ? 'Planned by you' : 'Planned by the AI coach';
-    showForm(true);
-    deleteBtn.style.display = '';
-    dateInput.value = ev.startStr.slice(0, 10);
-    typeSelect.value = p.activity_type || 'other';
-    document.getElementById('f-title').value = p.title || '';
-    document.getElementById('f-duration').value = p.duration_minutes || '';
-    document.getElementById('f-intensity').value = p.intensity || '';
-    document.getElementById('f-notes').value = p.description || '';
-    document.getElementById('f-completed').checked = !!p.completed;
-    renderExerciseRows(p.exercises || []);
-    updateExerciseSectionVisibility();
-    overlay.classList.add('open');
+    $('modal-title').textContent = p.title || 'Edit session';
+    $('who-line').textContent = (p.created_by === 'human' ? 'Planned by you' : 'Planned by the AI coach') + ' · ' + ev.startStr.slice(0, 10);
+    showForm(true); deleteBtn.style.display = '';
+    $('f-date').value = ev.startStr.slice(0, 10); setType(p.activity_type || 'other'); setIntensity(p.intensity);
+    $('f-title').value = p.title || ''; $('f-duration').value = p.duration_minutes || ''; $('f-completed').checked = !!p.completed;
+    fillCard(p.description); renderExerciseRows(p.exercises || []); syncDurChips();
+    open();
   }
 
   function openReadonly(ev) {
     editingId = null;
-    modalTitle.textContent = ev.title;
-    whoLine.textContent = 'Completed activity · from Garmin';
-    showForm(false);
-    deleteBtn.style.display = 'none';
-    readonlyText.textContent = ev.extendedProps.detail || 'Completed activity from Garmin.';
-    overlay.classList.add('open');
+    $('modal-title').textContent = ev.title;
+    $('who-line').textContent = 'Completed activity · from Garmin';
+    showForm(false); deleteBtn.style.display = 'none';
+    $('readonly-text').textContent = ev.extendedProps.detail || 'Completed activity from Garmin.';
+    open();
   }
 
-  function closeModal() { overlay.classList.remove('open'); }
-  document.getElementById('cancel-btn').addEventListener('click', closeModal);
-  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-  document.getElementById('plan-btn').addEventListener('click', () => openCreate(new Date().toISOString().slice(0, 10)));
+  [$('cancel-btn'), $('close-btn')].forEach(b => b.addEventListener('click', closeModal));
+  overlay.addEventListener('click', ev => { if (ev.target === overlay) closeModal(); });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeModal(); });
+  $('plan-btn').addEventListener('click', () => openCreate(new Date().toISOString().slice(0, 10)));
 
   saveBtn.addEventListener('click', async () => {
-    if (!dateInput.value) { dateInput.focus(); return; }
-    await TC.postJSON('/calendar/session/', {
-      id: editingId,
-      date: dateInput.value,
-      activity_type: typeSelect.value,
-      title: document.getElementById('f-title').value,
-      duration_minutes: document.getElementById('f-duration').value || null,
-      intensity: document.getElementById('f-intensity').value,
-      description: document.getElementById('f-notes').value,
-      completed: document.getElementById('f-completed').checked,
-      exercises: GYM_TYPES.includes(typeSelect.value) ? collectExercises() : [],
-    });
-    closeModal();
-    calendar.refetchEvents();
+    if (!$('f-date').value) { $('f-date').focus(); return; }
+    saveBtn.disabled = true;
+    try {
+      await TC.postJSON('/calendar/session/', {
+        id: editingId, date: $('f-date').value, activity_type: typeValue(), title: $('f-title').value.trim(),
+        duration_minutes: $('f-duration').value || null,
+        intensity: (document.querySelector('input[name=f-intensity]:checked') || {}).value || '',
+        description: composeCard(), completed: $('f-completed').checked,
+        exercises: GYM_TYPES.includes(typeValue()) ? collectExercises() : [],
+      });
+      closeModal(); calendar.refetchEvents();
+    } finally { saveBtn.disabled = false; }
   });
 
   deleteBtn.addEventListener('click', async () => {
     if (!editingId) return;
     await TC.postJSON('/calendar/session/delete/', { id: editingId });
-    closeModal();
-    calendar.refetchEvents();
+    closeModal(); calendar.refetchEvents();
   });
 
   document.addEventListener('DOMContentLoaded', () => {
     const narrow = window.matchMedia('(max-width: 700px)').matches;
-    calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+    calendar = new FullCalendar.Calendar($('calendar'), {
       initialView: narrow ? 'listWeek' : 'dayGridMonth',
       firstDay: 1,
       height: 'auto',
@@ -327,11 +371,9 @@
       dateClick(info) { openCreate(info.dateStr.slice(0, 10)); },
       async eventDrop(info) {
         try {
-          const resp = await TC.postJSON('/calendar/session/move/', {
-            id: info.event.extendedProps.session_id, date: info.event.startStr.slice(0, 10),
-          });
+          const resp = await TC.postJSON('/calendar/session/move/', { id: info.event.extendedProps.session_id, date: info.event.startStr.slice(0, 10) });
           if (!resp.ok) info.revert();
-        } catch (e) { info.revert(); }
+        } catch (err) { info.revert(); }
       },
     });
     calendar.render();
