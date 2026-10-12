@@ -163,10 +163,10 @@ Both library commands are idempotent — rerun them after editing their lists.
 python manage.py runserver
 ```
 
-Open http://127.0.0.1:8000/admin/ → **User profiles** → add one (the app uses a
-single profile). Set `max_hr`, `lthr`, `weight_kg`, `primary_sport`, and — most
-important — `injury_history` and `athlete_notes`: free text the coach reads on
-every message. FTP is synced from Garmin automatically.
+Open http://127.0.0.1:8000/settings/ and fill in max HR, threshold HR, weight,
+your heart-rate zones and — most important — injury history and notes: free text
+the coach reads on every message. FTP is synced from Garmin automatically.
+Warsaw and Innsbruck are preset as weather locations; add others by searching.
 
 ### 6. Use it
 
@@ -174,10 +174,12 @@ Open http://127.0.0.1:8000/ and log in with the superuser account.
 
 | Page | URL | What for |
 |---|---|---|
-| Chat | `/` | Talk to the coach; the trace panel shows its reasoning and tool calls |
+| Today | `/` | Readiness, today's session, the week, recovery, load, weather, insights |
+| Coach | `/coach/` | Talk to the coach; the trace panel shows its reasoning and tool calls |
 | Calendar | `/calendar/` | Done (Garmin) vs planned sessions; drag to move, click to edit |
-| Stats | `/stats/` | Training by type, weekly volume, plan adherence |
-| Usage | `/usage/` | Cost per message, tokens, tools, per model/config version |
+| Stats | `/stats/` | Fitness & form, volume by sport, intensity, recovery, FTP/VO2max, records |
+| Usage | `/usage/` | Spend and projection, cost per message, cache, tools, per model/config |
+| Settings | `/settings/` | Location, athlete profile, HR zones, instruction days |
 | Admin | `/admin/` | Profile, injuries, goals, raw synced data |
 
 Things worth knowing when chatting:
@@ -240,9 +242,9 @@ Every workflow can also be started by hand: Actions → workflow → **Run workf
 | Coaching rules, safety rules, tone | `INSTRUCTIONS` in `coach/agent.py` — bump `PROMPT_VERSION` and add a changelog line |
 | Model | `MODEL` in `coach/agent.py` — update the `PRICE_*` constants too, bump `CONFIG_VERSION` |
 | Thinking effort, max tool rounds | `THINKING_EFFORT`, `MAX_TOOL_ROUNDS` in `coach/agent.py` |
-| Personal facts (injuries, schedule, zones) | Athlete profile in `/admin/`, or just tell the coach |
-| Skating instruction days | `INSTRUCTION_DAYS` in `coach/context.py` (Mon=0 … Sun=6) |
-| Weather location | `latitude` / `longitude` in `sync/management/commands/sync_weather.py` |
+| Personal facts (profile, injuries, HR zones) | **Settings** page, or just tell the coach |
+| Skating instruction days | **Settings** page |
+| Weather location (where you are now) | **Settings** page: search a city, then select it |
 | Sync frequency | cron lines in `.github/workflows/garmin_sync.yml` / `weather_sync.yml` |
 | Gym exercises | `EXERCISES` in `sync/management/commands/sync_exercises.py`, then rerun the command |
 | Indoor cycling workouts | `WORKOUTS` in `sync/management/commands/sync_indoor_workouts.py`, then rerun |
