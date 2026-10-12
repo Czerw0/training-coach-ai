@@ -38,11 +38,14 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
+          command_timeout: 30m
           script: |
             cd training-coach-ai
             git pull
             docker build -t coach .
             docker stop coach || true
             docker rm coach || true
-            docker run -d --name coach --env-file .env -p 8000:8000 coach
-            docker image prune -f
+            docker run -d --name coach --restart unless-stopped --env-file .env -p 8000:8000 coach
+            # keep a week of layers — a bare prune deletes the legacy builder's
+            # cache and forces a full apt/pip rebuild (~10 min) on every deploy
+            docker image prune -f --filter "until=168h"

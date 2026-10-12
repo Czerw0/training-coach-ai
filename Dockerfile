@@ -20,9 +20,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
+# Collect static files for whitenoise at build time — settings need these vars
+# to import, but collectstatic never touches the DB, so dummies are enough
+RUN SECRET_KEY=build-only DATABASE_URL=sqlite:////tmp/build.sqlite3 \
+    python manage.py collectstatic --noinput
+
 # Expose the port gunicorn will run on
 EXPOSE 8000
 
-# Run collectstatic and gunicorn at startup
+# Run migrations and gunicorn at startup
 CMD python manage.py migrate --noinput && \
     gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 1 --timeout 300
