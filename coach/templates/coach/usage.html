@@ -1,323 +1,139 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Usage · Training Coach</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <style>
-        :root {
-            --navy:#0B1F3A; --blue:#2D6CDF; --ink:#11151C;
-            --ink-soft:#6B7585; --line:#E4E8EF; --surface:#FFFFFF;
-            --bg:#F4F6F9; --pill-bg:#EDF0F5;
-        }
-        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-        html, body { height:100%; }
-        body {
-            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-            background:var(--bg); color:var(--ink);
-            height:100dvh; display:flex; justify-content:center; align-items:stretch;
-        }
-        .app {
-            width:100%; max-width:520px; display:flex; flex-direction:column;
-            height:100dvh; background:var(--bg); overflow:hidden;
-        }
-        @media (min-width:600px) {
-            body { padding:24px; align-items:center; }
-            .app {
-                height:min(900px, calc(100dvh - 48px));
-                border:1px solid var(--line); border-radius:22px;
-                box-shadow:0 10px 40px rgba(11,31,58,0.10); background:var(--surface);
-            }
-        }
+{% extends "coach/base.html" %}
+{% block title %}Usage · Training Coach{% endblock %}
+{% block mobile_title %}Usage{% endblock %}
 
-        .topbar { flex-shrink:0; padding:max(12px, env(safe-area-inset-top)) 12px 0; }
-        .pill {
-            display:flex; align-items:center; gap:10px;
-            background:var(--pill-bg); border-radius:999px; padding:8px 8px 8px 12px;
-        }
-        .logo {
-            width:30px; height:30px; border-radius:50%; background:var(--navy); color:#fff;
-            display:flex; align-items:center; justify-content:center;
-            font-weight:700; font-size:14px; flex-shrink:0;
-        }
-        .nav-links {
-            display:flex; align-items:center; gap:4px; flex:1;
-            overflow-x:auto; scrollbar-width:none;
-        }
-        .nav-links::-webkit-scrollbar { display:none; }
-        .nav-link {
-            flex-shrink:0; padding:6px 11px; border-radius:999px;
-            font-size:12.5px; font-weight:600; color:var(--ink-soft);
-            text-decoration:none; white-space:nowrap;
-        }
-        .nav-link.active {
-            background:var(--surface); border:1px solid var(--line); color:var(--navy);
-        }
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
 
-        .scroll { flex:1; overflow-y:auto; padding:14px; -webkit-overflow-scrolling:touch; }
-
-        /* Filters */
-        .filters { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
-        .filters select, .filters input {
-            flex:1; min-width:110px; padding:8px 10px; border:1px solid var(--line);
-            border-radius:10px; background:var(--surface); font-size:12.5px; color:var(--ink);
-        }
-        @media (min-width:600px) { .filters select, .filters input { background:var(--bg); } }
-        .filter-reset-btn {
-            flex-shrink:0; padding:8px 14px; border-radius:10px; border:1px solid var(--line);
-            background:none; color:var(--navy); font-size:12.5px; font-weight:600; cursor:pointer;
-        }
-
-        /* Summary cards */
-        .cards { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:16px; }
-        .card {
-            background:var(--surface); border:1px solid var(--line);
-            border-radius:14px; padding:13px 14px;
-        }
-        @media (min-width:600px) { .card { background:var(--bg); } }
-        .card .k { font-size:12px; color:var(--ink-soft); font-weight:600; margin-bottom:4px; }
-        .card .v { font-size:20px; font-weight:700; color:var(--navy); font-variant-numeric:tabular-nums; }
-        .card .v small { font-size:12px; font-weight:600; color:var(--ink-soft); }
-
-        .section-title { font-size:13px; font-weight:700; color:var(--ink-soft); margin:6px 2px 8px; }
-
-        .chart-box {
-            background:var(--surface); border:1px solid var(--line);
-            border-radius:14px; padding:14px; margin-bottom:16px;
-        }
-        @media (min-width:600px) { .chart-box { background:var(--bg); } }
-        .chart-box canvas { max-height:240px; }
-
-        /* Recent timeline */
-        .recent { display:flex; flex-direction:column; gap:8px; }
-        .turn {
-            background:var(--surface); border:1px solid var(--line);
-            border-radius:12px; padding:11px 13px;
-        }
-        @media (min-width:600px) { .turn { background:var(--bg); } }
-        .turn .top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
-        .turn .when { font-size:12px; color:var(--ink-soft); }
-        .turn .cost { font-size:13px; font-weight:700; color:var(--navy); font-variant-numeric:tabular-nums; }
-        .turn .msg { font-size:13px; margin-top:4px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .turn .meta { font-size:11px; color:var(--ink-soft); margin-top:4px; }
-        .turn .tools { color:var(--blue); font-weight:600; }
-
-        .empty { text-align:center; color:var(--ink-soft); padding:30px; font-size:14px; }
-    </style>
-</head>
-<body>
-    <div class="app">
-        <div class="topbar">
-            <div class="pill">
-                <div class="logo">TC</div>
-                {% include "coach/_nav.html" with active="usage" %}
-            </div>
-        </div>
-
-        <div class="scroll">
-            <div class="filters">
-                <select id="f-model"><option value="">All models</option></select>
-                <select id="f-config"><option value="">All configs</option></select>
-                <input type="date" id="f-since" aria-label="Since date">
-                <input type="date" id="f-until" aria-label="Until date">
-                <button id="f-reset" class="filter-reset-btn" type="button">Reset filters</button>
-            </div>
-
-            <div class="cards">
-                <div class="card"><div class="k">Total spend</div><div class="v" id="c-total">—</div></div>
-                <div class="card"><div class="k">This month</div><div class="v" id="c-month">—</div></div>
-                <div class="card"><div class="k">Today</div><div class="v" id="c-today">—</div></div>
-                <div class="card"><div class="k">Avg / message</div><div class="v" id="c-avg">—</div></div>
-            </div>
-
-            <div class="section-title">Daily cost (last 30 days)</div>
-            <div class="chart-box"><canvas id="dailyChart"></canvas></div>
-
-            <div class="section-title">Token breakdown</div>
-            <div class="chart-box"><canvas id="tokenChart"></canvas></div>
-
-            <div class="section-title">By model &amp; config</div>
-            <div class="recent" id="by-config"></div>
-            <div class="section-title">Recent messages</div>
-            <div class="recent" id="recent"></div>
-        </div>
+{% block content %}
+<div class="main-inner">
+  <div class="page-head">
+    <div>
+      <h1>Usage</h1>
+      <div class="sub">What every message to the coach costs, by model and config version.</div>
     </div>
+  </div>
 
-    <script>
-        const fmt = n => '$' + Number(n).toFixed(2);
-        const fmt4 = n => '$' + Number(n).toFixed(4);
+  <div class="filters">
+    <select class="input" id="f-model" aria-label="Model"><option value="">All models</option></select>
+    <select class="input" id="f-config" aria-label="Config version"><option value="">All configs</option></select>
+    <input class="input" type="date" id="f-since" aria-label="Since date">
+    <input class="input" type="date" id="f-until" aria-label="Until date">
+    <button id="f-reset" class="btn ghost" type="button">Reset filters</button>
+  </div>
 
-        let dailyChart = null;
-        let tokenChart = null;
-        let filtersPopulated = false;
+  <div class="tiles">
+    <div class="tile"><div class="k">Total spend</div><div class="v" id="c-total">—</div></div>
+    <div class="tile"><div class="k">This month</div><div class="v" id="c-month">—</div></div>
+    <div class="tile"><div class="k">Today</div><div class="v" id="c-today">—</div></div>
+    <div class="tile"><div class="k">Avg / message</div><div class="v" id="c-avg">—</div></div>
+  </div>
 
-        function currentFilterParams() {
-            const params = new URLSearchParams();
-            const model = document.getElementById('f-model').value;
-            const config = document.getElementById('f-config').value;
-            const since = document.getElementById('f-since').value;
-            const until = document.getElementById('f-until').value;
-            if (model) params.set('model', model);
-            if (config) params.set('config_version', config);
-            if (since) params.set('since', since);
-            if (until) params.set('until', until);
-            return params.toString();
-        }
+  <div class="grid grid-2">
+    <section class="card">
+      <div class="card-head"><h2>Daily cost</h2><span class="sub">last 30 days</span></div>
+      <div class="chart-box"><canvas id="dailyChart"></canvas></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Token breakdown</h2></div>
+      <div class="chart-box"><canvas id="tokenChart"></canvas></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>By model &amp; config</h2></div>
+      <div class="rows" id="by-config"></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Recent messages</h2></div>
+      <div class="rows" id="recent"></div>
+    </section>
+  </div>
+</div>
+{% endblock %}
 
-        // filter_options always reflects the full unfiltered table, so this
-        // only needs to run once — repopulating on a filtered reload would
-        // shrink the dropdowns to whatever's currently visible
-        function populateFilterOptions(options) {
-            if (!options) return;
-            const modelSel = document.getElementById('f-model');
-            options.models.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m; opt.textContent = m;
-                modelSel.appendChild(opt);
-            });
-            const configSel = document.getElementById('f-config');
-            options.config_versions.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c; opt.textContent = c;
-                configSel.appendChild(opt);
-            });
-        }
+{% block scripts %}
+<script>
+  const fmt = n => '$' + Number(n).toFixed(2);
+  const fmt4 = n => '$' + Number(n).toFixed(4);
+  let data = null, dailyChart = null, tokenChart = null, filtersPopulated = false;
 
-        async function load() {
-            let data;
-            try {
-                const qs = currentFilterParams();
-                data = await fetch('/usage/data/' + (qs ? '?' + qs : '')).then(r => r.json());
-            } catch (e) {
-                document.getElementById('recent').innerHTML = '<div class="empty">Could not load usage data.</div>';
-                return;
-            }
+  function params() {
+    const p = new URLSearchParams();
+    const map = { 'f-model': 'model', 'f-config': 'config_version', 'f-since': 'since', 'f-until': 'until' };
+    Object.entries(map).forEach(([id, key]) => { const v = document.getElementById(id).value; if (v) p.set(key, v); });
+    return p.toString();
+  }
 
-            if (!filtersPopulated) {
-                populateFilterOptions(data.filter_options);
-                filtersPopulated = true;
-            }
+  // filter_options reflects the full table, so populate only once
+  function populateFilterOptions(o) {
+    if (!o) return;
+    o.models.forEach(m => document.getElementById('f-model').add(new Option(m, m)));
+    o.config_versions.forEach(c => document.getElementById('f-config').add(new Option(c, c)));
+  }
 
-            // summary cards
-            const s = data.summary;
-            document.getElementById('c-total').textContent = fmt(s.total_cost);
-            document.getElementById('c-month').textContent = fmt(s.month_cost);
-            document.getElementById('c-today').textContent = fmt(s.today_cost);
-            document.getElementById('c-avg').innerHTML = fmt4(s.avg_cost) + ' <small>· ' + s.total_turns + ' msgs</small>';
+  function drawCharts() {
+    if (!data) return;
+    if (dailyChart) dailyChart.destroy();
+    if (tokenChart) tokenChart.destroy();
+    const d = data.daily;
+    dailyChart = new Chart(document.getElementById('dailyChart'), {
+      type: 'bar',
+      data: { labels: d.map(x => x.date.slice(5)), datasets: [{ label: 'Cost', data: d.map(x => x.cost), backgroundColor: TC.css('--accent'), borderRadius: 4, maxBarThickness: 28 }] },
+      options: { plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmt4(c.parsed.y) } } },
+        scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } }, y: { beginAtZero: true, ticks: { callback: v => '$' + v.toFixed(2) } } } },
+    });
+    const t = data.token_totals;
+    tokenChart = new Chart(document.getElementById('tokenChart'), {
+      type: 'doughnut',
+      data: { labels: ['Input', 'Output', 'Cache write', 'Cache read'],
+        datasets: [{ data: [t.input, t.output, t.cache_write, t.cache_read],
+          backgroundColor: [TC.css('--accent'), '#7A5CCC', TC.css('--gold'), TC.css('--good')], borderWidth: 2, borderColor: TC.css('--surface') }] },
+      options: { cutout: '62%', plugins: { legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: c => c.label + ': ' + c.parsed.toLocaleString() + ' tokens' } } } },
+    });
+  }
 
-            // daily cost bar chart — destroy the previous instance first;
-            // load() can now run repeatedly (filters), Chart.js errors on a
-            // canvas that's already bound to a chart
-            const d = data.daily;
-            if (dailyChart) dailyChart.destroy();
-            dailyChart = new Chart(document.getElementById('dailyChart'), {
-                type: 'bar',
-                data: {
-                    labels: d.map(x => x.date.slice(5)),   // MM-DD
-                    datasets: [{
-                        label: 'Cost (USD)',
-                        data: d.map(x => x.cost),
-                        backgroundColor: '#2D6CDF',
-                        borderRadius: 4,
-                    }],
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { callbacks: { label: c => fmt4(c.parsed.y) } },
-                    },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 0, autoSkip: true } },
-                        y: { beginAtZero: true, ticks: { font: { size: 10 }, callback: v => '$' + v.toFixed(2) } },
-                    },
-                },
-            });
+  async function load() {
+    try {
+      const qs = params();
+      data = await fetch('/usage/data/' + (qs ? '?' + qs : '')).then(r => r.json());
+    } catch (e) {
+      document.getElementById('recent').innerHTML = '<div class="empty">Could not load usage data.</div>';
+      return;
+    }
+    if (!filtersPopulated) { populateFilterOptions(data.filter_options); filtersPopulated = true; }
 
-            // token breakdown doughnut
-            const t = data.token_totals;
-            if (tokenChart) tokenChart.destroy();
-            tokenChart = new Chart(document.getElementById('tokenChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: ['Input', 'Output', 'Cache write', 'Cache read'],
-                    datasets: [{
-                        data: [t.input, t.output, t.cache_write, t.cache_read],
-                        backgroundColor: ['#2D6CDF', '#7A5CCC', '#BA7517', '#1D9E75'],
-                        borderWidth: 0,
-                    }],
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } },
-                        tooltip: { callbacks: { label: c => c.label + ': ' + c.parsed.toLocaleString() + ' tokens' } },
-                    },
-                },
-            });
+    const s = data.summary;
+    document.getElementById('c-total').textContent = fmt(s.total_cost);
+    document.getElementById('c-month').textContent = fmt(s.month_cost);
+    document.getElementById('c-today').textContent = fmt(s.today_cost);
+    document.getElementById('c-avg').innerHTML = fmt4(s.avg_cost) + ` <small>· ${s.total_turns} msgs</small>`;
+    drawCharts();
 
-            // recent timeline
-            const wrap = document.getElementById('recent');
-            if (!data.recent.length) {
-                wrap.innerHTML = '<div class="empty">No messages logged yet.</div>';
-                return;
-            }
-            wrap.innerHTML = '';
-            data.recent.forEach(r => {
-                const div = document.createElement('a');
-                div.className = 'turn';
-                div.href = `/usage/${r.id}/`;
-                div.style.display = 'block';
-                div.style.textDecoration = 'none';
-                div.style.color = 'inherit';
-                const tools = r.tools ? `<span class="tools">${r.tools.split(',').join(' · ')}</span> · ` : '';
-                div.innerHTML =
-                    `<div class="top"><span class="when">${r.when}</span><span class="cost">${fmt4(r.cost)}</span></div>` +
-                    `<div class="msg">${r.message ? escapeHtml(r.message) : '(no message)'}</div>` +
-                    `<div class="meta">${tools}${r.input.toLocaleString()} in · ${r.output.toLocaleString()} out</div>`;
-                wrap.appendChild(div);
-            });
-            // by-model/config comparison table — the actual A/B, no data deleted
-            const cfgWrap = document.getElementById('by-config');
-            if (!data.by_config.length) {
-                cfgWrap.innerHTML = '<div class="empty">No data yet.</div>';
-            } else {
-                cfgWrap.innerHTML = '';
-                data.by_config.forEach(r => {
-                    const div = document.createElement('div');
-                    div.className = 'turn';
-                    div.innerHTML =
-                        `<div class="top"><span class="when">${r.model} &middot; ${r.config_version}</span>` +
-                        `<span class="cost">${fmt4(r.avg_cost)}/msg</span></div>` +
-                        `<div class="meta">${r.turns} turns &middot; total ${fmt(r.total_cost)} &middot; ` +
-                        `avg ${r.avg_input.toLocaleString()} in / ${r.avg_output.toLocaleString()} out` +
-                        (r.cache_reads ? ` &middot; ${r.cache_reads.toLocaleString()} cache-read tokens` : '') +
-                        `</div>`;
-                    cfgWrap.appendChild(div);
-                });
-            }
-        }
+    const cfg = document.getElementById('by-config');
+    cfg.innerHTML = data.by_config.length ? data.by_config.map(r =>
+      `<div class="row-item"><div class="top"><span class="when">${TC.escapeHtml(r.model)} · ${TC.escapeHtml(r.config_version)}</span>` +
+      `<span class="val">${fmt4(r.avg_cost)}/msg</span></div>` +
+      `<div class="meta">${r.turns} turns · total ${fmt(r.total_cost)} · avg ${r.avg_input.toLocaleString()} in / ${r.avg_output.toLocaleString()} out` +
+      (r.cache_reads ? ` · ${r.cache_reads.toLocaleString()} cache-read tokens` : '') + `</div></div>`).join('')
+      : '<div class="empty">No data yet.</div>';
 
-        function escapeHtml(s) {
-            const d = document.createElement('div');
-            d.textContent = s;
-            return d.innerHTML;
-        }
+    const recent = document.getElementById('recent');
+    recent.innerHTML = data.recent.length ? data.recent.map(r => {
+      const tools = r.tools ? `<span class="tools">${TC.escapeHtml(r.tools.split(',').join(' · '))}</span> · ` : '';
+      return `<a class="row-item" href="/usage/${r.id}/"><div class="top"><span class="when">${r.when}</span><span class="val">${fmt4(r.cost)}</span></div>` +
+        `<div class="text">${r.message ? TC.escapeHtml(r.message) : '(no message)'}</div>` +
+        `<div class="meta">${tools}${r.input.toLocaleString()} in · ${r.output.toLocaleString()} out</div></a>`;
+    }).join('') : '<div class="empty">No messages logged yet.</div>';
+  }
 
-        ['f-model', 'f-config', 'f-since', 'f-until'].forEach(id => {
-            document.getElementById(id).addEventListener('change', load);
-        });
-        // resets the filter controls, not any data — never touches ApiUsage rows
-        document.getElementById('f-reset').addEventListener('click', () => {
-            document.getElementById('f-model').value = '';
-            document.getElementById('f-config').value = '';
-            document.getElementById('f-since').value = '';
-            document.getElementById('f-until').value = '';
-            load();
-        });
-
-        document.addEventListener('DOMContentLoaded', load);
-    </script>
-</body>
-</html>
+  ['f-model', 'f-config', 'f-since', 'f-until'].forEach(id => document.getElementById(id).addEventListener('change', load));
+  // resets the filter controls only — never touches ApiUsage rows
+  document.getElementById('f-reset').addEventListener('click', () => {
+    ['f-model', 'f-config', 'f-since', 'f-until'].forEach(id => { document.getElementById(id).value = ''; });
+    load();
+  });
+  TC.onTheme(drawCharts);
+  document.addEventListener('DOMContentLoaded', load);
+</script>
+{% endblock %}

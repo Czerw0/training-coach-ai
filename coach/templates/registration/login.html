@@ -1,96 +1,50 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sign in · Training Coach</title>
-    <style>
-        :root {
-            --navy:#0B1F3A; --blue:#2D6CDF; --ink:#11151C;
-            --ink-soft:#6B7585; --line:#E4E8EF; --surface:#FFFFFF;
-            --bg:#F4F6F9; --danger:#C0392B;
-        }
-        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-        html, body { height:100%; }
-        body {
-            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-            background:var(--bg); color:var(--ink);
-            min-height:100dvh; display:flex; align-items:center; justify-content:center;
-            padding:24px;
-        }
-        .card {
-            width:100%; max-width:380px;
-            background:var(--surface);
-            border:1px solid var(--line);
-            border-radius:20px;
-            padding:32px 26px;
-            box-shadow:0 10px 40px rgba(11,31,58,0.10);
-        }
-        .brand {
-            display:flex; flex-direction:column; align-items:center; gap:12px;
-            margin-bottom:24px;
-        }
-        .logo {
-            width:52px; height:52px; border-radius:50%;
-            background:var(--navy); color:#fff;
-            display:flex; align-items:center; justify-content:center;
-            font-weight:700; font-size:20px;
-        }
-        .brand h1 { font-size:19px; font-weight:650; }
-        .brand p { font-size:13.5px; color:var(--ink-soft); }
-
-        label { display:block; font-size:13px; font-weight:600; color:var(--ink-soft); margin:14px 0 6px; }
-        input[type="text"], input[type="password"] {
-            width:100%; padding:12px 15px;
-            border:1px solid var(--line); background:var(--bg);
-            border-radius:12px; font-size:16px; color:var(--ink); outline:none;
-        }
-        input:focus { border-color:var(--blue); background:#fff; }
-
-        button {
-            width:100%; margin-top:22px;
-            background:var(--blue); color:#fff; border:none;
-            border-radius:12px; padding:13px;
-            font-size:15px; font-weight:600; cursor:pointer;
-        }
-        button:active { background:var(--navy); }
-
-        .error {
-            background:#FBEAEA; color:var(--danger);
-            border-radius:10px; padding:10px 13px;
-            font-size:13.5px; margin-bottom:4px;
-        }
-        .error ul { list-style:none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0F1B2D">
+  <title>Sign in · Training Coach</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700;800&family=Public+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="{% static 'coach/css/app.css' %}">
+  <style>
+    body { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; background: var(--nav-bg); }
+    .login { width: 100%; max-width: 380px; display: grid; gap: 18px; }
+    .login .logo { font-size: 30px; text-align: center; }
+    .login .card { padding: 24px 22px; gap: 14px; }
+    .login h1 { font-family: var(--f-num); font-size: 24px; font-weight: 700; }
+    .login .sub { color: var(--muted); font-size: 14px; margin-top: -8px; }
+    .error { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); border-radius: var(--r-sm); padding: 10px 12px; font-size: 13.5px; }
+    .login .btn { width: 100%; padding: 12px; font-size: 15px; margin-top: 4px; }
+  </style>
 </head>
 <body>
+  <main class="login">
+    <div class="logo">Training<span>Coach</span></div>
     <div class="card">
-        <div class="brand">
-            <div class="logo">TC</div>
-            <h1>Training Coach</h1>
-            <p>Sign in to continue</p>
+      <h1>Sign in</h1>
+      <p class="sub">Your coach, your data.</p>
+
+      {% if form.errors %}
+        <div class="error" role="alert">Incorrect username or password. Try again.</div>
+      {% endif %}
+
+      <form method="post" action="{% url 'login' %}" style="display:grid; gap:12px;">
+        {% csrf_token %}
+        <div class="field">
+          <label for="id_username">Username</label>
+          <input class="input" type="text" name="username" id="id_username" autocomplete="username" autocapitalize="none" autofocus required>
         </div>
-
-        {% if form.errors %}
-            <div class="error">
-                Incorrect username or password. Please try again.
-            </div>
-        {% endif %}
-
-        <form method="post" action="{% url 'login' %}">
-            {% csrf_token %}
-
-            <label for="id_username">Username</label>
-            <input type="text" name="username" id="id_username"
-                   autocomplete="username" autocapitalize="none" autofocus required>
-
-            <label for="id_password">Password</label>
-            <input type="password" name="password" id="id_password"
-                   autocomplete="current-password" required>
-
-            <input type="hidden" name="next" value="{{ next }}">
-            <button type="submit">Sign in</button>
-        </form>
+        <div class="field">
+          <label for="id_password">Password</label>
+          <input class="input" type="password" name="password" id="id_password" autocomplete="current-password" required>
+        </div>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button class="btn" type="submit">Sign in</button>
+      </form>
     </div>
+  </main>
 </body>
 </html>

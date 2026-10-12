@@ -1,482 +1,338 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Calendar · Training Coach</title>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
-    <style>
-        :root {
-            --navy:#0B1F3A; --blue:#2D6CDF; --ink:#11151C;
-            --ink-soft:#6B7585; --line:#E4E8EF; --surface:#FFFFFF;
-            --bg:#F4F6F9; --pill-bg:#EDF0F5; --danger:#C0392B;
-        }
-        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-        html, body { height:100%; }
-        body {
-            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-            background:var(--bg); color:var(--ink);
-            height:100dvh; display:flex; justify-content:center; align-items:stretch;
-        }
+{% extends "coach/base.html" %}
+{% block title %}Calendar · Training Coach{% endblock %}
+{% block mobile_title %}Calendar{% endblock %}
 
-        .app {
-            width:100%; max-width:520px; display:flex; flex-direction:column;
-            height:100dvh; background:var(--bg); overflow:hidden;
-        }
-        @media (min-width:600px) {
-            body { padding:24px; align-items:center; }
-            .app {
-                height:min(900px, calc(100dvh - 48px));
-                border:1px solid var(--line); border-radius:22px;
-                box-shadow:0 10px 40px rgba(11,31,58,0.10); background:var(--surface);
-            }
-        }
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<style>
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+  .legend .item { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .sw { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .legend .sw.outline { background: transparent; border: 1.5px dashed var(--muted); }
 
-        .topbar { flex-shrink:0; padding:max(12px, env(safe-area-inset-top)) 12px 0; }
-        .pill {
-            display:flex; align-items:center; gap:10px;
-            background:var(--pill-bg); border-radius:999px; padding:8px 8px 8px 12px;
-        }
-        .logo {
-            width:30px; height:30px; border-radius:50%; background:var(--navy); color:#fff;
-            display:flex; align-items:center; justify-content:center;
-            font-weight:700; font-size:14px; flex-shrink:0;
-        }
-        .nav-links {
-            display:flex; align-items:center; gap:4px; flex:1;
-            overflow-x:auto; scrollbar-width:none;
-        }
-        .nav-links::-webkit-scrollbar { display:none; }
-        .nav-link {
-            flex-shrink:0; padding:6px 11px; border-radius:999px;
-            font-size:12.5px; font-weight:600; color:var(--ink-soft);
-            text-decoration:none; white-space:nowrap;
-        }
-        .nav-link.active {
-            background:var(--surface); border:1px solid var(--line); color:var(--navy);
-        }
+  .cal-card { padding: 14px; }
+  .fc { font-size: 12.5px; --fc-border-color: var(--line); --fc-page-bg-color: var(--surface); --fc-neutral-bg-color: var(--sunken); --fc-list-event-hover-bg-color: var(--sunken); --fc-today-bg-color: var(--accent-soft); }
+  .fc .fc-toolbar.fc-header-toolbar { margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .fc .fc-toolbar-title { font-family: var(--f-num); font-size: 22px; font-weight: 700; color: var(--fg); }
+  .fc .fc-button { background: var(--sunken); color: var(--fg); border: 1px solid var(--line); font-size: 12.5px; font-weight: 600; padding: 6px 11px; border-radius: 999px; text-transform: capitalize; box-shadow: none !important; }
+  .fc .fc-button:hover { background: var(--line); color: var(--fg); border-color: var(--line); }
+  .fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .fc .fc-button-primary:disabled { background: var(--sunken); color: var(--muted); border-color: var(--line); opacity: .7; }
+  .fc .fc-button-group > .fc-button { border-radius: 999px; margin-left: 4px; }
+  .fc .fc-col-header-cell-cushion { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); padding: 8px 2px; text-decoration: none; }
+  .fc .fc-daygrid-day-number { font-family: var(--f-num); font-size: 14px; font-weight: 600; color: var(--muted); padding: 4px 7px; text-decoration: none; }
+  .fc .fc-day-today .fc-daygrid-day-number { color: var(--accent); font-weight: 800; }
+  .fc .fc-daygrid-day-frame { min-height: 92px; }
+  .fc a { color: inherit; }
+  .fc-daygrid-event { white-space: normal !important; border: 0; border-radius: 6px; padding: 2px 6px; margin: 1px 3px; font-size: 11.5px; font-weight: 600; line-height: 1.3; }
+  .fc-daygrid-event .fc-event-title { white-space: normal; overflow: visible; }
+  .fc-daygrid-event .fc-daygrid-event-dot { display: none; }
+  .fc-daygrid-dot-event:hover { background: inherit; }
+  .fc .fc-more-link { font-size: 11px; font-weight: 700; color: var(--accent); }
+  .fc-daygrid-event.planned { border: 1.5px dashed currentColor !important; }
+  .fc .fc-list { border-radius: var(--r-sm); overflow: hidden; }
+  .fc .fc-list-day-cushion { background: var(--sunken); }
+  .fc .fc-list-day-text, .fc .fc-list-day-side-text { font-weight: 700; text-decoration: none; color: var(--fg); }
+  .fc .fc-list-event-title a { text-decoration: none; font-weight: 600; }
+  .fc .fc-list-empty { background: var(--surface); color: var(--muted); }
+  .fc .fc-list-event-time { display: none; }
+  .fc .fc-list-table td, .fc .fc-list-table th { border-style: solid; }
+  .fc .fc-list-event td { background: var(--surface); }
+  .fc .fc-popover { background: var(--surface); border-color: var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow); }
+  .fc .fc-popover-header { background: var(--sunken); }
 
-        .legend {
-            display:flex; flex-wrap:wrap; gap:7px 12px;
-            padding:10px 14px 8px; font-size:11.5px; color:var(--ink-soft);
-        }
-        .legend .item { display:flex; align-items:center; gap:5px; }
-        .legend .sw { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
-        .legend .sw.outline { background:transparent; border:1.5px dashed #888780; }
+  .readonly-note { font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+  #exercise-rows { display: grid; gap: 8px; }
+  .exercise-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 6px; align-items: center; padding: 8px; background: var(--sunken); border-radius: var(--r-sm); }
+  .exercise-row .input { padding: 8px 9px; font-size: 14px; background: var(--surface); }
+  .exercise-row .ex-notes { grid-column: 1 / -1; }
+  .exercise-row .ex-remove { background: none; border: 0; color: var(--bad); font-size: 20px; cursor: pointer; padding: 2px 8px; line-height: 1; }
+  @media (max-width: 480px) { .exercise-row { grid-template-columns: 1fr 1fr 1fr auto; } .exercise-row .ex-name { grid-column: 1 / -1; } }
+  #add-exercise-btn { background: none; border: 1px dashed var(--line); color: var(--accent); border-radius: var(--r-sm); padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  #f-notes { min-height: 150px; }
+</style>
+{% endblock %}
 
-        .cal-wrap { flex:1; overflow-y:auto; padding:0 10px 16px; -webkit-overflow-scrolling:touch; }
+{% block content %}
+<div class="main-inner">
+  <div class="page-head">
+    <div>
+      <h1>Calendar</h1>
+      <div class="sub">What you did, from Garmin, next to what's planned.</div>
+    </div>
+    <button class="btn" type="button" id="plan-btn">+ Plan a session</button>
+  </div>
 
-        /* ---- FullCalendar theming (month only) ---- */
-        .fc { font-size:12px; }
-        .fc .fc-toolbar.fc-header-toolbar { margin-bottom:8px; flex-wrap:wrap; gap:6px; }
-        .fc .fc-toolbar-title { font-size:15px; font-weight:650; color:var(--navy); }
-        .fc .fc-button {
-            background:var(--navy); border:none; font-size:11px;
-            padding:5px 9px; border-radius:8px; text-transform:capitalize;
-        }
-        .fc .fc-button:hover { background:#16304f; }
-        .fc .fc-button-primary:disabled { background:var(--ink-soft); }
-        .fc-theme-standard td, .fc-theme-standard th { border-color:var(--line); }
-        .fc .fc-daygrid-day-frame { min-height:84px; }
-        .fc .fc-col-header-cell-cushion { font-size:11px; font-weight:600; color:var(--ink-soft); padding:6px 2px; }
-        .fc .fc-daygrid-day-number { font-size:11px; color:var(--ink-soft); padding:3px 5px; }
-        .fc .fc-day-today { background:#FBF7E8 !important; }
+  <div class="legend">
+    <span class="item"><span class="sw" style="background:#2D6CDF"></span>Cycling</span>
+    <span class="item"><span class="sw" style="background:#E24B4A"></span>Running</span>
+    <span class="item"><span class="sw" style="background:#7A5CCC"></span>Gym</span>
+    <span class="item"><span class="sw" style="background:#D85A30"></span>Plyometrics</span>
+    <span class="item"><span class="sw" style="background:#1D9E75"></span>Skating</span>
+    <span class="item"><span class="sw" style="background:#BA7517"></span>Tennis</span>
+    <span class="item"><span class="sw" style="background:#378ADD"></span>Skiing</span>
+    <span class="item"><span class="sw" style="background:#645F43"></span>Hiking</span>
+    <span class="item"><span class="sw outline"></span>Planned (Coach / You)</span>
+  </div>
 
-        /* Solid colour-filled event bars (Google-Calendar style) */
-        .fc-daygrid-event {
-            white-space:normal !important;
-            border:none; border-radius:5px;
-            padding:2px 6px; margin:1px 2px;
-            font-size:11px; font-weight:600; line-height:1.25;
-            color:#fff;                       /* activities: white text on solid colour */
-        }
-        .fc-daygrid-event .fc-event-title { white-space:normal; overflow:visible; }
-        /* remove FullCalendar's default little dot */
-        .fc-daygrid-event .fc-daygrid-event-dot { display:none; }
-        .fc-daygrid-dot-event { padding:2px 6px; }
-        .fc-daygrid-dot-event:hover { background:inherit; }
+  <section class="card cal-card">
+    <div id="calendar"></div>
+  </section>
+</div>
 
-        /* Planned sessions: lighter tinted fill + coloured text (still distinct from done) */
-        .fc-event.planned {
-            background:rgba(45,108,223,0.10) !important;   /* overridden per-colour inline */
-            border:1px dashed currentColor !important;
-        }
+<div class="overlay" id="overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h2 id="modal-title">Plan a session</h2>
+    <div class="who-line" id="who-line"></div>
 
-        .fc .fc-more-link { font-size:10.5px; font-weight:600; color:var(--blue); }
-
-        /* ---- Modal ---- */
-        .overlay {
-            position:fixed; inset:0; background:rgba(11,31,58,0.45);
-            display:none; align-items:flex-end; justify-content:center; z-index:50;
-        }
-        .overlay.open { display:flex; }
-        .modal {
-            width:100%; max-width:480px; background:var(--surface);
-            border-radius:20px 20px 0 0; padding:20px 18px max(20px, env(safe-area-inset-bottom));
-            max-height:90dvh; overflow-y:auto;
-        }
-        @media (min-width:600px) { .overlay { align-items:center; } .modal { border-radius:20px; } }
-        .modal h2 { font-size:16px; font-weight:650; margin-bottom:4px; }
-        .modal .who-line { font-size:12px; color:var(--ink-soft); margin-bottom:12px; }
-        .modal label { display:block; font-size:13px; font-weight:600; color:var(--ink-soft); margin:12px 0 5px; }
-        .modal select, .modal input, .modal textarea {
-            width:100%; padding:11px 13px; border:1px solid var(--line); background:var(--bg);
-            border-radius:11px; font-size:16px; color:var(--ink); outline:none;
-        }
-        .modal select:focus, .modal input:focus, .modal textarea:focus { border-color:var(--blue); background:#fff; }
-        .modal textarea { resize:vertical; min-height:60px; }
-        .modal .row { display:flex; gap:10px; }
-        .modal .row > div { flex:1; }
-        .modal .check { display:flex; align-items:center; gap:8px; margin-top:14px; }
-        .modal .check input { width:auto; }
-        .modal-actions { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
-        .btn-primary {
-            flex:1; min-width:120px; background:var(--blue); color:#fff; border:none; border-radius:12px;
-            padding:13px; font-size:15px; font-weight:600; cursor:pointer;
-        }
-        .btn-primary:active { background:var(--navy); }
-        .btn-ghost {
-            background:none; border:1px solid var(--line); color:var(--ink-soft);
-            border-radius:12px; padding:13px 16px; font-size:15px; font-weight:600; cursor:pointer;
-        }
-        .btn-danger {
-            background:none; border:1px solid var(--danger); color:var(--danger);
-            border-radius:12px; padding:13px 16px; font-size:15px; font-weight:600; cursor:pointer;
-        }
-        .readonly-note { font-size:14px; color:var(--ink); margin-top:6px; line-height:1.5; }
-
-        /* ---- Structured exercise rows (gym sessions) ---- */
-        #exercise-rows { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
-        .exercise-row {
-            display:grid; grid-template-columns:2fr 1fr 1fr 1fr auto; gap:6px;
-            align-items:center; padding:8px; background:var(--bg); border-radius:10px;
-        }
-        .exercise-row input { padding:8px 9px; font-size:14px; }
-        .exercise-row .ex-notes { grid-column:1 / -1; }
-        .exercise-row .ex-remove {
-            background:none; border:none; color:var(--danger); font-size:18px;
-            cursor:pointer; padding:4px 8px; line-height:1;
-        }
-        #add-exercise-btn {
-            background:none; border:1px dashed var(--line); color:var(--blue);
-            border-radius:10px; padding:9px; font-size:13px; font-weight:600; cursor:pointer;
-        }
-    </style>
-</head>
-<body>
-    <div class="app">
-        <div class="topbar">
-            <div class="pill">
-                <div class="logo">TC</div>
-                {% include "coach/_nav.html" with active="calendar" %}
-            </div>
+    <div id="form-area" style="display:grid; gap:12px;">
+      <div class="pair">
+        <div class="field">
+          <label for="f-date">Date</label>
+          <input class="input" type="date" id="f-date">
         </div>
-
-        <div class="legend">
-            <div class="item"><span class="sw" style="background:#2D6CDF"></span>Cycling</div>
-            <div class="item"><span class="sw" style="background:#7A5CCC"></span>Gym</div>
-            <div class="item"><span class="sw" style="background:#1D9E75"></span>Skating</div>
-            <div class="item"><span class="sw" style="background:#BA7517"></span>Tennis</div>
-            <div class="item"><span class="sw" style="background:#378ADD"></span>Skiing</div>
-            <div class="item"><span class="sw" style="background:#645F43D6"></span>Hiking</div>
-            <div class="item"><span class="sw outline"></span>Planned (Coach / You)</div>
+        <div class="field">
+          <label for="f-type">Type</label>
+          <select class="input" id="f-type">
+            <option value="cycling">Cycling</option>
+            <option value="running">Running</option>
+            <option value="gym_legs">Gym — legs</option>
+            <option value="gym_upper">Gym — upper body</option>
+            <option value="plyometrics">Plyometrics</option>
+            <option value="skating">Skating</option>
+            <option value="tennis">Tennis</option>
+            <option value="skiing">Skiing</option>
+            <option value="mountaineering">Hiking</option>
+            <option value="rest">Rest</option>
+            <option value="other">Other</option>
+          </select>
         </div>
+      </div>
 
-        <div class="cal-wrap">
-            <div id="calendar"></div>
+      <div class="field">
+        <label for="f-title">Title</label>
+        <input class="input" type="text" id="f-title" placeholder="e.g. Tempo run 3 × 10 min">
+      </div>
+
+      <div class="pair">
+        <div class="field">
+          <label for="f-duration">Duration (min)</label>
+          <input class="input" type="number" id="f-duration" placeholder="60">
         </div>
+        <div class="field">
+          <label for="f-intensity">Intensity</label>
+          <select class="input" id="f-intensity">
+            <option value="">—</option>
+            <option value="easy">Easy</option>
+            <option value="moderate">Moderate</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="exercise-section" class="field" style="display:none;">
+        <label>Exercises</label>
+        <div id="exercise-rows"></div>
+        <button type="button" id="add-exercise-btn">+ Add exercise</button>
+      </div>
+
+      <div class="field">
+        <label for="f-notes">Session card</label>
+        <textarea class="input" id="f-notes" placeholder="Purpose, warm-up, main set, cool-down, cues, fallback"></textarea>
+      </div>
+
+      <label class="check"><input type="checkbox" id="f-completed"> Mark as completed</label>
     </div>
 
-    <!-- Add / edit / delete planned session modal -->
-    <div class="overlay" id="overlay">
-        <div class="modal">
-            <h2 id="modal-title">Plan a session</h2>
-            <div class="who-line" id="who-line"></div>
+    <datalist id="exercise-options"></datalist>
 
-            <div id="form-area">
-                <label>Type</label>
-                <select id="f-type">
-                    <option value="cycling">Cycling</option>
-                    <option value="running">Running</option>
-                    <option value="gym_legs">Gym — legs</option>
-                    <option value="gym_upper">Gym — upper body</option>
-                    <option value="plyometrics">Plyometrics</option>
-                    <option value="skating">Skating</option>
-                    <option value="tennis">Tennis</option>
-                    <option value="skiing">Skiing</option>
-                    <option value="mountaineering">Hiking</option>
-                    <option value="rest">Rest</option>
-                    <option value="other">Other</option>
-                </select>
-
-                <label>Title</label>
-                <input type="text" id="f-title" placeholder="e.g. VO2max intervals">
-
-                <div class="row">
-                    <div>
-                        <label>Duration (min)</label>
-                        <input type="number" id="f-duration" placeholder="60">
-                    </div>
-                    <div>
-                        <label>Intensity</label>
-                        <select id="f-intensity">
-                            <option value="">—</option>
-                            <option value="easy">Easy</option>
-                            <option value="moderate">Moderate</option>
-                            <option value="hard">Hard</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div id="exercise-section" style="display:none;">
-                    <label>Exercises</label>
-                    <div id="exercise-rows"></div>
-                    <button type="button" id="add-exercise-btn" style="margin-top:8px;">+ Add exercise</button>
-                </div>
-
-                <label>Notes</label>
-                <textarea id="f-notes" placeholder="Overall comment for the whole session"></textarea>
-
-                <div class="check">
-                    <input type="checkbox" id="f-completed">
-                    <label for="f-completed" style="margin:0;">Mark as completed</label>
-                </div>
-            </div>
-
-            <datalist id="exercise-options"></datalist>
-
-            <div id="readonly-area" style="display:none;">
-                <p class="readonly-note" id="readonly-text"></p>
-            </div>
-
-            <div class="modal-actions">
-                <button class="btn-primary" id="save-btn">Save</button>
-                <button class="btn-danger" id="delete-btn" style="display:none;">Delete</button>
-                <button class="btn-ghost" id="cancel-btn">Cancel</button>
-            </div>
-        </div>
+    <div id="readonly-area" style="display:none;">
+      <p class="readonly-note" id="readonly-text"></p>
     </div>
 
-    <script>
-        function getCookie(name) {
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return parts.pop().split(';').shift();
+    <div class="modal-actions">
+      <button class="btn" type="button" id="save-btn">Save</button>
+      <button class="btn danger" type="button" id="delete-btn" style="display:none;">Delete</button>
+      <button class="btn ghost" type="button" id="cancel-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const overlay = document.getElementById('overlay');
+  const modalTitle = document.getElementById('modal-title');
+  const whoLine = document.getElementById('who-line');
+  const formArea = document.getElementById('form-area');
+  const readonlyArea = document.getElementById('readonly-area');
+  const readonlyText = document.getElementById('readonly-text');
+  const saveBtn = document.getElementById('save-btn');
+  const deleteBtn = document.getElementById('delete-btn');
+  const typeSelect = document.getElementById('f-type');
+  const dateInput = document.getElementById('f-date');
+  const exerciseSection = document.getElementById('exercise-section');
+  const exerciseRows = document.getElementById('exercise-rows');
+  const GYM_TYPES = ['gym_legs', 'gym_upper'];
+  let editingId = null;
+  let calendar;
+
+  function updateExerciseSectionVisibility() {
+    exerciseSection.style.display = GYM_TYPES.includes(typeSelect.value) ? '' : 'none';
+  }
+  typeSelect.addEventListener('change', updateExerciseSectionVisibility);
+
+  function attr(s) { return TC.escapeHtml(s).replace(/"/g, '&quot;'); }
+
+  function addExerciseRow(data = {}) {
+    const row = document.createElement('div');
+    row.className = 'exercise-row';
+    row.innerHTML =
+      `<input class="input ex-name" list="exercise-options" placeholder="Exercise" value="${data.name ? attr(data.name) : ''}">` +
+      `<input class="input ex-sets" type="number" placeholder="Sets" value="${data.sets ?? ''}">` +
+      `<input class="input ex-reps" type="number" placeholder="Reps" value="${data.reps ?? ''}">` +
+      `<input class="input ex-weight" type="number" step="0.5" placeholder="kg" value="${data.weight_kg ?? ''}">` +
+      `<button type="button" class="ex-remove" title="Remove">&times;</button>` +
+      `<input class="input ex-notes" placeholder="Note for this exercise (optional)" value="${data.notes ? attr(data.notes) : ''}">`;
+    row.querySelector('.ex-remove').addEventListener('click', () => row.remove());
+    exerciseRows.appendChild(row);
+  }
+
+  function renderExerciseRows(list) { exerciseRows.innerHTML = ''; (list || []).forEach(ex => addExerciseRow(ex)); }
+
+  function collectExercises() {
+    return Array.from(exerciseRows.querySelectorAll('.exercise-row')).map(row => ({
+      name: row.querySelector('.ex-name').value.trim(),
+      sets: row.querySelector('.ex-sets').value || null,
+      reps: row.querySelector('.ex-reps').value || null,
+      weight_kg: row.querySelector('.ex-weight').value || null,
+      notes: row.querySelector('.ex-notes').value.trim(),
+    })).filter(ex => ex.name);
+  }
+
+  document.getElementById('add-exercise-btn').addEventListener('click', () => addExerciseRow());
+
+  fetch('/calendar/exercises/').then(r => r.json()).then(list => {
+    document.getElementById('exercise-options').innerHTML = list.map(e => `<option value="${attr(e.name)}">`).join('');
+  }).catch(() => {});
+
+  function showForm(show) {
+    formArea.style.display = show ? 'grid' : 'none';
+    readonlyArea.style.display = show ? 'none' : '';
+    saveBtn.style.display = show ? '' : 'none';
+  }
+
+  function openCreate(dateStr) {
+    editingId = null;
+    modalTitle.textContent = 'Plan a session';
+    whoLine.textContent = 'Created by you';
+    showForm(true);
+    deleteBtn.style.display = 'none';
+    dateInput.value = dateStr;
+    typeSelect.value = 'cycling';
+    ['f-title', 'f-duration', 'f-intensity', 'f-notes'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('f-completed').checked = false;
+    renderExerciseRows([]);
+    updateExerciseSectionVisibility();
+    overlay.classList.add('open');
+  }
+
+  function openEdit(ev) {
+    const p = ev.extendedProps;
+    editingId = p.session_id;
+    modalTitle.textContent = 'Edit session';
+    whoLine.textContent = p.created_by === 'human' ? 'Planned by you' : 'Planned by the AI coach';
+    showForm(true);
+    deleteBtn.style.display = '';
+    dateInput.value = ev.startStr.slice(0, 10);
+    typeSelect.value = p.activity_type || 'other';
+    document.getElementById('f-title').value = p.title || '';
+    document.getElementById('f-duration').value = p.duration_minutes || '';
+    document.getElementById('f-intensity').value = p.intensity || '';
+    document.getElementById('f-notes').value = p.description || '';
+    document.getElementById('f-completed').checked = !!p.completed;
+    renderExerciseRows(p.exercises || []);
+    updateExerciseSectionVisibility();
+    overlay.classList.add('open');
+  }
+
+  function openReadonly(ev) {
+    editingId = null;
+    modalTitle.textContent = ev.title;
+    whoLine.textContent = 'Completed activity · from Garmin';
+    showForm(false);
+    deleteBtn.style.display = 'none';
+    readonlyText.textContent = ev.extendedProps.detail || 'Completed activity from Garmin.';
+    overlay.classList.add('open');
+  }
+
+  function closeModal() { overlay.classList.remove('open'); }
+  document.getElementById('cancel-btn').addEventListener('click', closeModal);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  document.getElementById('plan-btn').addEventListener('click', () => openCreate(new Date().toISOString().slice(0, 10)));
+
+  saveBtn.addEventListener('click', async () => {
+    if (!dateInput.value) { dateInput.focus(); return; }
+    await TC.postJSON('/calendar/session/', {
+      id: editingId,
+      date: dateInput.value,
+      activity_type: typeSelect.value,
+      title: document.getElementById('f-title').value,
+      duration_minutes: document.getElementById('f-duration').value || null,
+      intensity: document.getElementById('f-intensity').value,
+      description: document.getElementById('f-notes').value,
+      completed: document.getElementById('f-completed').checked,
+      exercises: GYM_TYPES.includes(typeSelect.value) ? collectExercises() : [],
+    });
+    closeModal();
+    calendar.refetchEvents();
+  });
+
+  deleteBtn.addEventListener('click', async () => {
+    if (!editingId) return;
+    await TC.postJSON('/calendar/session/delete/', { id: editingId });
+    closeModal();
+    calendar.refetchEvents();
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const narrow = window.matchMedia('(max-width: 700px)').matches;
+    calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+      initialView: narrow ? 'listWeek' : 'dayGridMonth',
+      firstDay: 1,
+      height: 'auto',
+      headerToolbar: { left: 'prev,next', center: 'title', right: 'dayGridMonth,listWeek' },
+      buttonText: { dayGridMonth: 'Month', listWeek: 'Week' },
+      dayMaxEventRows: 3,
+      fixedWeekCount: false,
+      editable: true,
+      eventAllow: (dropInfo, dragged) => dragged.extendedProps.kind === 'planned',
+      eventDidMount(info) {
+        if (info.event.extendedProps.kind === 'planned' && info.view.type === 'dayGridMonth') {
+          const c = info.event.borderColor || TC.css('--muted');
+          info.el.style.background = 'transparent';
+          info.el.style.color = c;
+          info.el.style.borderColor = c;
         }
-
-        const overlay = document.getElementById('overlay');
-        const modalTitle = document.getElementById('modal-title');
-        const whoLine = document.getElementById('who-line');
-        const formArea = document.getElementById('form-area');
-        const readonlyArea = document.getElementById('readonly-area');
-        const readonlyText = document.getElementById('readonly-text');
-        const saveBtn = document.getElementById('save-btn');
-        const deleteBtn = document.getElementById('delete-btn');
-        const cancelBtn = document.getElementById('cancel-btn');
-        const typeSelect = document.getElementById('f-type');
-        const exerciseSection = document.getElementById('exercise-section');
-        const exerciseRows = document.getElementById('exercise-rows');
-        const addExerciseBtn = document.getElementById('add-exercise-btn');
-
-        let editingId = null;
-        let editingDate = null;
-
-        const GYM_TYPES = ['gym_legs', 'gym_upper'];
-
-        function updateExerciseSectionVisibility() {
-            exerciseSection.style.display = GYM_TYPES.includes(typeSelect.value) ? '' : 'none';
-        }
-        typeSelect.addEventListener('change', updateExerciseSectionVisibility);
-
-        function addExerciseRow(data = {}) {
-            const row = document.createElement('div');
-            row.className = 'exercise-row';
-            row.innerHTML =
-                `<input list="exercise-options" class="ex-name" placeholder="Exercise" value="${data.name ? escapeHtmlAttr(data.name) : ''}">` +
-                `<input type="number" class="ex-sets" placeholder="Sets" value="${data.sets ?? ''}">` +
-                `<input type="number" class="ex-reps" placeholder="Reps" value="${data.reps ?? ''}">` +
-                `<input type="number" class="ex-weight" placeholder="kg" step="0.5" value="${data.weight_kg ?? ''}">` +
-                `<button type="button" class="ex-remove" title="Remove">&times;</button>` +
-                `<input class="ex-notes" placeholder="Note for this exercise (optional)" value="${data.notes ? escapeHtmlAttr(data.notes) : ''}">`;
-            row.querySelector('.ex-remove').addEventListener('click', () => row.remove());
-            exerciseRows.appendChild(row);
-        }
-
-        function renderExerciseRows(list) {
-            exerciseRows.innerHTML = '';
-            (list || []).forEach(ex => addExerciseRow(ex));
-        }
-
-        function collectExercises() {
-            return Array.from(exerciseRows.querySelectorAll('.exercise-row')).map(row => ({
-                name: row.querySelector('.ex-name').value.trim(),
-                sets: row.querySelector('.ex-sets').value || null,
-                reps: row.querySelector('.ex-reps').value || null,
-                weight_kg: row.querySelector('.ex-weight').value || null,
-                notes: row.querySelector('.ex-notes').value.trim(),
-            })).filter(ex => ex.name);
-        }
-
-        function escapeHtmlAttr(s) {
-            const d = document.createElement('div');
-            d.textContent = s;
-            return d.innerHTML.replace(/"/g, '&quot;');
-        }
-
-        addExerciseBtn.addEventListener('click', () => addExerciseRow());
-
-        // exercise catalog for the name field's autocomplete, fetched once
-        fetch('/calendar/exercises/')
-            .then(r => r.json())
-            .then(list => {
-                const datalist = document.getElementById('exercise-options');
-                datalist.innerHTML = list.map(e => `<option value="${escapeHtmlAttr(e.name)}">`).join('');
-            })
-            .catch(() => {});
-
-        function openCreate(dateStr) {
-            editingId = null;
-            editingDate = dateStr;
-            modalTitle.textContent = 'Plan a session';
-            whoLine.textContent = dateStr + ' · created by you ';
-            formArea.style.display = '';
-            readonlyArea.style.display = 'none';
-            saveBtn.style.display = '';
-            deleteBtn.style.display = 'none';
-            document.getElementById('f-type').value = 'cycling';
-            document.getElementById('f-title').value = '';
-            document.getElementById('f-duration').value = '';
-            document.getElementById('f-intensity').value = '';
-            document.getElementById('f-notes').value = '';
-            document.getElementById('f-completed').checked = false;
-            renderExerciseRows([]);
-            updateExerciseSectionVisibility();
-            overlay.classList.add('open');
-        }
-
-        function openEdit(ev) {
-            const p = ev.extendedProps;
-            editingId = p.session_id;
-            editingDate = ev.startStr.slice(0, 10);
-            modalTitle.textContent = 'Edit session';
-            const who = p.created_by === 'ai' ? 'planned by AI coach ' : 'planned by you ';
-            whoLine.textContent = editingDate + ' · ' + who;
-            formArea.style.display = '';
-            readonlyArea.style.display = 'none';
-            saveBtn.style.display = '';
-            deleteBtn.style.display = '';
-            document.getElementById('f-type').value = p.activity_type || 'other';
-            document.getElementById('f-title').value = p.title || '';
-            document.getElementById('f-duration').value = p.duration_minutes || '';
-            document.getElementById('f-intensity').value = p.intensity || '';
-            document.getElementById('f-notes').value = p.description || '';
-            document.getElementById('f-completed').checked = !!p.completed;
-            renderExerciseRows(p.exercises || []);
-            updateExerciseSectionVisibility();
-            overlay.classList.add('open');
-        }
-
-        function openReadonly(ev) {
-            editingId = null;
-            modalTitle.textContent = ev.title;
-            whoLine.textContent = 'Completed activity · from Garmin';
-            formArea.style.display = 'none';
-            readonlyArea.style.display = '';
-            saveBtn.style.display = 'none';
-            deleteBtn.style.display = 'none';
-            readonlyText.textContent = ev.extendedProps.detail || 'Completed activity from Garmin.';
-            overlay.classList.add('open');
-        }
-
-        function closeModal() { overlay.classList.remove('open'); }
-        cancelBtn.addEventListener('click', closeModal);
-        overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
-
-        let calendar;
-
-        async function saveSession() {
-            const payload = {
-                id: editingId,
-                date: editingDate,
-                activity_type: document.getElementById('f-type').value,
-                title: document.getElementById('f-title').value,
-                duration_minutes: document.getElementById('f-duration').value || null,
-                intensity: document.getElementById('f-intensity').value,
-                description: document.getElementById('f-notes').value,
-                completed: document.getElementById('f-completed').checked,
-                exercises: GYM_TYPES.includes(document.getElementById('f-type').value) ? collectExercises() : [],
-            };
-            await fetch('/calendar/session/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                body: JSON.stringify(payload),
-            });
-            closeModal();
-            calendar.refetchEvents();
-        }
-
-        async function deleteSession() {
-            if (!editingId) return;
-            await fetch('/calendar/session/delete/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                body: JSON.stringify({ id: editingId }),
-            });
-            closeModal();
-            calendar.refetchEvents();
-        }
-
-        saveBtn.addEventListener('click', saveSession);
-        deleteBtn.addEventListener('click', deleteSession);
-
-        document.addEventListener('DOMContentLoaded', () => {
-            calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-                initialView: 'dayGridMonth',     // month only
-                firstDay: 1,                     // Monday
-                height: 'auto',
-                headerToolbar: { left: 'prev,next', center: 'title', right: 'today' },
-                dayMaxEventRows: 3,              // cap at 3, then "+N more"
-                fixedWeekCount: false,
-                editable: true,                  // enables drag-and-drop
-                eventAllow: function(dropInfo, draggedEvent) {
-                    // just a client-side guard, server re-validates on move
-                    return draggedEvent.extendedProps.kind === 'planned';
-                },
-                // planned sessions get a tinted background matching their colour
-                eventDidMount: function(info) {
-                    if (info.event.extendedProps.kind === 'planned') {
-                        const c = info.event.borderColor || '#888780';
-                        info.el.style.background = 'transparent';
-                        info.el.style.color = c;
-                        info.el.style.borderColor = c;
-                    }
-                },
-                events: '/calendar/events/',
-                eventClick: function(info) {
-                    info.jsEvent.preventDefault();
-                    const p = info.event.extendedProps;
-                    if (p.kind === 'planned') openEdit(info.event);
-                    else openReadonly(info.event);
-                },
-                dateClick: function(info) {
-                    openCreate(info.dateStr.slice(0, 10));
-                },
-                eventDrop: async function(info) {
-                    const newDate = info.event.startStr.slice(0, 10);
-                    try {
-                        const resp = await fetch('/calendar/session/move/', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                            body: JSON.stringify({ id: info.event.extendedProps.session_id, date: newDate }),
-                        });
-                        if (!resp.ok) info.revert();
-                    } catch (e) {
-                        info.revert();
-                    }
-                },
-            });
-            calendar.render();
-        });
-    </script>
-</body>
-</html>
+      },
+      events: '/calendar/events/',
+      eventClick(info) {
+        info.jsEvent.preventDefault();
+        if (info.event.extendedProps.kind === 'planned') openEdit(info.event);
+        else openReadonly(info.event);
+      },
+      dateClick(info) { openCreate(info.dateStr.slice(0, 10)); },
+      async eventDrop(info) {
+        try {
+          const resp = await TC.postJSON('/calendar/session/move/', {
+            id: info.event.extendedProps.session_id, date: info.event.startStr.slice(0, 10),
+          });
+          if (!resp.ok) info.revert();
+        } catch (e) { info.revert(); }
+      },
+    });
+    calendar.render();
+  });
+</script>
+{% endblock %}

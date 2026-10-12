@@ -1,354 +1,225 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Training Coach</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
-    <style>
-        :root {
-            --navy:#0B1F3A; --blue:#2D6CDF; --blue-soft:#C4D6F7;
-            --ink:#11151C; --ink-soft:#6B7585; --line:#E4E8EF;
-            --surface:#FFFFFF; --bg:#F4F6F9; --pill-bg:#EDF0F5; --green:#34C759;
-        }
-        * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-        html, body { height:100%; }
-        body {
-            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-            background:var(--bg); color:var(--ink); height:100dvh;
-            display:flex; justify-content:center; align-items:stretch;
-        }
-        .layout { display:flex; width:100%; height:100dvh; justify-content:center; }
-        .app {
-            width:100%; max-width:520px; display:flex; flex-direction:column;
-            height:100dvh; background:var(--bg); overflow:hidden;
-        }
-        @media (min-width:600px) {
-            body { padding:24px; align-items:center; }
-            .layout { align-items:center; gap:16px; height:auto; }
-            .app {
-                height:min(900px, calc(100dvh - 48px));
-                border:1px solid var(--line); border-radius:22px;
-                box-shadow:0 10px 40px rgba(11,31,58,0.10); background:var(--surface);
-            }
-        }
+{% extends "coach/base.html" %}
+{% block title %}Coach · Training Coach{% endblock %}
+{% block mobile_title %}Coach{% endblock %}
+{% block body_class %}page-chat{% endblock %}
 
-        /* Agent trace panel — off-canvas slide-over below 900px, docked
-           side panel above it. Shows the latest turn's reasoning + tool
-           calls, from extended thinking (see coach/agent.py). */
-        .trace-panel {
-            display:flex; flex-direction:column;
-            position:fixed; top:0; right:0; bottom:0; width:100%; max-width:360px;
-            background:var(--surface); z-index:60;
-            transform:translateX(100%); transition:transform .25s ease;
-            box-shadow:-8px 0 30px rgba(11,31,58,0.15);
-        }
-        .trace-panel.open { transform:translateX(0); }
-        .trace-toggle-btn {
-            flex-shrink:0; width:30px; height:30px; border-radius:50%;
-            background:var(--surface); border:1px solid var(--line); cursor:pointer;
-            display:flex; align-items:center; justify-content:center;
-        }
-        .trace-toggle-btn svg { width:16px; height:16px; stroke:var(--navy); fill:none; stroke-width:1.9; }
-        .trace-header {
-            flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
-            padding:16px 16px 12px; font-size:14px; font-weight:700; color:var(--navy);
-            border-bottom:1px solid var(--line);
-        }
-        .trace-close-btn { background:none; border:none; font-size:22px; line-height:1; color:var(--ink-soft); cursor:pointer; }
-        .trace-body { flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:12px; }
-        .trace-round { border-bottom:1px dashed var(--line); padding-bottom:10px; }
-        .trace-round:last-child { border-bottom:none; }
-        .trace-round .round-label { font-size:11px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; margin-bottom:5px; }
-        .trace-round .think-text { font-size:13px; color:var(--ink); line-height:1.5; margin-bottom:6px; white-space:pre-wrap; }
-        .trace-call { font-size:12px; background:var(--bg); border-radius:8px; padding:8px 10px; margin-top:5px; }
-        .trace-call .tool-name { font-weight:700; color:var(--blue); }
-        .trace-call pre { font-size:11px; margin-top:4px; white-space:pre-wrap; word-break:break-word; color:var(--ink-soft); font-family:inherit; }
-        .trace-body .empty { text-align:center; color:var(--ink-soft); padding:30px 16px; font-size:13px; }
-        @media (min-width:900px) {
-            .trace-toggle-btn, .trace-close-btn { display:none; }
-            .trace-panel {
-                position:static; transform:none; box-shadow:none; flex-shrink:0;
-                width:340px; max-width:340px;
-                height:min(900px, calc(100dvh - 48px));
-                border:1px solid var(--line); border-radius:22px;
-            }
-        }
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+  /* chat fills the viewport: messages scroll, composer stays put */
+  .page-chat .main { padding: 0; }
+  .chat-layout {
+    display: grid; grid-template-columns: minmax(0, 1fr);
+    height: calc(100dvh - var(--header-h) - var(--tabbar-h) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+  .chat-panel { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--bg); }
+  .chat-head { display: flex; align-items: center; gap: 12px; padding: 12px var(--gutter); border-bottom: 1px solid var(--line); background: var(--surface); }
+  .chat-head h1 { font-family: var(--f-num); font-size: 22px; font-weight: 700; }
+  .chat-head .sync-line { margin-left: auto; }
+  .trace-toggle-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+  .trace-toggle-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; }
 
-        .topbar { flex-shrink:0; padding:max(12px, env(safe-area-inset-top)) 12px 0; }
-        .pill {
-            display:flex; align-items:center; gap:10px;
-            background:var(--pill-bg); border-radius:999px; padding:8px 8px 8px 12px;
-        }
-        .logo {
-            width:30px; height:30px; border-radius:50%; background:var(--navy); color:#fff;
-            display:flex; align-items:center; justify-content:center;
-            font-weight:700; font-size:14px; flex-shrink:0;
-        }
-        .nav-links {
-            display:flex; align-items:center; gap:4px; flex:1;
-            overflow-x:auto; scrollbar-width:none;
-        }
-        .nav-links::-webkit-scrollbar { display:none; }
-        .nav-link {
-            flex-shrink:0; padding:6px 11px; border-radius:999px;
-            font-size:12.5px; font-weight:600; color:var(--ink-soft);
-            text-decoration:none; white-space:nowrap;
-        }
-        .nav-link.active {
-            background:var(--surface); border:1px solid var(--line); color:var(--navy);
-        }
+  #messages { flex: 1; overflow-y: auto; padding: 18px var(--gutter) 10px; display: flex; flex-direction: column; gap: 12px; overscroll-behavior: contain; }
+  .msg { max-width: min(760px, 88%); padding: 11px 15px; line-height: 1.55; font-size: 15px; overflow-wrap: anywhere; border-radius: 18px; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: var(--on-accent); border-bottom-right-radius: 5px; white-space: pre-wrap; }
+  .msg.coach { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 5px; box-shadow: var(--shadow); }
+  .actions { align-self: flex-start; display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; padding-left: 4px; }
+  .actions span { font-size: 11.5px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; background: var(--surface); }
+  .actions span::before { content: "✓ "; color: var(--good); }
+  .thinking { align-self: flex-start; display: flex; align-items: center; gap: 5px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 18px; border-bottom-left-radius: 5px; background: var(--surface); }
+  .thinking .label { font-size: 13px; color: var(--muted); margin-right: 4px; }
+  .thinking .d { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: bounce 1.2s infinite ease-in-out; }
+  .thinking .d:nth-child(3) { animation-delay: .15s; }
+  .thinking .d:nth-child(4) { animation-delay: .3s; }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-5px); opacity: 1; } }
+  .intro { margin: auto; text-align: center; color: var(--muted); max-width: 40ch; display: grid; gap: 6px; }
+  .intro b { font-family: var(--f-num); font-size: 22px; color: var(--fg); }
 
-        .update-line {
-            flex-shrink:0; text-align:center; color:var(--ink-soft);
-            font-size:12.5px; padding:10px 0 9px;
-        }
-        .update-line .dot {
-            display:inline-block; width:6px; height:6px; border-radius:50%;
-            background:var(--green); margin-right:6px; vertical-align:middle;
-        }
-        .update-line.syncing .dot { background:var(--blue); animation:pulse 1s infinite; }
-        @keyframes pulse { 50% { opacity:.3; } }
-        .divider { flex-shrink:0; height:1px; background:var(--line); }
+  .composer { padding: 10px var(--gutter) 12px; background: var(--bg); }
+  .composer-box { display: flex; align-items: flex-end; gap: 8px; max-width: 900px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 6px 6px 6px 16px; box-shadow: var(--shadow); }
+  .composer-box:focus-within { border-color: var(--accent); }
+  #input { flex: 1; border: 0; outline: none; background: none; resize: none; font-size: 16px; line-height: 1.45; padding: 8px 0; max-height: 160px; color: var(--fg); }
+  #send { width: 40px; height: 40px; flex-shrink: 0; border: 0; border-radius: 50%; background: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  #send svg { width: 20px; height: 20px; stroke: var(--on-accent); fill: none; stroke-width: 2.2; }
+  #send:disabled { opacity: .4; cursor: default; }
+  .composer-hint { text-align: center; font-size: 11.5px; color: var(--muted); margin-top: 6px; }
 
+  /* trace: slide-over below 1200px, docked column above */
+  .trace-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 100%); z-index: 70; background: var(--surface); box-shadow: -8px 0 30px rgba(0, 0, 0, .18); transform: translateX(100%); transition: transform .22s ease; display: flex; flex-direction: column; }
+  .trace-panel.open { transform: translateX(0); }
+  .trace-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid var(--line); padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
+  .trace-header h2 { font-family: var(--f-num); font-size: 18px; font-weight: 700; }
+  .trace-close-btn { background: none; border: 0; font-size: 24px; line-height: 1; color: var(--muted); cursor: pointer; }
+  .trace-body { flex: 1; overflow-y: auto; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 12px; align-content: start; }
+  .trace-round { border-bottom: 1px dashed var(--line); padding-bottom: 12px; display: grid; gap: 6px; }
+  .trace-round:last-child { border-bottom: 0; }
+  .round-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+  .think-text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+  .trace-call { background: var(--sunken); border-radius: 10px; padding: 8px 10px; display: grid; gap: 4px; }
+  .trace-call .tool-name { font-weight: 700; color: var(--accent); font-size: 12.5px; }
+  .trace-call pre { font-size: 11px; white-space: pre-wrap; word-break: break-word; color: var(--muted); font-family: ui-monospace, monospace; }
 
-        #messages {
-            flex:1; overflow-y:auto; padding:16px 14px 6px;
-            display:flex; flex-direction:column; gap:12px;
-            -webkit-overflow-scrolling:touch;
-        }
-        .msg {
-            max-width:84%; padding:11px 15px; line-height:1.5; font-size:15px;
-            word-wrap:break-word; border-radius:18px; background:var(--surface);
-        }
-        .user {
-            align-self:flex-end; border:1.5px solid var(--blue-soft);
-            border-bottom-right-radius:5px; color:var(--ink);
-        }
-        .coach {
-            align-self:flex-start; border:1px solid var(--line); border-bottom-left-radius:5px;
-        }
-        .coach h1,.coach h2,.coach h3 { font-size:15px; font-weight:700; margin:10px 0 4px; color:var(--navy); }
-        .coach h1:first-child,.coach h2:first-child,.coach h3:first-child { margin-top:0; }
-        .coach p { margin:6px 0; }
-        .coach p:first-child { margin-top:0; }
-        .coach p:last-child { margin-bottom:0; }
-        .coach ul,.coach ol { margin:6px 0; padding-left:20px; }
-        .coach li { margin:3px 0; }
-        .coach strong { font-weight:680; }
-        .coach hr { border:none; border-top:1px solid var(--line); margin:10px 0; }
-        .coach code { background:#EEF1F6; padding:1px 5px; border-radius:5px; font-size:13px; font-family:ui-monospace,monospace; }
+  @media (min-width: 900px) {
+    .page-chat .main { padding: 0; }
+    .chat-layout { height: 100dvh; }
+    .chat-head { padding: 16px 28px; }
+    .chat-head h1 { font-size: 26px; }
+    #messages { padding: 24px 28px 12px; }
+    .composer { padding: 10px 28px 20px; }
+  }
+  @media (min-width: 1200px) {
+    .chat-layout { grid-template-columns: minmax(0, 1fr) 380px; }
+    .trace-panel { position: static; transform: none; box-shadow: none; width: auto; border-left: 1px solid var(--line); }
+    .trace-toggle-btn, .trace-close-btn { display: none; }
+    .trace-header { padding-top: 18px; }
+  }
+</style>
+{% endblock %}
 
-        /* Tool-action caption under a coach reply */
-        .actions {
-            align-self:flex-start; max-width:84%;
-            margin-top:-6px; padding:0 6px;
-            font-size:12px; color:var(--ink-soft);
-            display:flex; flex-wrap:wrap; gap:4px 10px;
-        }
-        .actions .act::before { content:"✓ "; color:var(--green); }
-
-        /* Animated thinking dots — proves the app is alive while waiting */
-        .thinking {
-            align-self:flex-start;
-            display:flex; align-items:center; gap:5px;
-            padding:13px 16px; border:1px solid var(--line);
-            border-radius:18px; border-bottom-left-radius:5px; background:var(--surface);
-        }
-        .thinking .label { font-size:13px; color:var(--ink-soft); margin-right:4px; }
-        .thinking .d {
-            width:7px; height:7px; border-radius:50%; background:var(--ink-soft);
-            animation:bounce 1.2s infinite ease-in-out;
-        }
-        .thinking .d:nth-child(3) { animation-delay:.15s; }
-        .thinking .d:nth-child(4) { animation-delay:.3s; }
-        @keyframes bounce { 0%,60%,100% { transform:translateY(0); opacity:.4; } 30% { transform:translateY(-5px); opacity:1; } }
-
-        .bottom { flex-shrink:0; padding:8px 12px max(10px, env(safe-area-inset-bottom)); background:var(--bg); }
-        @media (min-width:600px) { .bottom { background:var(--surface); } }
-        .input-pill {
-            display:flex; align-items:center; background:var(--surface);
-            border:1px solid var(--line); border-radius:999px; padding:4px 4px 4px 18px;
-        }
-        @media (min-width:600px) { .input-pill { background:var(--bg); } }
-        .input-pill:focus-within { border-color:var(--blue); }
-        #input { flex:1; border:none; outline:none; background:none; font-size:16px; color:var(--ink); padding:8px 0; }
-        #send {
-            width:38px; height:38px; flex-shrink:0; border:none; cursor:pointer;
-            border-radius:50%; background:var(--blue);
-            display:flex; align-items:center; justify-content:center;
-        }
-        #send svg { width:20px; height:20px; stroke:#fff; fill:none; stroke-width:2.2; }
-        #send:disabled { opacity:.4; }
-        #send:active { background:var(--navy); }
-    </style>
-</head>
-<body>
-    <div class="layout">
-        <div class="app">
-            <div class="topbar">
-                <div class="pill">
-                    <div class="logo">TC</div>
-                    {% include "coach/_nav.html" with active="chat" %}
-                    <button id="trace-toggle" class="trace-toggle-btn" aria-label="Show agent trace">
-                        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 5v5l3 3"/></svg>
-                    </button>
-                </div>
-            </div>
-
-            <div class="update-line" id="update-line">
-                <span class="dot"></span><span id="update-text">Last update: {{ last_update|default:"recently" }}</span>
-            </div>
-
-            <div class="divider"></div>
-
-            <div id="messages">
-                {% for m in past_messages %}
-                    <div class="msg {% if m.role == 'user' %}user{% else %}coach{% endif %}"
-                         data-raw="{{ m.content|escape }}">{{ m.content }}</div>
-                {% endfor %}
-            </div>
-            <div class="bottom">
-                <div class="input-pill">
-                    <input id="input" type="text" placeholder="How do you feel today?" autocomplete="off">
-                    <button id="send" aria-label="Send">
-                        <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="trace-panel" id="trace-panel">
-            <div class="trace-header">
-                <span>Agent trace</span>
-                <button id="trace-close" class="trace-close-btn" aria-label="Close">&times;</button>
-            </div>
-            <div class="trace-body" id="trace-body">
-                <div class="empty">Send a message to see the agent's reasoning here.</div>
-            </div>
-        </div>
+{% block content %}
+<div class="chat-layout">
+  <section class="chat-panel" aria-label="Chat with the coach">
+    <div class="chat-head">
+      <h1>Coach</h1>
+      <span class="sync-line" id="update-line"><span class="dot"></span><span>Garmin data: {{ last_update|default:"recently" }}</span></span>
+      <button id="trace-toggle" class="trace-toggle-btn" type="button" aria-controls="trace-panel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Trace
+      </button>
     </div>
 
-    <script>
-        const messages = document.getElementById('messages');
-        const input = document.getElementById('input');
-        const send = document.getElementById('send');
-        const updateLine = document.getElementById('update-line');
-        const tracePanel = document.getElementById('trace-panel');
-        const traceBody = document.getElementById('trace-body');
+    <div id="messages" aria-live="polite">
+      {% for m in past_messages %}
+        <div class="msg {% if m.role == 'user' %}user{% else %}coach md{% endif %}" data-raw="{{ m.content|escape }}">{{ m.content }}</div>
+      {% empty %}
+        <div class="intro" id="intro"><b>How do you feel today?</b><span>Tell the coach about your sleep, soreness or plans, or ask it to plan your week.</span></div>
+      {% endfor %}
+    </div>
 
-        document.getElementById('trace-toggle').addEventListener('click', () => tracePanel.classList.add('open'));
-        document.getElementById('trace-close').addEventListener('click', () => tracePanel.classList.remove('open'));
+    <div class="composer">
+      <div class="composer-box">
+        <textarea id="input" rows="1" placeholder="Message the coach…" autocomplete="off" aria-label="Message"></textarea>
+        <button id="send" type="button" aria-label="Send">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+      </div>
+      <div class="composer-hint">Enter to send · Shift+Enter for a new line · start with (test) to try without saving</div>
+    </div>
+  </section>
 
-        document.querySelectorAll('.msg.coach').forEach(el => {
-            const raw = el.getAttribute('data-raw');
-            if (raw !== null) el.innerHTML = marked.parse(raw);
-        });
+  <aside class="trace-panel" id="trace-panel" aria-label="Agent trace">
+    <div class="trace-header">
+      <h2>Agent trace</h2>
+      <button id="trace-close" class="trace-close-btn" type="button" aria-label="Close trace">&times;</button>
+    </div>
+    <div class="trace-body" id="trace-body">
+      <div class="empty">Send a message to see the coach's reasoning and tool calls here.</div>
+    </div>
+  </aside>
+</div>
+{% endblock %}
 
-        function getCookie(name) {
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return parts.pop().split(';').shift();
-        }
+{% block scripts %}
+<script>
+  const messages = document.getElementById('messages');
+  const input = document.getElementById('input');
+  const send = document.getElementById('send');
+  const updateLine = document.getElementById('update-line');
+  const tracePanel = document.getElementById('trace-panel');
+  const traceBody = document.getElementById('trace-body');
 
-        function escapeHtml(s) {
-            const d = document.createElement('div');
-            d.textContent = s;
-            return d.innerHTML;
-        }
+  document.getElementById('trace-toggle').addEventListener('click', () => tracePanel.classList.add('open'));
+  document.getElementById('trace-close').addEventListener('click', () => tracePanel.classList.remove('open'));
 
-        // Rebuilds the trace panel for the latest turn — reasoning (from
-        // extended thinking) and tool calls, grouped by round, in order.
-        function renderTrace(trace) {
-            if (!trace) return;
-            const notes = trace.round_notes || [];
-            const calls = trace.tool_trace || [];
-            const rounds = [...new Set([...notes.map(n => n.round), ...calls.map(c => c.round)])].sort((a, b) => a - b);
-            if (!rounds.length) {
-                traceBody.innerHTML = '<div class="empty">No tool calls or reasoning captured for this turn.</div>';
-                return;
-            }
-            traceBody.innerHTML = rounds.map(r => {
-                const note = notes.find(n => n.round === r);
-                let html = `<div class="trace-round"><div class="round-label">Round ${r}</div>`;
-                if (note) html += `<div class="think-text">${escapeHtml(note.text)}</div>`;
-                calls.filter(c => c.round === r).forEach(c => {
-                    html += `<div class="trace-call"><span class="tool-name">${escapeHtml(c.tool)}</span>` +
-                        `<pre>${escapeHtml(JSON.stringify(c.input))}</pre>` +
-                        `<pre>${escapeHtml(c.result)}</pre></div>`;
-                });
-                return html + '</div>';
-            }).join('');
-        }
+  document.querySelectorAll('.msg.coach').forEach(el => {
+    el.innerHTML = TC.markdown(el.getAttribute('data-raw') || '');
+  });
 
-        function addMessage(text, cls) {
-            const div = document.createElement('div');
-            div.className = 'msg ' + cls;
-            if (cls === 'coach') div.innerHTML = marked.parse(text);
-            else div.textContent = text;
-            messages.appendChild(div);
-            messages.scrollTop = messages.scrollHeight;
-            return div;
-        }
+  function scrollDown() { messages.scrollTop = messages.scrollHeight; }
 
-        // Render the "✓ Synced data · Logged feeling" caption
-        function addActions(actions) {
-            if (!actions || actions.length === 0) return;
-            const wrap = document.createElement('div');
-            wrap.className = 'actions';
-            actions.forEach(a => {
-                const span = document.createElement('span');
-                span.className = 'act';
-                span.textContent = a;
-                wrap.appendChild(span);
-            });
-            messages.appendChild(wrap);
-            messages.scrollTop = messages.scrollHeight;
-        }
+  // reasoning (extended thinking) + tool calls for the latest turn, by round
+  function renderTrace(trace) {
+    if (!trace) return;
+    const notes = trace.round_notes || [];
+    const calls = trace.tool_trace || [];
+    const rounds = [...new Set([...notes.map(n => n.round), ...calls.map(c => c.round)])].sort((a, b) => a - b);
+    if (!rounds.length) {
+      traceBody.innerHTML = '<div class="empty">No tool calls or reasoning captured for this turn.</div>';
+      return;
+    }
+    traceBody.innerHTML = rounds.map(r => {
+      const note = notes.find(n => n.round === r);
+      let html = `<div class="trace-round"><div class="round-label">Round ${r}</div>`;
+      if (note) html += `<div class="think-text">${TC.escapeHtml(note.text)}</div>`;
+      calls.filter(c => c.round === r).forEach(c => {
+        html += `<div class="trace-call"><span class="tool-name">${TC.escapeHtml(c.tool)}</span>` +
+          `<pre>${TC.escapeHtml(JSON.stringify(c.input))}</pre><pre>${TC.escapeHtml(c.result)}</pre></div>`;
+      });
+      return html + '</div>';
+    }).join('');
+  }
 
-        async function sendMessage() {
-            const text = input.value.trim();
-            if (!text) return;
-            addMessage(text, 'user');
-            input.value = '';
-            send.disabled = true;
-            updateLine.classList.add('syncing');
+  function addMessage(text, who) {
+    const intro = document.getElementById('intro');
+    if (intro) intro.remove();
+    const div = document.createElement('div');
+    div.className = 'msg ' + (who === 'coach' ? 'coach md' : 'user');
+    if (who === 'coach') div.innerHTML = TC.markdown(text);
+    else div.textContent = text;
+    messages.appendChild(div);
+    scrollDown();
+  }
 
-            // Animated thinking indicator (proves the app is alive)
-            const thinking = document.createElement('div');
-            thinking.className = 'thinking';
-            thinking.innerHTML = '<span class="label">Coach is thinking</span><span class="d"></span><span class="d"></span><span class="d"></span>';
-            messages.appendChild(thinking);
-            messages.scrollTop = messages.scrollHeight;
+  function addActions(actions) {
+    if (!actions || !actions.length) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'actions';
+    actions.forEach(a => { const s = document.createElement('span'); s.textContent = a; wrap.appendChild(s); });
+    messages.appendChild(wrap);
+    scrollDown();
+  }
 
-            try {
-                const res = await fetch('/message/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                    body: JSON.stringify({ message: text }),
-                });
-                const data = await res.json();
-                thinking.remove();
-                if (data.reply) {
-                    addMessage(data.reply, 'coach');
-                    addActions(data.actions);   // show which tools ran
-                    renderTrace(data.trace);
-                } else {
-                    addMessage('Something went wrong: ' + (data.error || 'unknown error') + '. Try again.', 'coach');
-                }
-            } catch (e) {
-                thinking.remove();
-                addMessage('Network error — check your connection and try again.', 'coach');
-            }
-            updateLine.classList.remove('syncing');
-            send.disabled = false;
-            input.focus();
-        }
+  function autosize() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px'; }
+  input.addEventListener('input', autosize);
 
-        send.addEventListener('click', sendMessage);
-        input.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text || send.disabled) return;
+    addMessage(text, 'user');
+    input.value = ''; autosize();
+    send.disabled = true;
+    updateLine.classList.add('busy');
 
-        messages.scrollTop = messages.scrollHeight;
-    </script>
-</body>
-</html>
+    const thinking = document.createElement('div');
+    thinking.className = 'thinking';
+    thinking.innerHTML = '<span class="label">Coach is thinking</span><span class="d"></span><span class="d"></span><span class="d"></span>';
+    messages.appendChild(thinking);
+    scrollDown();
+
+    try {
+      const res = await TC.postJSON('/message/', { message: text });
+      const data = await res.json();
+      thinking.remove();
+      if (data.reply) {
+        addMessage(data.reply, 'coach');
+        addActions(data.actions);
+        renderTrace(data.trace);
+      } else {
+        addMessage('Something went wrong: ' + (data.error || 'unknown error') + '. Try again.', 'coach');
+      }
+    } catch (e) {
+      thinking.remove();
+      addMessage('Network error. Check your connection and try again.', 'coach');
+    }
+    updateLine.classList.remove('busy');
+    send.disabled = false;
+    input.focus();
+  }
+
+  send.addEventListener('click', sendMessage);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendMessage(); }
+  });
+  scrollDown();
+</script>
+{% endblock %}
