@@ -7,7 +7,6 @@ __pycache__/
 db.sqlite3
 staticfiles/
 *.md
-# ...except the training-planner skill: its .md files are runtime data, read by
-# coach/training_skills.py (session leaves, principles) and scripts/check_week.py
+# skill .md files are runtime data
 !skills/**/*.md
 .vscode/

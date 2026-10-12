@@ -85,7 +85,3 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Error fetching weather: {e}"))
             return None
-
-if __name__ == "__main__":
-    command = Command()
-    command.handle()

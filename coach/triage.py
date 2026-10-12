@@ -1,7 +1,5 @@
-"""Classifies a turn into skills + model tier via keyword matching — no
-second LLM call, no extra cost. Mechanism only, OFF by default: flipping it
-on needs the eval harness to confirm no quality regression, which costs
-real API credits. With it off, agent.py behaves exactly as before this existed.
+"""Keyword-based turn classification (skills + model tier). OFF by default —
+run the eval harness before enabling it.
 """
 import re
 
@@ -14,9 +12,7 @@ SKILL_PATTERNS = {
     "analysis": re.compile(r"\b(trend|progress|vo2max|how (am|have) i)\b", re.I),
 }
 
-# same model on both tiers until evals prove a cheaper one is safe — already
-# hit Haiku 4.5's ceiling once (date arithmetic, anti-fabrication), don't
-# repoint "simple" without re-running evals first
+# same model on both tiers until evals prove a cheaper one is safe
 MODEL_TIERS = {"simple": "claude-sonnet-5", "default": "claude-sonnet-5"}
 
 

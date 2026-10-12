@@ -1,14 +1,6 @@
-"""Prompt assembly: core instructions always loaded, "skill" blocks added
-only when triage says a turn needs them. Only WORKOUT_SKILL exists so far —
-start coarse, split further only once a concrete case needs it.
-
-Safety-critical stuff (injury/anti-fabrication/dates) always stays in
-CORE_INSTRUCTIONS, never conditional on triage.
-
-CORE_INSTRUCTIONS/WORKOUT_SKILL are sliced out of the real INSTRUCTIONS
-string, not retyped — assemble_all() reproduces INSTRUCTIONS byte-for-byte
-by construction, and a future edit removing the marker lines fails loudly
-(ValueError at import) instead of drifting silently.
+"""Prompt assembly for turn triage: core instructions always, skill blocks
+only when needed. Blocks are sliced from INSTRUCTIONS by marker (ValueError at
+import if a marker disappears). Safety rules always stay in core.
 """
 from coach.agent import INSTRUCTIONS
 

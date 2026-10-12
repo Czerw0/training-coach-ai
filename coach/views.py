@@ -78,8 +78,7 @@ def chat_message(request):
 
     actions = [TOOL_LABELS.get(t, t) for t in tools_used]
 
-    # read back off the row chat() just wrote, same pattern evals/harness.py
-    # uses — no need to change chat()'s own return signature for this
+    # trace comes from the ApiUsage row chat() just wrote
     usage_row = ApiUsage.objects.latest("created_at")
     trace = {"tool_trace": usage_row.tool_trace, "round_notes": usage_row.round_notes}
 
@@ -89,7 +88,7 @@ def chat_message(request):
 @login_required
 @require_http_methods(["POST"])
 def chat_reset(request):
-    """Delete the stored conversation (used by the 'reset' path if kept)."""
+    """Delete the stored conversation."""
     Message.objects.all().delete()
     return JsonResponse({'status': 'reset'})
 
@@ -151,9 +150,7 @@ def calendar_events(request):
     for p in PlannedSession.objects.all().prefetch_related('exercises'):
         color = _activity_color(p.activity_type)
         label = p.title or p.activity_type.replace("_", " ").title()
-        # created_by: "ai" (tool path) / "human" (UI) / legacy "coach" value —
-        # anything not "human" counts as coach-planned, matches the edit
-        # modal's own "planned by AI coach" / "planned by you" wording
+        # anything not created_by "human" counts as coach-planned
         who = "You" if p.created_by == "human" else "Coach"
         events.append({
             "title": f"{who} · {label}",
@@ -210,7 +207,6 @@ def save_planned_session(request):
         fields["created_by"] = "human"
         session = PlannedSession.objects.create(**fields)
 
-    # replace all children — simpler than diffing against existing ids
     session.exercises.all().delete()
     if exercises_in:
         PlannedExercise.objects.bulk_create([
@@ -232,10 +228,7 @@ def move_planned_session(request):
     except (ValueError, TypeError):
         return JsonResponse({"ok": False, "error": "Invalid date."}, status=400)
 
-    # no PLANNING_WINDOW_DAYS check here on purpose — that's the LLM's
-    # visible-date guard (next_14_days), not a human's. Someone dragging on
-    # the real calendar grid can target any date it shows. Only real rule:
-    # no moving a session into the past.
+    # no 14-day window here — that guard is for the LLM, not for a human
     today = datetime.date.today()
     if new_date < today:
         return JsonResponse({
@@ -428,8 +421,7 @@ def stats_page(request):
 @login_required
 @require_http_methods(["GET"])
 def stats_data(request):
-    """Training volume + adherence — real Activity data, not cycling-power
-    metrics; the athlete's actual training is mostly strength + skating."""
+    """Training volume by type, weekly volume, and plan adherence."""
     today = datetime.date.today()
 
     total_activities = Activity.objects.count()
@@ -464,9 +456,8 @@ def stats_data(request):
         bucket["minutes"] += round((a['duration_seconds'] or 0) / 60)
     weekly_volume = [{"week_start": k, **v} for k, v in sorted(weeks.items())]
 
-    # adherence: date-only match against any logged activity — Garmin's
-    # activity types and the planner's don't line up 1:1, so no type
-    # matching. rest days excluded, they're not supposed to produce an activity
+    # adherence: date-only match (Garmin and planner types don't map 1:1),
+    # rest days excluded
     past_sessions = PlannedSession.objects.filter(date__lt=today).exclude(activity_type='rest').order_by('-date')
     activity_dates = set(
         Activity.objects.filter(start_time__date__lt=today).values_list('start_time__date', flat=True)

@@ -6,8 +6,7 @@ from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, Planne
 from coach.training_skills import list_skills
 
 
-# skating instruction days, Mon=0..Sun=6 — empty while paused for July/August,
-# restore the set (e.g. {0, 1, 2, 6}) when the season resumes
+# skating instruction days, Mon=0..Sun=6 (e.g. {0, 1, 2, 6}); empty = paused
 INSTRUCTION_DAYS = set()
 
 # open-meteo codes: https://open-meteo.com/en/docs#api-formats
@@ -85,7 +84,7 @@ def build_context():
     today = datetime.date.today()
     now = timezone.now()
 
-    # plannable window — must stay in sync with PLANNING_WINDOW_DAYS in tools.py
+    # must match PLANNING_WINDOW_DAYS in tools.py
     next_14_days = []
     for i in range(14):
         d = today + datetime.timedelta(days=i)
@@ -95,7 +94,6 @@ def build_context():
             'usual_instruction_day': d.weekday() in INSTRUCTION_DAYS,
         })
 
-    # capped at 28 days so a long bulk plan doesn't bloat every future message
     calendar = PlannedSession.objects.filter(
         date__gte=today,
         date__lte=today + datetime.timedelta(days=28),
@@ -160,10 +158,6 @@ def build_context():
         'steps', 'recovery_time_hours', 'training_status', 'acwr_ratio',
     ))
 
-    # fitness trend + resolved injuries deliberately not loaded here — big
-    # and rare, not worth paying for every turn. on demand via
-    # get_fitness_trend / get_resolved_injury_history (tools.py)
-
     ftp_history = list(FTPRecord.objects.filter(
         date__gte=today - datetime.timedelta(days=30)
     ).order_by('-date').values('date', 'ftp_watts'))
@@ -199,8 +193,7 @@ def build_context():
         'name', 'category', 'duration_min', 'intensity_factor', 'tss', 'description'
     ))
 
-    # index only — progression/injury notes are the detail tier, fetched via
-    # get_exercise_detail (tools.py) only when prescribing a gym session
+    # index only — details via get_exercise_detail
     exercise_library = list(Exercise.objects.all().values(
         'name', 'category', 'target_muscle', 'equipment', 'description'
     ))

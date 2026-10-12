@@ -25,13 +25,12 @@ class Command(BaseCommand):
         today = datetime.date.today()
         self.stdout.write('Starting Garmin sync...')
         
-        # Login
         api = Garmin(os.getenv('GARMIN_EMAIL'), os.getenv('GARMIN_PASSWORD'))
         api.login()
         
         self._sync_ftp(api) # ftp not date-specific
 
-        # Define Date Range (Syncing last 4 days to catch delayed uploads)
+        # re-sync the last few days to catch delayed uploads
         today = datetime.date.today()
         for i in range(days, -1, -1):
             date_str = (today - datetime.timedelta(days=i)).isoformat()
@@ -156,10 +155,8 @@ class Command(BaseCommand):
 
         return fields
 
-    # STUBS for remaining sync methods
     def _sync_sleep(self, api, date):
         try:
-            # api.get_sleep_data returns a dictionary containing 'dailySleepDTO'
             data = api.get_sleep_data(date)
             dto = data.get('dailySleepDTO')
 
@@ -167,15 +164,11 @@ class Command(BaseCommand):
                 self.stdout.write(f"  [No Data] No sleep data found for {date}")
                 return
 
-            # Extracting the score safely from the nested sleepScores dictionary
             sleep_scores = dto.get('sleepScores', {})
             overall_score = sleep_scores.get('overall', {}).get('value')
 
-            # bodyBatteryChange is typically at the top level of the sleep response
-            # or calculated as bodyBatteryDuringSleep
             bb_change = data.get('bodyBatteryChange')
 
-            # Map JSON to SleepRecord Model
             obj, created = SleepRecord.objects.update_or_create(
                 date=dto.get('calendarDate'),
                 defaults={
@@ -196,8 +189,6 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"  Error syncing Sleep on {date}: {e}"))
 
     def _sync_hrv(self, api, date):
-        # api.get_hrv_data returns a list or dict depending on the library version
-        # but based on your snippet, we are looking for the 'hrvSummary' key.
         try:
             data = api.get_hrv_data(date)
             if not data:
@@ -301,12 +292,11 @@ class Command(BaseCommand):
             if ftp_data and ftp_data.get('functionalThresholdPower'):
                 ftp = ftp_data['functionalThresholdPower']
 
-                # Update current value in profile
                 profile, _ = UserProfile.objects.get_or_create(pk=1)
                 profile.ftp_watts = ftp
                 profile.save()
 
-                # Store history — calendarDate is when FTP was set
+                # calendarDate = when FTP was set
                 ftp_date = ftp_data.get('calendarDate', '')[:10]  # "2026-06-06"
                 if ftp_date:
                     FTPRecord.objects.update_or_create(
@@ -317,7 +307,3 @@ class Command(BaseCommand):
                 self.stdout.write(f"  FTP synced: {ftp}W ({ftp_date})")
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"  FTP sync failed: {e}"))
-
-if __name__ == "__main__":
-    command = Command()
-    command.handle()

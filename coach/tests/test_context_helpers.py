@@ -1,6 +1,5 @@
 import pytest
 
-from coach.agent import compute_cost
 from coach.context import _round, _clean_activities, _summarise_weather, build_context
 from sync.models import Exercise
 from datetime import datetime
@@ -59,13 +58,6 @@ def test_weather_hour_12_is_afternoon_not_morning():
     blocks = summary["2026-06-01"]
     assert "afternoon (12-18)" in blocks
     assert "morning (06-12)" not in blocks
-
-# def test_one_million_input_tokens_costs_one_dollar():
-#     assert compute_cost(1_000_000, 0, 0, 0) == 1.0
-
-# def test_mixed_turn():
-#     # 100k in + 10k out: 0.10 + 0.05 = 0.15
-#     assert compute_cost(100_000, 0, 0, 10_000) == 0.15
 
 
 @pytest.mark.django_db

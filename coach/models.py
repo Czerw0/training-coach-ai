@@ -11,9 +11,7 @@ class Injury(models.Model):
     date_started = models.DateField()
     date_resolved = models.DateField(null=True, blank=True)
     body_part = models.CharField(max_length=100, null=True, blank=True)
-    # nullable: log_injury's schema only requires body_part, and the prompt has
-    # the agent log first and ask for details after — unknown severity is a
-    # real state, not something to default to "minor"
+    # nullable: log_injury only requires body_part; unknown severity is valid
     severity = models.CharField(max_length=20, choices=INJURY_CHOICES, null=True, blank=True)
     description = models.CharField(max_length=250, null=True, blank=True)
     affects_running = models.BooleanField(null=True, blank=True, default=True)

@@ -12,15 +12,10 @@ PLANNING_WINDOW_DAYS = 14   # must match next_14_days in context.py
 
 
 def validate_session_date(date_str, expected_weekday, today=None):
-    """Real date, right weekday, inside the plannable window (today..today+13).
-
-    today is injectable for tests. Returns (True, parsed_date) or
-    (False, error_string) — the error goes back to the model as the tool
-    result so it can self-correct.
-    """
+    """(True, date) or (False, error for the model): real date, matching
+    weekday, inside today..today+13."""
     today = today or dt.date.today()
 
-    # malformed string is itself a model error
     try:
         parsed = dt.date.fromisoformat(date_str)
     except (ValueError, TypeError):
@@ -28,7 +23,6 @@ def validate_session_date(date_str, expected_weekday, today=None):
             f"Invalid date '{date_str}'. Use YYYY-MM-DD copied from next_14_days."
         )
 
-    # actual weekday must match what the model claimed
     actual_weekday = parsed.strftime("%A")
     if actual_weekday.lower() != (expected_weekday or "").lower():
         return False, (
@@ -37,8 +31,7 @@ def validate_session_date(date_str, expected_weekday, today=None):
             f"from next_14_days and try again."
         )
 
-    # weekday match alone isn't enough — a correct Saturday a month out,
-    # calculated blind, would slip through otherwise
+    # a correct weekday a month out would still be a blind calculation
     window_end = today + dt.timedelta(days=PLANNING_WINDOW_DAYS - 1)
     if not (today <= parsed <= window_end):
         return False, (
@@ -52,12 +45,7 @@ def validate_session_date(date_str, expected_weekday, today=None):
 
 def log_daily_feeling(energy_level=None, muscle_soreness=None,
                       sore_muscles=None, motivation=None, notes=None):
-    """Save or update how the athlete feels today.
-
-    Only overwrites fields that were actually provided, so a second call the
-    same day (e.g. logging soreness in the morning, alcohol in the evening)
-    doesn't wipe earlier values.
-    """
+    """Save today's feeling; only provided fields change, notes accumulate."""
     today = dt.date.today()
     obj, created = DailyFeeling.objects.get_or_create(date=today)
 
@@ -70,7 +58,6 @@ def log_daily_feeling(energy_level=None, muscle_soreness=None,
     if motivation is not None:
         obj.motivation = motivation
     if notes is not None:
-        # append, don't overwrite — same-day notes accumulate
         obj.notes = f"{obj.notes} | {notes}" if obj.notes else notes
     obj.save()
 
@@ -81,7 +68,6 @@ def log_daily_feeling(energy_level=None, muscle_soreness=None,
 def log_injury(body_part, severity=None, description=None,
                affects_running=None, affects_cycling=None):
     today = dt.date.today()
-    # update the active injury on this body part if one exists, else create
     existing = Injury.objects.filter(
         body_part__iexact=body_part,
         date_resolved__isnull=True,
@@ -123,11 +109,7 @@ def resolve_injury(body_part):
 
 def adjust_goal(title, goal_type=None, target_date=None,
                 description=None, is_active=None):
-    """Create a goal, or update only the fields provided on an existing one.
-
-    Same merge rule as log_injury: "push my race back two weeks" sends just
-    target_date, and must not wipe the goal's type and description.
-    """
+    """Create a goal, or update only the provided fields of an existing one."""
     try:
         payload = AdjustGoalIn(
             title=title, goal_type=goal_type, target_date=target_date,
@@ -163,10 +145,7 @@ def append_athlete_note(note):
 def create_planned_session(date, weekday, activity_type, title="",
                            description="", duration_minutes=None,
                            intensity="", exercises=None):
-    """Write one planned session — after Pydantic validates the shape and
-    validate_session_date validates the date. Both matter: one catches a bad
-    payload, the other a claimed weekday that doesn't match the real date.
-    """
+    """Validated write: Pydantic checks the payload, validate_session_date the date."""
     try:
         payload = PlannedSessionIn(
             date=date, weekday=weekday, activity_type=activity_type,
@@ -267,29 +246,14 @@ def get_resolved_injury_history(days=60):
 
 
 def load_training_skill(category, skill):
-    """Full planning/scheduling methodology for one training modality.
-
-    Reads one session leaf on demand — the context only carries the short
-    index. Returns the file body or a helpful error string.
-    """
     return load_skill(category, skill)
 
 
 def get_training_principles():
-    """Shared load-management reasoning behind the per-session training skills.
-
-    Fatigue axes, interference, progression, readiness, deload/taper — read
-    once when planning a week, before loading individual session skills.
-    """
     return load_principles()
 
 
 def check_training_week(sessions):
-    """Deterministically validate a proposed week against the skill's rules.
-
-    Runs the skill's own checker (spacing, same-day conflicts, per-axis
-    saturation). `sessions` is a list of {id, start}. Returns a text report.
-    """
     return check_week(sessions)
 
 

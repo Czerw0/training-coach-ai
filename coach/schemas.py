@@ -1,6 +1,5 @@
-"""Pydantic schemas for LLM tool inputs that write to the DB — model output
-is a claim, not a fact, until it passes one of these. Validation errors come
-back as a plain string (never raised), same convention as validate_session_date."""
+"""Pydantic schemas for tool inputs that write to the DB — model output is
+validated before it touches the database."""
 from datetime import date
 from typing import Literal, Optional
 
@@ -39,8 +38,7 @@ GOAL_TYPES = Literal[
 
 
 class AdjustGoalIn(BaseModel):
-    """None = "not mentioned this turn" — adjust_goal leaves those fields
-    untouched on an existing goal. Lengths mirror the Goal model columns."""
+    """None = not mentioned; adjust_goal leaves those fields unchanged."""
     title: str = Field(min_length=1, max_length=50)
     goal_type: Optional[GOAL_TYPES] = None
     target_date: Optional[date] = None      # ISO string from the model -> date
