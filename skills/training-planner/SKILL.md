@@ -25,12 +25,13 @@ it here. The essentials that change how you plan:
 - **Skiing is the winter goal and the north star.** It isn't trained in this
   system (it happens on-snow, in season); every summer session is justified by
   its transfer to skiing and to **long-term durability over short-term numbers**.
-- **Current priorities: cycling, gym, plyometrics.** Cycling (with a direct-drive
-  trainer) is the default aerobic engine.
-- **Do not propose running unless the athlete explicitly asks.** Knee injury —
-  default to `cycling/*` for aerobic work. When running is requested, prioritise
-  `running/intervals` and `running/tempo-threshold`; `running/easy-long` is kept
-  for the future but deprioritised now.
+- **Current priorities: cycling, gym, plyometrics, plus one weekly run.** Cycling
+  (with a direct-drive trainer) is the default aerobic engine.
+- **Running: at most ONE session per week** (knee history) — enforced by the week
+  checker via `category_max_per_week: 1` on the `running/*` leaves. It may be
+  proposed without being asked; all other aerobic work goes to `cycling/*`. No
+  run while the knee is symptomatic. Prefer `running/intervals` or
+  `running/tempo-threshold`; `running/easy-long` when tolerance is uncertain.
 - **Plan around injuries and schedule first; keep the week flexible.** Rotate
   lower-body gym types for variety, ease leg work in cycling-heavy weeks, and
   aim for 1–3 rest days. Season phase (§0 table) sets what a good week looks like.
@@ -179,8 +180,8 @@ Full leaves currently in the library:
 - **gym:** `lower-max-strength`, `lower-eccentric`, `lower-isometric`,
   `lower-power`, `upper-body`, `full-body`, `strength-endurance`
 - **plyometrics:** `extensive`, `intensive`
-- **running:** `easy-long`, `intervals`, `tempo-threshold` *(kept for the future;
-  not proposed unless the athlete asks — see "Who this is tuned for")*
+- **running:** `easy-long`, `intervals`, `tempo-threshold` *(max one run per week
+  — see "Who this is tuned for")*
 
 `gym/full-body` (all-round strength) and `gym/strength-endurance` (stair machine /
 loaded vertical, blending endurance and strength) are the newest leaves, added
@@ -188,10 +189,10 @@ for this athlete's stated need for varied lower-body stimulus and a ski-relevant
 vertical-endurance option.
 
 Several leaves also carry a `> **This athlete —** …` note in the body where the
-personalisation is session-specific (running deprioritisation, the plyometric
+personalisation is session-specific (the one-run-a-week cap, the plyometric
 return-to-load, the cycling trainer/easy focus, the climbing swap for upper body).
-The always-in-context `reference/catalog.md` encodes the running "only on request"
-rule directly in those rows' descriptions.
+The always-in-context `reference/catalog.md` encodes the one-run-a-week rule
+directly in those rows' descriptions.
 
 Climbing (an `gym/upper-body` swap) and hiking/mountaineering (closest proxy:
 `gym/strength-endurance`, used only when a mountain trip is on the calendar) are

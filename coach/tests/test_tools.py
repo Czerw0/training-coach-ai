@@ -18,7 +18,7 @@ from sync.models import DailyStats, Exercise
 def test_create_planned_session_rejects_invalid_activity_type():
     d = datetime.date.today()
     result = create_planned_session(
-        date=d.isoformat(), weekday=d.strftime("%A"), activity_type="running",
+        date=d.isoformat(), weekday=d.strftime("%A"), activity_type="yoga",
     )
     assert "Invalid input" in result
     assert PlannedSession.objects.count() == 0

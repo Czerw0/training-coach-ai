@@ -39,7 +39,10 @@ Output — JSON (default) or `--format text`. Exit code is non-zero if any
    injury/freshness axes, so a windowed sum >=6 (two 'high') is an error and ==5
    a warning; damage stacking (>=5) is a warning (DOMS); metabolic clears fast
    enough to ignore.
-4. Severity. `error` = the plan is wrong, fix it. `warning` = a defensible
+4. Weekly caps. A leaf may declare `category_max_per_week: N`: at most N
+   sessions of that leaf's CATEGORY in any rolling 7-day window. If leaves of
+   one category disagree, the strictest (min) wins. Exceeding it is an error.
+5. Severity. `error` = the plan is wrong, fix it. `warning` = a defensible
    compromise the model must state in the plan rather than bury.
 """
 import json
@@ -192,6 +195,28 @@ def check(sessions):
                 "message": (f"{axis} load sums to {total} across {len(ids)} sessions in {w_h} h "
                             f"({', '.join(ids)}) — the pattern that overloads that axis."),
             })
+
+    # 5. weekly category caps — rolling 7 days, strictest declared cap wins
+    caps = {}
+    for s in sessions:
+        cap = metas[s["id"]].get("category_max_per_week")
+        if isinstance(cap, int):
+            cat = s["id"].partition("/")[0]
+            caps[cat] = min(cap, caps.get(cat, cap))
+    for cat, cap in caps.items():
+        in_cat = [s for s in sessions if s["id"].partition("/")[0] == cat]
+        for i, anchor in enumerate(in_cat):
+            window_end = anchor["start"] + timedelta(days=7)
+            window = [s for s in in_cat[i:] if s["start"] < window_end]
+            if len(window) > cap:
+                violations.append({
+                    "kind": "weekly-cap", "severity": "error", "category": cat,
+                    "cap": cap, "count": len(window),
+                    "sessions": [s["id"] for s in window],
+                    "message": (f"{len(window)} {cat} sessions within 7 days "
+                                f"(from {anchor['start'].date()}); max {cap} per week."),
+                })
+                break
 
     # dedup identical saturation windows (overlapping anchors can repeat)
     seen, deduped = set(), []

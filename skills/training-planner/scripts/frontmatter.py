@@ -39,7 +39,7 @@ _LIST_KEYS = {
 # Keys whose values are inline maps.
 _MAP_KEYS = {"load", "spacing_h"}
 # Keys whose scalar value should be coerced to int when possible.
-_INT_KEYS = {"residual_fatigue_h"}
+_INT_KEYS = {"residual_fatigue_h", "category_max_per_week"}
 
 
 def _coerce_int(value):

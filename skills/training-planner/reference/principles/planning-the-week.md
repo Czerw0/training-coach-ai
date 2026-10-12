@@ -25,10 +25,10 @@ not short-term numbers.** When two options are close, pick the one that serves
 the ski goal and the athlete's durability over the one that flatters a weekly
 metric.
 
-**Current priorities:** cycling, gym, plyometrics. Cycling is the second main
-sport and the default aerobic engine. **Running is not proposed unless the
-athlete explicitly asks** (knee) — default to `cycling/*` for aerobic work; see
-the `running/*` leaves for how to handle it when requested.
+**Current priorities:** cycling, gym, plyometrics, plus **one run per week at
+most** (knee — a hard cap in the week checker). Cycling is the second main sport
+and the default aerobic engine; every other aerobic session goes to `cycling/*`.
+See the `running/*` leaves for which run to pick.
 
 **Plan around injuries and schedule first — flexibility is a feature, not a
 fallback.** The immovables in step 2 below are, for this athlete, primarily
@@ -166,8 +166,8 @@ Starting templates, not prescriptions. Adjust to the athlete's actual
 availability before proposing.
 
 > **For this athlete (§0):** in every template below, read "key intensity" and
-> "long session" as **cycling** by default — running appears only when the athlete
-> asks for it. The two athlete-specific templates at the end of this section are
+> "long session" as **cycling** by default — at most one of the week's sessions
+> may be a run. The two athlete-specific templates at the end of this section are
 > the usual starting points.
 
 **Endurance-primary, gym as support (3 endurance + 2 gym)**

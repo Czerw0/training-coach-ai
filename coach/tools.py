@@ -421,9 +421,9 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "date": {"type": "string", "description": "ISO date YYYY-MM-DD, copied exactly from next_14_days."},
                 "weekday": {"type": "string", "description": "Weekday name for this date, exactly as in next_14_days (e.g. 'Friday'). Must match the date."},
-                "activity_type": {"type": "string", "enum": ["cycling", "gym_legs", "gym_upper", "skating", "tennis", "skiing", "mountaineering", "rest", "other"]},
+                "activity_type": {"type": "string", "enum": ["cycling", "running", "gym_legs", "gym_upper", "plyometrics", "skating", "tennis", "skiing", "mountaineering", "rest", "other"]},
                 "title": {"type": "string", "description": "Short name, e.g. 'VO2max intervals'"},
-                "description": {"type": "string", "description": "Overall notes/comment for the whole session (not per-exercise)."},
+                "description": {"type": "string", "description": "Full session card: purpose, warm-up, main set with HR zone/watts/RPE targets, cool-down, cues, fallback (see SESSION DETAIL)."},
                 "duration_minutes": {"type": "integer"},
                 "intensity": {"type": "string", "enum": ["easy", "moderate", "hard"]},
                 "exercises": {

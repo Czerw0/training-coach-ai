@@ -115,6 +115,14 @@ def test_check_week_clean_week_has_no_violations():
     assert "no constraint violations" in out.lower()
 
 
+def test_check_week_caps_running_at_one_per_week():
+    out = check_week([
+        {"id": "running/tempo-threshold", "start": "2026-08-10T18:00"},
+        {"id": "running/easy-long", "start": "2026-08-15T09:00"},
+    ])
+    assert "weekly-cap" in out and "ERROR" in out
+
+
 def test_check_week_flags_spacing_error():
     # two hard aerobic sessions 24 h apart; both declare 48 h => error
     out = check_week([

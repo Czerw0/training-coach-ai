@@ -1,9 +1,10 @@
 ---
 name: tempo-threshold
 category: running
-description: Use when planning tempo or threshold running (continuous or cruise intervals) — a key day, less taxing than full VO2max intervals; keep 48 h from other hard running or cycling. For this athlete, plan running ONLY on explicit request (knee); when running is requested, this and running/intervals are the priority modes.
+description: Use when planning tempo or threshold running (continuous or cruise intervals) — a key day, less taxing than full VO2max intervals; keep 48 h from other hard running or cycling. For this athlete: max ONE run per week (knee); a priority mode for that weekly run.
 load: {neural: moderate, mechanical: moderate, metabolic: high, damage: moderate}
 residual_fatigue_h: 48
+category_max_per_week: 1
 same_day_conflicts: [gym/lower-eccentric, gym/lower-power, gym/lower-max-strength, plyometrics/intensive, running/intervals, cycling/intervals]
 spacing_h: {running/intervals: 48, cycling/intervals: 48, running/tempo-threshold: 48, gym/lower-eccentric: 72}
 pairs_well_with: [running/easy-long, cycling/endurance, gym/upper-body, gym/lower-isometric]
@@ -17,11 +18,14 @@ see_also: [principles/load-and-recovery, running/intervals]
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
 
-> **This athlete —** running is **not proposed unless the athlete explicitly asks
-> for it** (knee injury; default to `cycling/*` for hard aerobic work). When
-> running *is* requested, this and `running/intervals` are the two priority modes
-> — they are what running is *for* in this plan; `running/easy-long` is kept only
-> as a base/recovery frame, not a goal in itself.
+> **This athlete —** running is **back, at ONE session per week maximum**
+> (knee history). The week checker enforces this hard (`category_max_per_week`),
+> so a second run in any 7-day window is an error, not a judgement call — any
+> further aerobic work goes to `cycling/*`. The weekly run may be proposed
+> without being asked. Skip it entirely if the knee is symptomatic or there is
+> an active knee injury. Of the running modes, `running/intervals` and
+> `running/tempo-threshold` carry the most value; use `running/easy-long` when
+> knee tolerance or readiness is uncertain, or the week is already leg-heavy.
 
 ## Use when
 

@@ -6,8 +6,8 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field, ValidationError
 
 ACTIVITY_TYPES = Literal[
-    "cycling", "gym_legs", "gym_upper", "skating", "tennis",
-    "skiing", "mountaineering", "rest", "other",
+    "cycling", "running", "gym_legs", "gym_upper", "plyometrics", "skating",
+    "tennis", "skiing", "mountaineering", "rest", "other",
 ]
 INTENSITIES = Literal["", "easy", "moderate", "hard"]
 
@@ -25,7 +25,7 @@ class PlannedSessionIn(BaseModel):
     weekday: str
     activity_type: ACTIVITY_TYPES
     title: str = Field(default="", max_length=200)
-    description: str = Field(default="", max_length=2000)
+    description: str = Field(default="", max_length=4000)
     duration_minutes: Optional[int] = Field(default=None, ge=0, le=600)
     intensity: INTENSITIES = ""
     exercises: list[PlannedExerciseIn] = Field(default_factory=list)

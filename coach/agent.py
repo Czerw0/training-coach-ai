@@ -16,13 +16,15 @@ client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 MODEL = "claude-sonnet-5"
 
 MAX_TOOL_ROUNDS = 8
+MAX_TOKENS = 12000
 
 # CONFIG CHANGELOG — bump on system-level changes without their own ApiUsage column
 # v1  no temperature, no caching
 # v2  prompt caching on
 # v3  adaptive thinking, effort=low
 # v4  sonnet 5 standard pricing (v3 rows from sept 1 are under-costed ~1.5x)
-CONFIG_VERSION = "v4-thinking-low"
+# v5  max_tokens 4096 -> 12000 (thinking + detailed session cards)
+CONFIG_VERSION = "v5-thinking-low"
 THINKING_EFFORT = "low"
 
 
@@ -109,8 +111,8 @@ date match a single row in next_14_days.
   and call get_exercise_detail(name) before prescribing — especially if the
   athlete has an active injury that might make an exercise unsuitable. Pass
   structured exercises (name, sets, reps, weight_kg, notes) to
-  create_planned_session rather than only free-text description. Use
-  description for an overall session-level comment, not per-exercise detail.
+  create_planned_session; the description carries the rest of the session
+  card (see SESSION DETAIL).
 - The training_skills index lists on-demand planning/scheduling methodology for
   each session type (gym, plyometrics, cycling, running). Before prescribing a
   session of a given type, call load_training_skill(category, skill) to load that
@@ -130,6 +132,21 @@ date match a single row in next_14_days.
 - Do not plan a rest day in the calendar. Every empty day is a rest day by default.
   Only plan a session if you have a specific workout recommendation for that day.
 
+=== SESSION DETAIL ===
+Every create_planned_session gets a full session card in `description` (plain
+text, one line per part):
+- Purpose: why this session on this day (load, recovery, goals, the week).
+- Warm-up: duration and content.
+- Main set: exact structure — reps x duration/distance, recoveries, and the
+  intensity target as HR zone + bpm from user_profile.hr_zones, watts from
+  get_workout_detail, pace or RPE. Gym: sets x reps, load or RIR, rest, tempo,
+  and the progression vs last time.
+- Cool-down.
+- Cues: technique focus, injury notes, when to stop.
+- Fallback: what to do instead if readiness is poor on the day.
+When you plan sessions in the chat, present each one with the same detail —
+never reduce a planned session to a one-line title.
+
 === INSTRUCTION DAYS ===
 - next_14_days marks USUAL instruction days. The athlete's actual schedule
   varies — what they tell you in conversation ALWAYS overrides the flag. Skating
@@ -142,8 +159,10 @@ date match a single row in next_14_days.
   instruction days — moderate or hard-but-controlled sessions are fine.
 
 === SAFETY RULES (NON-NEGOTIABLE) ===
-- NEVER recommend running unless the athlete says their knee feels good AND
-  explicitly asks about running.
+- Running: at most ONE run per week (any rolling 7 days) — knee history, the
+  week checker enforces it. You may propose the weekly run unprompted, but never
+  a second one; route all other aerobic work to cycling. No run while the knee
+  is symptomatic or there is an active knee injury.
 - Any mention of knee or wrist pain -> default to caution, suggest low-impact.
 - Long-term joint health always beats short-term fitness gains.
 - Don't invent or assume activities/data not present in the context. If unsure,
@@ -201,8 +220,10 @@ normally would.
 # v1.3.0  exercise_library + get_exercise_detail / fitness / injury-history tools
 # v1.4.0  training_skills index + load_training_skill
 # v1.5.0  get_training_principles + check_training_week for week planning
+# v1.6.0  running back at max one run/week; SESSION DETAIL card for every
+#         planned session and for plans in chat
 
-PROMPT_VERSION = "v1.5.0"
+PROMPT_VERSION = "v1.6.0"
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
 PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 
@@ -297,7 +318,7 @@ def chat(user_message, conversation_history=None):
         round_num = _round + 1
         response = client.messages.create(
             model=model,
-            max_tokens=4096,
+            max_tokens=MAX_TOKENS,
             system=system_prompt,
             tools=TOOLS_WITH_CACHE,
             messages=messages,          # no temperature — deprecated on sonnet 5

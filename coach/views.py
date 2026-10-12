@@ -101,6 +101,7 @@ def _activity_color(activity_type):
     if "tennis" in t:                                      return "#BA7517"   # amber
     if "ski" in t:                                         return "#378ADD"   # light blue
     if "run" in t:                                         return "#E24B4A"   # red
+    if "plyo" in t:                                        return "#D85A30"   # orange
     if "swim" in t:                                        return "#15A0A6"   # cyan
     if "mountaineering" in t:                              return "#645F43D6" # brown
     return "#D6D6D696"                                                        # grey (rest/other)
