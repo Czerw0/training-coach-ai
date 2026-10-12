@@ -100,7 +100,7 @@ the mocked suite could not — mocks assert the code, not the live API contract.
 git clone https://github.com/Czerw0/training-coach-ai.git
 cd training-coach-ai
 python -m venv venv && venv\Scripts\activate   # Windows
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -r requirements-dev.txt   # includes requirements.txt
 ```
 
 `.env` in the project root:

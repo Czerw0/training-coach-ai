@@ -7,15 +7,14 @@ ENV PYTHONUNBUFFERED=1
 # Set the working directory inside the container
 WORKDIR /app
 
-# Install system dependencies needed for psycopg2 (PostgreSQL driver)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# uv as the installer (pinned binary, no system packages needed). No apt-get:
+# every dependency ships a manylinux wheel (psycopg2-binary bundles libpq), and
+# --no-build makes the install fail loudly instead of silently needing gcc.
+COPY --from=ghcr.io/astral-sh/uv:0.8.4 /uv /usr/local/bin/uv
 
 # Install Python dependencies first (layer caching — only rebuilds if requirements change)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN uv pip install --system --no-cache --no-build -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .
