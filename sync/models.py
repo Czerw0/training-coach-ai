@@ -155,7 +155,23 @@ class UserProfile(models.Model):
     primary_sport = models.CharField(max_length=50, default='running')
     injury_history = models.TextField(null=True, blank=True) # Could be JSON or structured text for better parsing
     athlete_notes = models.TextField(null=True, blank=True)
+    # [{"zone": "Z1", "min_bpm": 0, "max_bpm": 150}, ...]; max_bpm null = open-ended
+    hr_zones = models.JSONField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if not self.hr_zones:
+            return
+        try:
+            prev_max = -1
+            for z in self.hr_zones:
+                lo, hi = z["min_bpm"], z["max_bpm"]
+                if lo <= prev_max or (hi is not None and hi < lo):
+                    raise ValidationError({"hr_zones": f"{z['zone']}: zones must ascend without overlap"})
+                prev_max = hi if hi is not None else float("inf")
+        except (KeyError, TypeError):
+            raise ValidationError({"hr_zones": 'Use [{"zone": "Z1", "min_bpm": 0, "max_bpm": 150}, ...]'})
 
 
 class WeatherHourly(models.Model):

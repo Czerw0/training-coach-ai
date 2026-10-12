@@ -104,6 +104,7 @@ def build_context():
         'ftp_watts': profile.ftp_watts if profile else None,
         'max_hr': profile.max_hr if profile else None,
         'lthr': profile.lthr if profile else None,
+        'hr_zones': profile.hr_zones if profile else None,
         'weight_kg': profile.weight_kg if profile else None,
         'primary_sport': profile.primary_sport if profile else None,
         'injury_history': profile.injury_history if profile else None,

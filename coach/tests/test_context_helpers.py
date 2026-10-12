@@ -1,7 +1,9 @@
 import pytest
 
 from coach.context import _round, _clean_activities, _summarise_weather, build_context
-from sync.models import Exercise
+from django.core.exceptions import ValidationError
+
+from sync.models import Exercise, UserProfile
 from datetime import datetime
 
 def test_round_returns_none_for_none():
@@ -81,3 +83,32 @@ def test_build_context_includes_exercise_library_index_without_progression_notes
     assert entry["name"] == "Barbell Back Squat"
     assert "progression_notes" not in entry
     assert "injury_notes" not in entry
+
+
+ZONES = [
+    {"zone": "Z1", "min_bpm": 0, "max_bpm": 150},
+    {"zone": "Z2", "min_bpm": 151, "max_bpm": 165},
+    {"zone": "Z5", "min_bpm": 196, "max_bpm": None},
+]
+
+
+@pytest.mark.django_db
+def test_build_context_includes_hr_zones():
+    UserProfile.objects.create(hr_zones=ZONES)
+    assert build_context()["user_profile"]["hr_zones"] == ZONES
+
+
+def test_hr_zones_valid_passes_clean():
+    UserProfile(hr_zones=ZONES).clean()
+
+
+def test_hr_zones_overlap_fails_clean():
+    bad = [{"zone": "Z1", "min_bpm": 0, "max_bpm": 150},
+           {"zone": "Z2", "min_bpm": 150, "max_bpm": 165}]
+    with pytest.raises(ValidationError):
+        UserProfile(hr_zones=bad).clean()
+
+
+def test_hr_zones_wrong_shape_fails_clean():
+    with pytest.raises(ValidationError):
+        UserProfile(hr_zones=[{"zone": "Z1", "low": 0}]).clean()
