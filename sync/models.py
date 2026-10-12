@@ -72,7 +72,8 @@ class Activity(models.Model):
     total_sets = models.IntegerField(null=True, blank=True)
     active_sets = models.IntegerField(null=True, blank=True)
     total_reps = models.IntegerField(null=True, blank=True)
-    # per-exercise detail would need a separate model linked to Activity
+    # [{"name": "Romanian Deadlift", "reps": 8, "weight_kg": 60.0}, ...] — active sets in order
+    exercise_sets = models.JSONField(null=True, blank=True)
 
     # environment & health
     elevation_gain_m = models.FloatField(null=True, blank=True)

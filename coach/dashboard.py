@@ -53,12 +53,45 @@ def _weekly_load(today, weeks=8):
     return [{"week_start": k, "load": round(v)} for k, v in buckets.items()]
 
 
+def group_sets(sets):
+    """Consecutive sets of the same exercise -> one row: sets, reps per set, top weight."""
+    rows = []
+    for s in sets:
+        if rows and rows[-1]["name"] == s["name"]:
+            row = rows[-1]
+        else:
+            row = {"name": s["name"], "sets": 0, "reps": [], "weight_kg": None}
+            rows.append(row)
+        row["sets"] += 1
+        if s.get("reps") is not None:
+            row["reps"].append(s["reps"])
+        if s.get("weight_kg") is not None:
+            row["weight_kg"] = max(row["weight_kg"] or 0, s["weight_kg"])
+    return rows
+
+
 def _latest_activity():
     a = Activity.objects.exclude(start_time__isnull=True).order_by("-start_time").first()
     if not a:
         return None
     zones = [getattr(a, f"hr_zone_{z}_seconds") or 0 for z in ZONES]
+    strength = None
+    if "strength" in (a.activity_type or ""):
+        strength = {"total_sets": a.active_sets or a.total_sets, "total_reps": a.total_reps,
+                    "source": None, "exercises": []}
+        if a.exercise_sets:
+            strength["source"] = "garmin"
+            strength["exercises"] = group_sets(a.exercise_sets)
+        else:
+            plan = (PlannedSession.objects.filter(date=a.start_time.date(), activity_type__startswith="gym")
+                    .prefetch_related("exercises").first())
+            if plan:
+                strength["source"] = "planned"
+                strength["exercises"] = [
+                    {"name": x.name, "sets": x.sets, "reps": [x.reps] if x.reps else [], "weight_kg": x.weight_kg}
+                    for x in plan.exercises.all()]
     return {
+        "strength": strength,
         "date": a.start_time.date().isoformat(), "name": a.activity_name or a.activity_type,
         "type": a.activity_type,
         "minutes": round(a.duration_seconds / 60) if a.duration_seconds else None,

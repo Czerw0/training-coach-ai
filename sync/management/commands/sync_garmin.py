@@ -9,6 +9,25 @@ from sync.models import Activity, SleepRecord, HRVRecord, DailyStats
 
 load_dotenv()
 
+
+def parse_exercise_sets(payload):
+    """Garmin exerciseSets response -> active sets as {name, reps, weight_kg}.
+    Garmin reports weight in grams; names come as ROMANIAN_DEADLIFT."""
+    out = []
+    for s in (payload or {}).get("exerciseSets") or []:
+        if s.get("setType") != "ACTIVE":
+            continue
+        ex = (s.get("exercises") or [{}])[0]
+        raw = ex.get("name") or ex.get("category") or "Unknown exercise"
+        weight = s.get("weight")
+        out.append({
+            "name": raw.replace("_", " ").title(),
+            "reps": s.get("repetitionCount"),
+            "weight_kg": round(weight / 1000, 1) if weight else None,
+        })
+    return out
+
+
 class Command(BaseCommand):
     help = 'Sync Garmin data to database with sport-specific mapping'
 
@@ -123,6 +142,13 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(
                     f"  Could not fetch details for {garmin_id}: {e}"
                 ))
+
+            if 'strength' in activity_type:
+                try:
+                    defaults['exercise_sets'] = parse_exercise_sets(api.get_activity_exercise_sets(int(garmin_id)))
+                    time.sleep(2)
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f"  Could not fetch exercise sets for {garmin_id}: {e}"))
 
             obj, created = Activity.objects.update_or_create(
                 garmin_id=garmin_id,

@@ -263,6 +263,21 @@
     const stats = [['Time', a.minutes != null ? a.minutes + ' min' : null], ['Distance', a.km != null ? a.km + ' km' : null],
       ['Avg HR', a.avg_hr], ['Load', a.load], ['TSS', a.tss]].filter(x => x[1] != null);
     let zones = '';
+    if (a.strength) {
+      const st = a.strength;
+      const totals = [['Time', a.minutes != null ? a.minutes + ' min' : null], ['Sets', st.total_sets], ['Reps', st.total_reps], ['Load', a.load]]
+        .filter(x => x[1] != null);
+      const rows = st.exercises.map(x => {
+        const reps = x.reps.length ? (new Set(x.reps).size === 1 ? `${x.sets} × ${x.reps[0]}` : x.reps.join(' · ')) : `${x.sets} sets`;
+        return `<div><span>${e(x.name)}</span><span class="s">${reps}</span><span class="r">${x.weight_kg != null ? e(x.weight_kg) + ' kg' : ''}</span></div>`;
+      }).join('');
+      const note = st.source === 'planned' ? '<div class="meta">Garmin didn\'t record individual sets, so these are the exercises planned for that day.</div>'
+        : !st.exercises.length ? '<div class="meta">No exercise detail for this session.</div>' : '';
+      body.innerHTML = `<div class="sess-title"><span class="dot" style="--c:${typeColor(a.type)}"></span>${e(a.name)}</div>` +
+        `<div class="stat-row">${totals.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${e(v)}</div></div>`).join('')}</div>` +
+        (rows ? `<div class="section-title">${st.source === 'planned' ? 'Planned exercises' : 'Exercises'}</div><div class="ex">${rows}</div>` : '') + note;
+      return;
+    }
     if (a.zone_minutes) {
       const total = a.zone_minutes.reduce((x, y) => x + y, 0) || 1;
       const hz = d.hr_zones || [];
