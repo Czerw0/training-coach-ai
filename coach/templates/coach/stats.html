@@ -55,7 +55,7 @@
   function draw() {
     charts.forEach(c => c.destroy()); charts = [];
     if (!data) return;
-    const byType = data.by_type;
+    const byType = data.by_type_90d;
     if (byType.length) {
       charts.push(new Chart(document.getElementById('typeChart'), {
         type: 'doughnut',
