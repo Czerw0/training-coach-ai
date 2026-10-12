@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 import environ
-from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.core.mail import send_mail
 from coach.models import PlannedSession
@@ -32,7 +31,7 @@ class Command(BaseCommand):
         send_mail(
             "AI Coach — Weekly Schedule",
             body,
-            settings.DEFAULT_FROM_EMAIL,   # authenticated Gmail; Gmail rewrites any other From
+            "ai-coach.noreply@gmail.com",
             [EMAIL],
             fail_silently=False,
         )
