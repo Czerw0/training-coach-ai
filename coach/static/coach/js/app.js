@@ -78,6 +78,14 @@
     },
 
     label(t) { return (t || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); },
+
+    // canvas can't parse color-mix(); turn a #RRGGBB token into rgba()
+    alpha(hex, a) {
+      const h = (hex || '').replace('#', '');
+      if (h.length !== 6) return hex;
+      const n = parseInt(h, 16);
+      return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+    },
   };
 
   document.addEventListener('DOMContentLoaded', () => {

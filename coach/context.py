@@ -1,8 +1,9 @@
 import datetime
-from django.db.models import Sum, Q
+from django.db.models import Q
 from django.utils import timezone
 from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, UserProfile, FTPRecord, IndoorCyclingWorkout, Exercise
 from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, PlannedSession
+from coach.metrics import acwr
 from coach.training_skills import list_skills
 
 
@@ -115,16 +116,8 @@ def build_context():
         date__gte=today - datetime.timedelta(days=7)
     ).order_by('-date').values('date', 'recommendation', 'user_message'))
 
-    load_7 = Activity.objects.filter(
-        start_time__date__gte=today - datetime.timedelta(days=7)
-    ).aggregate(Sum('training_load'))['training_load__sum'] or 0
-
-    load_28 = Activity.objects.filter(
-        start_time__date__gte=today - datetime.timedelta(days=28)
-    ).aggregate(Sum('training_load'))['training_load__sum'] or 0
-
-    # ACWR = 7-day load / (28-day load / 4)
-    acute_chronic_ratio = round(load_7 / (load_28 / 4), 2) if load_28 else None
+    # ACWR = 7-day load / (28-day load / 4); shared with the dashboard
+    load_7, load_28, acute_chronic_ratio = acwr(today)
 
     activities_raw = list(Activity.objects.filter(
         start_time__date__gte=today - datetime.timedelta(days=14)

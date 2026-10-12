@@ -1,8 +1,10 @@
 from django.urls import path
-from . import views
+from . import dashboard, views
 
 urlpatterns = [
-    path('', views.chat_page, name='chat_page'),
+    path('', dashboard.today_page, name='today_page'),
+    path('today/data/', dashboard.today_data, name='today_data'),
+    path('coach/', views.chat_page, name='chat_page'),
     path('message/', views.chat_message, name='chat_message'),
     path('reset/', views.chat_reset, name='chat_reset'),
     path('calendar/', views.calendar_page, name='calendar_page'),

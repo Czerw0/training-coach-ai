@@ -1,0 +1,338 @@
+{% extends "coach/base.html" %}
+{% block title %}Today · Training Coach{% endblock %}
+{% block mobile_title %}Today{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  .today-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "ready" "session" "insights" "week" "hrv" "sleep" "load" "latest"; }
+  @media (min-width: 760px) {
+    .today-grid { grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-areas: "ready session" "insights insights" "week week" "hrv sleep" "load latest"; }
+  }
+  @media (min-width: 1240px) {
+    .today-grid { grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-areas: "ready session session" "week week insights" "hrv sleep insights" "load latest insights"; }
+  }
+  #c-ready { grid-area: ready; } #c-session { grid-area: session; } #c-insights { grid-area: insights; }
+  #c-week { grid-area: week; } #c-hrv { grid-area: hrv; } #c-sleep { grid-area: sleep; }
+  #c-load { grid-area: load; } #c-latest { grid-area: latest; }
+  #c-insights { align-self: start; }
+
+  /* readiness */
+  .ready-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .ring { width: 112px; height: 112px; flex-shrink: 0; }
+  .ring .track { stroke: var(--sunken); }
+  .ring .val { stroke: var(--accent); transition: stroke-dasharray .6s ease; }
+  .ring text { fill: var(--fg); font-family: var(--f-num); font-weight: 700; }
+  .ring .cap { fill: var(--muted); font-family: var(--f-ui); font-size: 9px; font-weight: 600; letter-spacing: .08em; }
+  .mini { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; flex: 1; min-width: 210px; }
+  .mini .v { font-size: 24px; }
+  .how { font-size: 12px; color: var(--muted); }
+  .how summary { cursor: pointer; font-weight: 600; }
+  .how p { margin-top: 6px; line-height: 1.5; }
+
+  /* session */
+  .sess { display: grid; gap: 10px; }
+  .sess + .sess { border-top: 1px solid var(--line); padding-top: 14px; }
+  .sess-title { display: flex; align-items: center; gap: 9px; font-family: var(--f-num); font-size: 22px; font-weight: 700; line-height: 1.15; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--accent)); flex-shrink: 0; }
+  .sess-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+  .card-lines { display: grid; gap: 6px; font-size: 14px; }
+  .card-lines div { display: grid; grid-template-columns: 96px 1fr; gap: 10px; }
+  .card-lines b { color: var(--muted); font-weight: 600; font-size: 12.5px; padding-top: 1px; }
+  .card-lines .plain { grid-template-columns: 1fr; }
+  @media (max-width: 420px) { .card-lines div { grid-template-columns: 1fr; gap: 0; } }
+  .ex { display: grid; }
+  .ex div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13.5px; align-items: baseline; }
+  .ex div:first-child { border-top: 0; }
+  .ex .s { font-family: var(--f-num); font-weight: 700; font-size: 15px; }
+  .ex .r { color: var(--muted); font-size: 12.5px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* week */
+  .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .day { border-radius: var(--r-sm); padding: 8px 4px; text-align: center; background: var(--sunken); display: grid; gap: 4px; justify-items: center; align-content: start; min-width: 0; min-height: 92px; }
+  .day .d { font-size: 10.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .day .n { font-family: var(--f-num); font-size: 18px; font-weight: 700; line-height: 1; }
+  .day.today { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-soft); }
+  .marks { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+  .mk { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .mk.plan { background: transparent; box-shadow: inset 0 0 0 1.6px var(--c); }
+  .day .t { font-size: 10.5px; color: var(--muted); line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+  @media (max-width: 560px) { .day .t { display: none; } .day { min-height: 0; } }
+  .week-legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .week-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  /* sleep */
+  .stages { display: flex; height: 12px; border-radius: 99px; overflow: hidden; gap: 2px; background: var(--sunken); }
+  .stages i { display: block; }
+  .legend-row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+  .legend-row span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: var(--c); vertical-align: middle; }
+
+  /* zones */
+  .zonebar { display: flex; height: 10px; border-radius: 99px; overflow: hidden; gap: 2px; background: var(--sunken); }
+  .zonebar i { display: block; }
+  .zone-l { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .zone-l span b { display: block; color: var(--fg); font-family: var(--f-num); font-size: 14px; }
+  .stat-row { display: flex; flex-wrap: wrap; gap: 14px 22px; }
+  .stat-row div .v { font-size: 22px; }
+
+  /* insights */
+  .insights { display: grid; gap: 12px; }
+  .insight { display: grid; grid-template-columns: 4px 1fr; gap: 12px; }
+  .insight::before { content: ""; border-radius: 2px; background: var(--c); }
+  .insight b { display: block; font-size: 14px; }
+  .insight p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .skeleton { color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-inner">
+  <div class="page-head">
+    <div>
+      <h1 id="today-title">Today</h1>
+      <div class="sub" id="today-sub">Loading your data…</div>
+    </div>
+    <a class="btn" href="/coach/">Ask the coach</a>
+  </div>
+
+  <div class="today-grid">
+    <section class="card" id="c-ready">
+      <div class="card-head"><h2>Readiness</h2><span id="ready-chip"></span></div>
+      <div class="ready-row">
+        <svg class="ring" viewBox="0 0 112 112" role="img" aria-labelledby="ring-label">
+          <title id="ring-label">Readiness score</title>
+          <circle class="track" cx="56" cy="56" r="46" fill="none" stroke-width="10"/>
+          <circle class="val" id="ring-val" cx="56" cy="56" r="46" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="0 289" transform="rotate(-90 56 56)"/>
+          <text id="ring-num" x="56" y="61" text-anchor="middle" font-size="32">–</text>
+          <text class="cap" x="56" y="78" text-anchor="middle">OF 100</text>
+        </svg>
+        <div class="mini">
+          <div><div class="k">HRV</div><div class="v" id="m-hrv">–</div><span id="m-hrv-chip"></span></div>
+          <div><div class="k">Sleep</div><div class="v" id="m-sleep">–</div><span id="m-sleep-chip"></span></div>
+          <div><div class="k">Load ratio</div><div class="v" id="m-acwr">–</div><span id="m-acwr-chip"></span></div>
+        </div>
+      </div>
+      <details class="how">
+        <summary>How is this calculated?</summary>
+        <p>HRV against your own 28-day baseline (40%), last night's sleep score (35%) and the balance of your 7-day load against your 28-day average (25%). Missing inputs are left out and the rest re-weighted. It's a guide, not a diagnosis.</p>
+      </details>
+    </section>
+
+    <section class="card" id="c-session">
+      <div class="card-head"><h2 id="session-head">Today's session</h2><a class="sub" href="/calendar/">Calendar →</a></div>
+      <div id="session-body"><div class="skeleton">Loading…</div></div>
+    </section>
+
+    <section class="card" id="c-insights">
+      <div class="card-head"><h2>Insights</h2><span class="sub">from your data</span></div>
+      <div class="insights" id="insights"></div>
+    </section>
+
+    <section class="card" id="c-week">
+      <div class="card-head"><h2>This week</h2><span class="sub" id="week-sub"></span></div>
+      <div class="week" id="week"></div>
+      <div class="week-legend"><span><i class="mk" style="--c:var(--muted)"></i>Done</span><span><i class="mk plan" style="--c:var(--muted)"></i>Planned</span></div>
+    </section>
+
+    <section class="card" id="c-hrv">
+      <div class="card-head"><h2>HRV</h2><span class="sub" id="hrv-sub">last 7 days</span></div>
+      <div class="big" id="hrv-big">–</div>
+      <div class="chart-box sm"><canvas id="hrvChart" aria-label="HRV over the last 7 days"></canvas></div>
+    </section>
+
+    <section class="card" id="c-sleep">
+      <div class="card-head"><h2>Sleep</h2><span class="sub" id="sleep-sub"></span></div>
+      <div id="sleep-body"><div class="skeleton">Loading…</div></div>
+    </section>
+
+    <section class="card" id="c-load">
+      <div class="card-head"><h2>Training load</h2><span class="sub">weekly, last 8 weeks</span></div>
+      <div class="stat-row">
+        <div><div class="k">7 days</div><div class="v" id="l-acute">–</div></div>
+        <div><div class="k">28 days</div><div class="v" id="l-chronic">–</div></div>
+        <div><div class="k">Ratio</div><div class="v" id="l-ratio">–</div></div>
+      </div>
+      <div class="chart-box sm"><canvas id="loadChart" aria-label="Weekly training load"></canvas></div>
+    </section>
+
+    <section class="card" id="c-latest">
+      <div class="card-head"><h2>Latest activity</h2><span class="sub" id="latest-sub"></span></div>
+      <div id="latest-body"><div class="skeleton">Loading…</div></div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const e = TC.escapeHtml;
+  const TYPE_COLORS = [['cycl', '#2D6CDF'], ['bik', '#2D6CDF'], ['strength', '#7A5CCC'], ['gym', '#7A5CCC'], ['weight', '#7A5CCC'],
+    ['skat', '#1D9E75'], ['tennis', '#BA7517'], ['ski', '#378ADD'], ['run', '#E24B4A'], ['plyo', '#D85A30'], ['swim', '#15A0A6'], ['mountaineering', '#645F43']];
+  const typeColor = t => (TYPE_COLORS.find(([k]) => (t || '').toLowerCase().includes(k)) || [null, '#8FA0B6'])[1];
+  const chip = (text, level) => `<span class="chip ${level}">${e(text)}</span>`;
+  const fmtDate = iso => new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const hm = h => h == null ? '–' : `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+  let data = null, charts = [];
+
+  function renderReadiness(d) {
+    const r = d.readiness;
+    document.getElementById('ring-num').textContent = r.score ?? '–';
+    document.getElementById('ring-val').setAttribute('stroke-dasharray', `${(r.score || 0) / 100 * 289} 289`);
+    document.getElementById('ring-val').style.stroke = r.level === 'muted' ? TC.css('--muted') : `var(--${r.level === 'good' ? 'accent' : r.level})`;
+    document.getElementById('ready-chip').innerHTML = chip(r.label, r.level);
+
+    const h = d.hrv;
+    document.getElementById('m-hrv').innerHTML = h.today != null ? `${h.today} <small>ms</small>` : '–';
+    if (h.today != null && h.baseline_mean) {
+      const lo = h.baseline_mean - (h.baseline_sd || 0), hi = h.baseline_mean + (h.baseline_sd || 0);
+      document.getElementById('m-hrv-chip').innerHTML = h.today < lo ? chip('Below normal', 'warn') : h.today > hi ? chip('Above normal', 'good') : chip('Normal', 'good');
+    }
+    const s = d.sleep;
+    document.getElementById('m-sleep').textContent = s && s.score != null ? s.score : '–';
+    if (s && s.score != null) document.getElementById('m-sleep-chip').innerHTML = s.score >= 75 ? chip('Good', 'good') : s.score >= 60 ? chip('Fair', 'warn') : chip('Poor', 'bad');
+    const l = d.load;
+    document.getElementById('m-acwr').textContent = l.ratio ?? '–';
+    const band = { optimal: ['Optimal', 'good'], low: ['Room to build', 'acc'], high: ['High risk', 'bad'], unknown: ['No data', 'muted'] }[l.band];
+    document.getElementById('m-acwr-chip').innerHTML = chip(...band);
+  }
+
+  function cardLines(text) {
+    return '<div class="card-lines">' + text.split('\n').filter(x => x.trim()).map(line => {
+      const m = line.match(/^\s*([A-Z][A-Za-z \-/]{1,18}):\s*(.+)$/);
+      return m ? `<div><b>${e(m[1])}</b><span>${e(m[2])}</span></div>` : `<div class="plain"><span>${e(line)}</span></div>`;
+    }).join('') + '</div>';
+  }
+
+  function sessionBlock(s) {
+    const meta = [s.duration_minutes ? chip(`${s.duration_minutes} min`, 'muted') : '', s.intensity ? chip(s.intensity, 'acc') : '',
+      chip(s.created_by === 'human' ? 'Planned by you' : 'Planned by coach', 'muted'), s.completed ? chip('Done', 'good') : ''].join('');
+    const ex = s.exercises.length ? '<div class="ex">' + s.exercises.map(x =>
+      `<div><span>${e(x.name)}</span><span class="s">${x.sets ?? '–'} × ${x.reps ?? '–'}</span><span class="r">${x.weight_kg != null ? e(x.weight_kg) + ' kg' : ''}${x.notes ? ' · ' + e(x.notes) : ''}</span></div>`).join('') + '</div>' : '';
+    return `<div class="sess"><div class="sess-title"><span class="dot" style="--c:${typeColor(s.activity_type)}"></span>${e(s.title)}</div>` +
+      `<div class="sess-meta">${meta}</div>${s.description ? cardLines(s.description) : ''}${ex}</div>`;
+  }
+
+  function renderSession(d) {
+    const body = document.getElementById('session-body');
+    if (d.today_sessions.length) {
+      body.innerHTML = d.today_sessions.map(sessionBlock).join('') +
+        '<div class="actions"><a class="btn ghost" href="/calendar/">Edit in calendar</a><a class="btn ghost" href="/coach/">Talk it through</a></div>';
+      return;
+    }
+    document.getElementById('session-head').textContent = 'Rest day';
+    body.innerHTML = '<p class="meta">Nothing planned for today. Every empty day is a rest day.</p>' +
+      (d.next_session ? `<div class="section-title" style="margin-top:10px">Next up · ${fmtDate(d.next_session.date)}</div>${sessionBlock(d.next_session)}` : '') +
+      '<div class="actions"><a class="btn" href="/coach/">Plan with the coach</a></div>';
+  }
+
+  function renderWeek(d) {
+    const planned = d.week.reduce((n, x) => n + x.planned.length, 0);
+    const done = d.week.reduce((n, x) => n + x.done.length, 0);
+    document.getElementById('week-sub').textContent = `${done} done · ${planned} planned`;
+    document.getElementById('week').innerHTML = d.week.map(x => {
+      const marks = x.done.map(t => `<i class="mk" style="--c:${typeColor(t)}" title="${e(TC.label(t))}"></i>`).join('') +
+        x.planned.map(p => `<i class="mk plan" style="--c:${typeColor(p.type)}" title="${e(p.title)}"></i>`).join('');
+      const label = x.planned[0] ? x.planned[0].title : x.done[0] ? TC.label(x.done[0]) : '';
+      return `<div class="day${x.is_today ? ' today' : ''}"><span class="d">${x.weekday}</span><span class="n">${x.day}</span>` +
+        `<span class="marks">${marks}</span><span class="t">${e(label)}</span></div>`;
+    }).join('');
+  }
+
+  function renderSleep(d) {
+    const s = d.sleep, body = document.getElementById('sleep-body');
+    if (!s) { body.innerHTML = '<div class="empty">No sleep data yet.</div>'; return; }
+    document.getElementById('sleep-sub').textContent = fmtDate(s.date);
+    const st = [['Deep', s.deep, 'var(--accent)'], ['REM', s.rem, '#7A5CCC'], ['Light', s.light, 'var(--z1)'], ['Awake', s.awake, 'var(--warn)']].filter(x => x[1]);
+    // Garmin sometimes reports only some stages — keep the bar proportional to total sleep
+    const rest = (s.hours || 0) - st.reduce((n, x) => n + x[1], 0);
+    if (st.length && rest > 0.1) st.push(['Other', rest, 'var(--chart-muted)']);
+    body.innerHTML = `<div class="big">${hm(s.hours)} <small>h${s.score != null ? ' · score ' + s.score : ''}</small></div>` +
+      (st.length ? `<div class="stages">${st.map(x => `<i style="flex:${x[1]};background:${x[2]}"></i>`).join('')}</div>` +
+        `<div class="legend-row">${st.map(x => `<span style="--c:${x[2]}">${x[0]} ${hm(x[1])}</span>`).join('')}</div>` : '') +
+      (s.body_battery_change != null ? `<div class="meta">Body Battery +${s.body_battery_change} overnight</div>` : '');
+  }
+
+  function renderLatest(d) {
+    const a = d.latest_activity, body = document.getElementById('latest-body');
+    if (!a) { body.innerHTML = '<div class="empty">No activities synced yet.</div>'; return; }
+    document.getElementById('latest-sub').textContent = fmtDate(a.date);
+    const stats = [['Time', a.minutes != null ? a.minutes + ' min' : null], ['Distance', a.km != null ? a.km + ' km' : null],
+      ['Avg HR', a.avg_hr], ['Load', a.load], ['TSS', a.tss]].filter(x => x[1] != null);
+    let zones = '';
+    if (a.zone_minutes) {
+      const total = a.zone_minutes.reduce((x, y) => x + y, 0) || 1;
+      const hz = d.hr_zones || [];
+      zones = `<div class="section-title">Time in heart-rate zones</div><div class="zonebar">${a.zone_minutes.map((m, i) =>
+        m ? `<i style="flex:${m};background:var(--z${i + 1})" title="Z${i + 1}: ${m} min"></i>` : '').join('')}</div>` +
+        `<div class="zone-l">${a.zone_minutes.map((m, i) => {
+          const z = hz[i]; const range = z ? (z.max_bpm == null ? `${z.min_bpm}+` : `${z.min_bpm}–${z.max_bpm}`) : '';
+          return `<span><b>${m}′</b>Z${i + 1}${range ? ' · ' + range : ''}</span>`;
+        }).join('')}</div>`;
+    }
+    body.innerHTML = `<div class="sess-title"><span class="dot" style="--c:${typeColor(a.type)}"></span>${e(a.name)}</div>` +
+      `<div class="stat-row">${stats.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${e(v)}</div></div>`).join('')}</div>${zones}`;
+  }
+
+  function renderInsights(d) {
+    const colors = { bad: 'var(--bad)', warn: 'var(--warn)', info: 'var(--accent)', good: 'var(--good)' };
+    document.getElementById('insights').innerHTML = d.insights.length ? d.insights.map(i =>
+      `<div class="insight" style="--c:${colors[i.level]}"><div><b>${e(i.title)}</b><p>${e(i.text)}</p></div></div>`).join('')
+      : '<div class="empty">Nothing stands out today.</div>';
+  }
+
+  function drawCharts() {
+    charts.forEach(c => c.destroy()); charts = [];
+    if (!data) return;
+    const h = data.hrv;
+    document.getElementById('hrv-big').innerHTML = h.today != null ? `${h.today} <small>ms${h.resting_hr ? ' · RHR ' + h.resting_hr : ''}</small>` : '–';
+    if (h.baseline_mean) document.getElementById('hrv-sub').textContent = `normal ${Math.round(h.baseline_mean - h.baseline_sd)}–${Math.round(h.baseline_mean + h.baseline_sd)} ms`;
+    if (h.last_7.length) {
+      const labels = h.last_7.map(x => fmtDate(x.date).split(' ').slice(0, 2).join(' '));
+      const ds = [];
+      if (h.baseline_mean) {
+        const lo = h.baseline_mean - h.baseline_sd, hi = h.baseline_mean + h.baseline_sd;
+        ds.push({ data: labels.map(() => lo), borderWidth: 0, pointRadius: 0, fill: false });
+        ds.push({ data: labels.map(() => hi), borderWidth: 0, pointRadius: 0, fill: '-1',
+          backgroundColor: TC.alpha(TC.css('--good'), .14) });
+      }
+      ds.push({ label: 'HRV', data: h.last_7.map(x => x.hrv), borderColor: TC.css('--accent'), backgroundColor: TC.css('--accent'),
+        borderWidth: 2.5, tension: .35, pointRadius: h.last_7.map((_, i) => i === h.last_7.length - 1 ? 5 : 2.5), spanGaps: true });
+      charts.push(new Chart(document.getElementById('hrvChart'), {
+        type: 'line', data: { labels, datasets: ds },
+        options: { plugins: { legend: { display: false }, tooltip: { filter: i => i.dataset.label === 'HRV', callbacks: { label: c => `${Math.round(c.parsed.y)} ms` } } },
+          scales: { x: { grid: { display: false } }, y: { grid: { color: TC.css('--line') }, ticks: { maxTicksLimit: 4 } } } },
+      }));
+    }
+    const w = data.load.weekly;
+    charts.push(new Chart(document.getElementById('loadChart'), {
+      type: 'bar',
+      data: { labels: w.map(x => x.week_start.slice(5).replace('-', '/')),
+        datasets: [{ data: w.map(x => x.load), borderRadius: 5, maxBarThickness: 34,
+          backgroundColor: w.map((_, i) => i === w.length - 1 ? TC.css('--accent') : TC.css('--chart-muted')) }] },
+      options: { plugins: { legend: { display: false }, tooltip: { callbacks: { title: c => 'Week of ' + c[0].label, label: c => `Load ${c.parsed.y}` } } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { maxTicksLimit: 4 } } } },
+    }));
+  }
+
+  async function load() {
+    try { data = await fetch('/today/data/').then(r => r.json()); }
+    catch (err) { document.getElementById('today-sub').textContent = 'Could not load your data. Refresh to try again.'; return; }
+    const t = new Date(data.today + 'T12:00:00');
+    document.getElementById('today-title').textContent = t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    document.getElementById('today-sub').textContent = data.last_sync ? `Garmin data up to ${fmtDate(data.last_sync)}` : 'No Garmin data yet';
+    renderReadiness(data); renderSession(data); renderWeek(data); renderSleep(data); renderLatest(data); renderInsights(data);
+    const l = data.load;
+    document.getElementById('l-acute').textContent = l.acute_7d;
+    document.getElementById('l-chronic').textContent = l.chronic_28d;
+    document.getElementById('l-ratio').textContent = l.ratio ?? '–';
+    drawCharts();
+  }
+
+  TC.onTheme(drawCharts);
+  document.addEventListener('DOMContentLoaded', load);
+</script>
+{% endblock %}
