@@ -1,6 +1,7 @@
 """Pydantic schemas for LLM tool inputs that write to the DB — model output
 is a claim, not a fact, until it passes one of these. Validation errors come
 back as a plain string (never raised), same convention as validate_session_date."""
+from datetime import date
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, ValidationError
@@ -29,6 +30,22 @@ class PlannedSessionIn(BaseModel):
     duration_minutes: Optional[int] = Field(default=None, ge=0, le=600)
     intensity: INTENSITIES = ""
     exercises: list[PlannedExerciseIn] = Field(default_factory=list)
+
+
+GOAL_TYPES = Literal[
+    "weight_loss", "muscle_gain", "endurance", "strength",
+    "flexibility", "general_health",
+]
+
+
+class AdjustGoalIn(BaseModel):
+    """None = "not mentioned this turn" — adjust_goal leaves those fields
+    untouched on an existing goal. Lengths mirror the Goal model columns."""
+    title: str = Field(min_length=1, max_length=50)
+    goal_type: Optional[GOAL_TYPES] = None
+    target_date: Optional[date] = None      # ISO string from the model -> date
+    description: Optional[str] = Field(default=None, max_length=300)
+    is_active: Optional[bool] = None
 
 
 class ClearPlannedSessionsIn(BaseModel):

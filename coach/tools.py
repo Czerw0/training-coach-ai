@@ -2,7 +2,9 @@ import datetime as dt
 import json
 from pydantic import ValidationError
 from coach.models import DailyFeeling, Goal, Injury, PlannedExercise, PlannedSession
-from coach.schemas import ClearPlannedSessionsIn, PlannedSessionIn, format_validation_error
+from coach.schemas import (
+    AdjustGoalIn, ClearPlannedSessionsIn, PlannedSessionIn, format_validation_error,
+)
 from coach.training_skills import check_week, load_principles, load_skill
 from sync.models import DailyStats, Exercise, IndoorCyclingWorkout, UserProfile
 
@@ -120,18 +122,31 @@ def resolve_injury(body_part):
 
 
 def adjust_goal(title, goal_type=None, target_date=None,
-                description=None, is_active=True):
-    obj, created = Goal.objects.update_or_create(
-        title=title,
-        defaults={
-            'goal_type': goal_type,
-            'target_date': target_date,
-            'description': description,
-            'is_active': is_active,
-        }
-    )
-    action = "Created" if created else "Updated"
-    return f"{action} goal: {title}."
+                description=None, is_active=None):
+    """Create a goal, or update only the fields provided on an existing one.
+
+    Same merge rule as log_injury: "push my race back two weeks" sends just
+    target_date, and must not wipe the goal's type and description.
+    """
+    try:
+        payload = AdjustGoalIn(
+            title=title, goal_type=goal_type, target_date=target_date,
+            description=description, is_active=is_active,
+        )
+    except ValidationError as exc:
+        return format_validation_error(exc)   # goes back to the model, nothing written
+
+    provided = payload.model_dump(exclude={"title"}, exclude_none=True)
+    goal = Goal.objects.filter(title=payload.title).first()
+    if goal:
+        for field, value in provided.items():
+            setattr(goal, field, value)
+        goal.save()
+        return f"Updated goal: {payload.title}."
+
+    provided.setdefault("is_active", True)
+    Goal.objects.create(title=payload.title, **provided)
+    return f"Created goal: {payload.title}."
 
 
 def append_athlete_note(note):
@@ -377,7 +392,8 @@ TOOL_DEFINITIONS = [
             "Create a new training goal or update an existing one (matched by "
             "title). Use this when the athlete states a goal, changes one, or sets "
             "a target date — e.g. 'I want to hit 60 VO2max by September' or 'push "
-            "my race back two weeks'."
+            "my race back two weeks'. When updating, pass only the fields that "
+            "change — omitted fields keep their current values."
         ),
         "input_schema": {
             "type": "object",

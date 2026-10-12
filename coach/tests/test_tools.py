@@ -2,12 +2,14 @@ import datetime
 
 import pytest
 
-from coach.models import Injury, PlannedExercise, PlannedSession
+from coach.models import Goal, Injury, PlannedExercise, PlannedSession
 from coach.tools import (
+    adjust_goal,
     create_planned_session,
     get_exercise_detail,
     get_fitness_trend,
     get_resolved_injury_history,
+    log_injury,
 )
 from sync.models import DailyStats, Exercise
 
@@ -141,3 +143,50 @@ def test_get_resolved_injury_history_excludes_still_active_injury():
     result = get_resolved_injury_history()
     assert "right knee" not in result
     assert "No resolved injuries" in result
+
+
+# --- log_injury: severity is optional in the schema, so must be in the model ---
+
+@pytest.mark.django_db
+def test_log_injury_without_severity_creates_row():
+    result = log_injury(body_part="left knee")
+    assert result == "Logged new injury: left knee."
+    injury = Injury.objects.get(body_part="left knee")
+    assert injury.severity is None
+
+
+# --- adjust_goal: partial update must not wipe fields it wasn't given ---
+
+@pytest.mark.django_db
+def test_adjust_goal_partial_update_keeps_other_fields():
+    adjust_goal(title="Gran Fondo", goal_type="endurance",
+                target_date="2027-05-01", description="160 km, sub 6h")
+    result = adjust_goal(title="Gran Fondo", target_date="2027-05-15")
+
+    assert result == "Updated goal: Gran Fondo."
+    goal = Goal.objects.get(title="Gran Fondo")
+    assert goal.target_date == datetime.date(2027, 5, 15)
+    assert goal.goal_type == "endurance"
+    assert goal.description == "160 km, sub 6h"
+    assert goal.is_active is True
+
+
+@pytest.mark.django_db
+def test_adjust_goal_can_deactivate():
+    adjust_goal(title="60 VO2max", goal_type="endurance")
+    adjust_goal(title="60 VO2max", is_active=False)
+    assert Goal.objects.get(title="60 VO2max").is_active is False
+
+
+@pytest.mark.django_db
+def test_adjust_goal_rejects_bad_date_and_writes_nothing():
+    result = adjust_goal(title="Race", target_date="next spring")
+    assert "Invalid input" in result
+    assert Goal.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_adjust_goal_rejects_unknown_goal_type():
+    result = adjust_goal(title="Race", goal_type="speed")
+    assert "Invalid input" in result
+    assert Goal.objects.count() == 0

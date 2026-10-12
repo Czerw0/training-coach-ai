@@ -26,17 +26,21 @@ MAX_TOOL_ROUNDS = 8
 #     chosen deliberately for the chat trace panel after seeing the cost estimate.
 #     sonnet 5 has no budget_tokens (400s) — adaptive thinking + output_config.effort
 #     is the only knob; "low" is the closest match to the originally-approved small budget
-CONFIG_VERSION = "v3-thinking-low"
+# v4  pricing constants moved to sonnet 5 standard rates (intro pricing ended
+#     aug 31 2026). behaviour identical to v3 — the bump only marks where
+#     cost_usd switches basis. rows logged sept 1 .. oct 12 under v3 were
+#     costed at intro rates, i.e. under-reported ~1.5x
+CONFIG_VERSION = "v4-thinking-low"
 THINKING_EFFORT = "low"
 
 
-# pricing — must match MODEL. sonnet 5 intro pricing, until aug 31 2026:
-#   input $2 | cache write $2.50 | cache read $0.20 | output $10, per mtok
-# rises to 3 / 3.75 / 0.30 / 15 from sept 1 2026 — update then
-PRICE_INPUT       = 2.00 / 1_000_000
-PRICE_CACHE_WRITE = 2.50 / 1_000_000
-PRICE_CACHE_READ  = 0.20 / 1_000_000
-PRICE_OUTPUT      = 10.00 / 1_000_000
+# pricing — must match MODEL. sonnet 5 standard pricing, from sept 1 2026:
+#   input $3 | cache write $3.75 | cache read $0.30 | output $15, per mtok
+# (intro pricing until aug 31 2026 was 2 / 2.50 / 0.20 / 10)
+PRICE_INPUT       = 3.00 / 1_000_000
+PRICE_CACHE_WRITE = 3.75 / 1_000_000
+PRICE_CACHE_READ  = 0.30 / 1_000_000
+PRICE_OUTPUT      = 15.00 / 1_000_000
 
 
 def compute_cost(inp, cache_write, cache_read, out):
