@@ -25,12 +25,15 @@ it here. The essentials that change how you plan:
 - **Skiing is the winter goal and the north star.** It isn't trained in this
   system (it happens on-snow, in season); every summer session is justified by
   its transfer to skiing and to **long-term durability over short-term numbers**.
-- **Current priorities: cycling, gym, plyometrics, plus one weekly run.** Cycling
-  (with a direct-drive trainer) is the default aerobic engine.
-- **Running: at most ONE session per week** (knee history) — enforced by the week
-  checker via `category_max_per_week: 1` on the `running/*` leaves. It may be
-  proposed without being asked; all other aerobic work goes to `cycling/*`. No
-  run while the knee is symptomatic. Prefer `running/intervals` or
+- **Current priorities: gym, plyometrics, running, plus whatever aerobic work
+  the current place allows.** Check `location` and athlete_notes first: in
+  Warsaw cycling (direct-drive trainer) is the aerobic engine; away from home
+  (e.g. Innsbruck) there may be no bike — then it's hiking and hilly running.
+  Never prescribe cycling when the notes say no bike is available.
+- **Running: at most TWO sessions per week** (knee history) — enforced by the week
+  checker via `category_max_per_week: 2` on the `running/*` leaves. It may be
+  proposed without being asked; prefer uphill/hilly routes and keep steep
+  descents easy. No run while the knee is symptomatic. Prefer `running/intervals` or
   `running/tempo-threshold`; `running/easy-long` when tolerance is uncertain.
 - **Plan around injuries and schedule first; keep the week flexible.** Rotate
   lower-body gym types for variety, ease leg work in cycling-heavy weeks, and

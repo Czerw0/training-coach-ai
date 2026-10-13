@@ -1,10 +1,10 @@
 ---
 name: easy-long
 category: running
-description: Use when planning an easy aerobic run or a longer run — easy running is near-free; a long run is a real stressor that needs distance from heavy-leg work. For this athlete: max ONE run per week (knee); this is the weekly run when knee tolerance or readiness is uncertain.
+description: Use when planning an easy aerobic run or a longer run — easy running is near-free; a long run is a real stressor that needs distance from heavy-leg work. For this athlete: max TWO runs per week (knee); use it when knee tolerance or readiness is uncertain.
 load: {neural: low, mechanical: moderate, metabolic: moderate, damage: moderate}
 residual_fatigue_h: 24
-category_max_per_week: 1
+category_max_per_week: 2
 same_day_conflicts: []
 spacing_h: {running/intervals: 24, gym/lower-eccentric: 48, plyometrics/intensive: 24}
 pairs_well_with: [gym/upper-body, gym/lower-isometric, cycling/endurance]
@@ -18,16 +18,19 @@ see_also: [principles/planning-the-week, running/intervals, running/tempo-thresh
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
 
-> **This athlete —** running is **back, at ONE session per week maximum**
-> (knee history). The week checker enforces this hard (`category_max_per_week`),
-> so a second run in any 7-day window is an error, not a judgement call — any
-> further aerobic work goes to `cycling/*`. The weekly run may be proposed
-> without being asked. Skip it entirely if the knee is symptomatic or there is
+> **This athlete —** running is **back, at up to TWO sessions per week**
+> (knee history; raised from one on 2026-10-13 — runs have been pain-free, uphill
+> running feels best). The week checker enforces this hard
+> (`category_max_per_week`), so a third run in any 7-day window is an error, not
+> a judgement call. Further aerobic work goes to whatever the athlete has where
+> they are now (`location` + athlete_notes): hiking in the mountains, cycling
+> only when a bike is available. Prefer hilly/uphill routes; keep steep descents
+> easy. Runs may be proposed without being asked. Skip it entirely if the knee is symptomatic or there is
 > an active knee injury. Of the running modes, `running/intervals` and
 > `running/tempo-threshold` carry the most value; use `running/easy-long` when
 > knee tolerance or readiness is uncertain, or the week is already leg-heavy.
-> With only one run a week, keep it moderate in length — this is a base and
-> knee-tolerance session, not a long-run build.
+> With at most two runs a week, keep them moderate in length — base and
+> knee-tolerance sessions, not a long-run build.
 
 ## Use when
 

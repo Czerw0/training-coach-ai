@@ -105,13 +105,15 @@ def stricter_spacing_wins_on_disagreement():
 
 @case
 def weekly_category_cap_is_an_error():
+    # running cap is 2 per rolling 7 days (raised from 1 on 2026-10-13)
+    three = _week(("running/tempo-threshold", "2026-08-10T18:00"),
+                  ("running/easy-long", "2026-08-13T09:00"),
+                  ("running/easy-long", "2026-08-15T09:00"))
+    v = check_week.check(three)
+    assert "weekly-cap" in _kinds(v, "error"), v
     two = _week(("running/tempo-threshold", "2026-08-10T18:00"),
                 ("running/easy-long", "2026-08-15T09:00"))
-    v = check_week.check(two)
-    assert "weekly-cap" in _kinds(v, "error"), v
-    one_per_week = _week(("running/tempo-threshold", "2026-08-10T18:00"),
-                         ("running/easy-long", "2026-08-17T18:00"))
-    v2 = check_week.check(one_per_week)
+    v2 = check_week.check(two)
     assert "weekly-cap" not in _kinds(v2), v2
 
 
