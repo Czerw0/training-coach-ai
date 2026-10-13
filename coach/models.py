@@ -189,6 +189,9 @@ class CoachPrompt(models.Model):
     version = models.PositiveIntegerField()
     text = models.TextField(blank=True, default="")
     note = models.CharField(max_length=200, blank=True, default="")
+    # default PROMPT_VERSION when this version was saved — Settings flags a
+    # custom prompt whose default has moved on since
+    based_on = models.CharField(max_length=40, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -197,3 +200,20 @@ class CoachPrompt(models.Model):
 
     def __str__(self):
         return f"{self.user} v{self.version}{'' if self.text else ' (default)'}"
+
+
+class ProfileChange(models.Model):
+    """What the athlete changed by hand (Settings: profile fields, coach
+    instructions) — shown to the coach as `recent_profile_changes`, so "re-plan
+    with what I changed" works. Notes the coach appends itself are not logged here."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    field = models.CharField(max_length=40)
+    added = models.TextField(blank=True, default="")
+    removed = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.created_at:%Y-%m-%d %H:%M} {self.field}"

@@ -4,6 +4,7 @@ from django.utils import timezone
 from zoneinfo import ZoneInfo
 
 from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, WeatherLocation, UserProfile, FTPRecord, IndoorCyclingWorkout, Exercise
+from coach import profile_changes
 from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, PlannedSession
 from coach.metrics import acwr
 from coach.training_skills import list_skills
@@ -230,6 +231,8 @@ def build_context():
         'active_injuries': active_injuries,
         'active_goals': active_goals,
         'location': location.name if location else None,
+        # hand edits in Settings (profile fields, coach instructions), newest first
+        'recent_profile_changes': profile_changes.recent(),
         'weather_next_48h': weather_summary,
         'indoor_cycling_workouts': indoor_cyc_workouts,
         'exercise_library': exercise_library,

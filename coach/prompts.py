@@ -13,6 +13,7 @@ import hashlib
 from django.db import IntegrityError, transaction
 
 from coach.agent import INSTRUCTIONS, PROMPT_TAG, PROMPT_VERSION
+from coach import profile_changes
 from coach.models import CoachPrompt
 
 MAX_CHARS = 60_000
@@ -64,7 +65,11 @@ def save_version(user, text, note=""):
         try:
             with transaction.atomic():
                 version = (current.version if current else 0) + 1
-                return CoachPrompt.objects.create(user=user, version=version, text=text, note=note[:200]), True
+                row = CoachPrompt.objects.create(user=user, version=version, text=text, note=note[:200],
+                                                 based_on=PROMPT_VERSION)
+                profile_changes.record_text(user, "coach_instructions",
+                                            (current.text if current else "") or INSTRUCTIONS, text or INSTRUCTIONS)
+                return row, True
         except IntegrityError:
             current = latest(user)
     raise IntegrityError("Could not save a new prompt version, try again.")
@@ -80,6 +85,11 @@ def summary(user):
         "version": active.version if active else 0,
         "default_text": INSTRUCTIONS, "default_version": PROMPT_VERSION, "default_tag": PROMPT_TAG,
         "max_chars": MAX_CHARS, "warnings": warnings_for(active.text if active else ""),
+        # the default moved on since this custom version was saved
+        "default_updated": bool(active and active.text and active.based_on and active.based_on != PROMPT_VERSION),
+        "based_on": active.based_on if active else "",
+        # lines of the current default your version doesn't have (new rules, or ones you removed)
+        "missing_default_lines": profile_changes.text_diff(active.text, INSTRUCTIONS)[0] if active and active.text else [],
         "versions": [{"version": r.version, "created_at": r.created_at.isoformat(), "is_default": not r.text,
                       "chars": len(r.text) if r.text else len(INSTRUCTIONS), "note": r.note,
                       "active": r is active} for r in rows],

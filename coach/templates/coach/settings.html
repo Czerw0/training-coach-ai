@@ -69,6 +69,8 @@
   .ver b { font-family: var(--f-num); font-size: 15px; }
   .ver .meta { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   details summary { cursor: pointer; font-weight: 700; font-size: 13.5px; }
+  .pr-update { display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--accent-soft); font-size: 13.5px; }
+  .pr-update pre { margin: 0; max-height: 260px; overflow: auto; white-space: pre-wrap; font-size: 12px; background: var(--surface); border-radius: 8px; padding: 10px; }
 </style>
 {% endblock %}
 
@@ -125,6 +127,7 @@
     <section class="card" aria-labelledby="h-prompt">
       <div class="pr-head"><h2 id="h-prompt">Coach instructions</h2><span class="badge" id="pr-badge"></span></div>
       <p class="lede">The system prompt Apex follows in your chats. Edit it freely: every save is a new version, every message logs which version answered, and you can go back to the default at any time.</p>
+      <div class="pr-update" id="pr-update" hidden></div>
       <textarea class="input pr-text" id="pr-text" spellcheck="false" aria-label="Coach instructions"></textarea>
       <div class="pr-count" id="pr-count"></div>
       <div class="pr-warn" id="pr-warn"></div>
@@ -245,6 +248,10 @@
     $('pr-badge').className = 'badge' + (pr.is_default ? '' : ' custom');
     $('pr-reset').hidden = pr.is_default;
     if ($('coach-prompt')) $('coach-prompt').textContent = pr.tag;
+    $('pr-update').hidden = !pr.default_updated;
+    $('pr-update').innerHTML = pr.default_updated ? `<div><b>The default was updated to ${e(pr.default_version)}</b> after you saved your version (made on ${e(pr.based_on)}). ` +
+      `Your version keeps working, but doesn't get the new rules. Lines in the default that yours doesn't have — copy what you want:</div>` +
+      `<pre>${e(pr.missing_default_lines.join('\n'))}</pre>` : '';
     $('pr-versions').innerHTML = pr.versions.map(v => `
       <div class="ver${v.active ? ' active' : ''}"><b>v${v.version}</b>
         <div class="meta">${new Date(v.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${v.is_default ? 'default' : v.chars.toLocaleString() + ' chars'}${v.note ? ' · ' + e(v.note) : ''}</div>

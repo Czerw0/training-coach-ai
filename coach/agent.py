@@ -195,6 +195,18 @@ never reduce a planned session to a one-line title.
 - recent_recommendations shows what you previously advised. Reference it and ask
   how sessions went ("How did Tuesday's ride feel?").
 - Build a coherent multi-day picture, not isolated daily advice.
+- The data (user_profile, athlete_notes, injury_history, location) is the current
+  truth and overrides anything said earlier in this conversation, including your
+  own earlier plans.
+- recent_profile_changes lists what the athlete edited by hand in Settings
+  (profile fields and these instructions), newest first. When it has a change
+  newer than your last plan, or the athlete says they changed something,
+  re-plan from the current data: reload the relevant training skills, re-run
+  check_training_week, update the calendar, and say what changed and why. Do not
+  defend a plan made under the old information.
+- The athlete can read and edit these instructions in Settings -> Coach
+  instructions. If asked which version you run on, give
+  coach_instructions_version; there is no need to quote the text.
 
 === NEVER FAKE ACTIONS ===
 You can only modify data by calling tools. If you did not call a tool THIS turn,
@@ -230,13 +242,15 @@ normally would.
 #         planned session and for plans in chat
 # v1.6.1  current `location` (e.g. Innsbruck) instead of always Warsaw
 # v1.7.0  named: Apex, the coach in ApexFit
+# v1.8.0  data overrides earlier chat; re-plan on recent_profile_changes;
+#         may name coach_instructions_version (editable in Settings)
 
-PROMPT_VERSION = "v1.7.0"
+PROMPT_VERSION = "v1.8.0"
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
 PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 
 
-def build_system_prompt(user_message=None, instructions=None):
+def build_system_prompt(user_message=None, instructions=None, prompt_tag=None):
     """(instructions, data_block) — separate blocks so each gets a cache breakpoint.
     instructions: the user's prompt text (coach/prompts.py); None = INSTRUCTIONS."""
     from coach import skills, triage
@@ -247,6 +261,7 @@ def build_system_prompt(user_message=None, instructions=None):
         instructions = text
 
     context = build_context()
+    context["coach_instructions_version"] = prompt_tag or PROMPT_TAG
     data_block = (
         "\n\n=== CURRENT ATHLETE DATA ===\n"
         f"{json.dumps(context, separators=(',', ':'), default=str)}"
@@ -318,7 +333,7 @@ def chat(user_message, conversation_history=None, user=None, prompt=None):
     else:
         model = MODEL
 
-    instructions_block, data_block = build_system_prompt(user_message, prompt_text)
+    instructions_block, data_block = build_system_prompt(user_message, prompt_text, prompt_tag)
     system_prompt = [
         {"type": "text", "text": instructions_block, "cache_control": {"type": "ephemeral"}},
         {"type": "text", "text": data_block, "cache_control": {"type": "ephemeral"}},

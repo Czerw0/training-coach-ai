@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from pydantic import BaseModel, Field, ValidationError
 
-from coach import agent, prompts
+from coach import agent, profile_changes, prompts
 from coach.models import CoachPrompt
 from coach.schemas import format_validation_error
 from sync.models import UserProfile, WeatherLocation
@@ -30,6 +30,10 @@ class ProfileIn(BaseModel):
     athlete_notes: str = Field(default="", max_length=20000)
     instruction_days: list[int] = Field(default_factory=list)
     hr_zones: Optional[list[dict]] = None
+
+
+TEXT_FIELDS = ["injury_history", "athlete_notes", "primary_sport"]
+VALUE_FIELDS = ["ftp_watts", "max_hr", "lthr", "weight_kg", "instruction_days", "hr_zones"]
 
 
 class PromptIn(BaseModel):
@@ -124,6 +128,7 @@ def save_profile(request):
         return JsonResponse({"ok": False, "error": "Instruction days must be 0 (Mon) to 6 (Sun)."}, status=400)
 
     p, _ = UserProfile.objects.get_or_create(pk=1)
+    before = {f: getattr(p, f) for f in TEXT_FIELDS + VALUE_FIELDS}
     for field, value in data.model_dump().items():
         setattr(p, field, value)
     p.instruction_days = sorted(set(data.instruction_days))
@@ -133,6 +138,11 @@ def save_profile(request):
     except DjangoValidationError as exc:
         return JsonResponse({"ok": False, "error": "; ".join(sum(exc.message_dict.values(), []))}, status=400)
     p.save()
+    # so the coach sees what changed, not only the new state
+    for f in TEXT_FIELDS:
+        profile_changes.record_text(request.user, f, before[f], getattr(p, f))
+    for f in VALUE_FIELDS:
+        profile_changes.record_value(request.user, f, before[f] or None, getattr(p, f) or None)
     return JsonResponse({"ok": True})
 
 
