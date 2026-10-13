@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 import datetime
 
@@ -177,3 +178,22 @@ class AiInsight(models.Model):
 
     def __str__(self):
         return f"{self.scope}:{self.key} · {len(self.items)} insights"
+
+
+class CoachPrompt(models.Model):
+    """Append-only versions of one user's coach instructions. The newest row is
+    the active one; an empty `text` means "back to the default" (INSTRUCTIONS in
+    coach/agent.py). Rows are never edited, so every ApiUsage prompt tag stays
+    traceable to the exact text that produced it."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="coach_prompts")
+    version = models.PositiveIntegerField()
+    text = models.TextField(blank=True, default="")
+    note = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-version"]
+        constraints = [models.UniqueConstraint(fields=["user", "version"], name="unique_prompt_user_version")]
+
+    def __str__(self):
+        return f"{self.user} v{self.version}{'' if self.text else ' (default)'}"

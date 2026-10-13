@@ -22,8 +22,19 @@ def assemble_all():
     return _prefix + WORKOUT_SKILL + _suffix
 
 
-def assemble_instructions(classification):
-    """classification: whatever classify_turn() (triage.py) returns."""
+def assemble_instructions(classification, text=None):
+    """classification: whatever classify_turn() (triage.py) returns.
+    text: a user's own prompt. It is sliced by the same markers when it still
+    has them; one that doesn't is sent whole (never a ValueError mid-chat)."""
+    if text is None or text == INSTRUCTIONS:
+        prefix, skill, suffix = _prefix, WORKOUT_SKILL, _suffix
+    else:
+        try:
+            start = text.index(_SKILL_START_MARKER)
+            end = text.index(_SKILL_END_MARKER, start) + len(_SKILL_END_MARKER)
+        except ValueError:
+            return text
+        prefix, skill, suffix = text[:start], text[start:end], text[end:]
     if "workout" in classification.get("skills", []):
-        return _prefix + WORKOUT_SKILL + _suffix
-    return CORE_INSTRUCTIONS
+        return prefix + skill + suffix
+    return prefix + suffix

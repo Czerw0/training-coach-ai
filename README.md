@@ -191,7 +191,7 @@ Open http://127.0.0.1:8000/ and log in with the superuser account.
 | Activities | `/activities/` | Every synced session, filter by sport, search; each opens `/activity/<id>/` with insights |
 | Profile | `/me/` | Links to Settings and Usage, theme, log out (the fifth tab on mobile) |
 | Usage | `/usage/` | Spend and projection, cost per message, cache, tools, per model/config |
-| Settings | `/settings/` | Location, athlete profile, HR zones, instruction days |
+| Settings | `/settings/` | Location, athlete profile, HR zones, instruction days, your own versioned coach instructions |
 | Admin | `/admin/` | Profile, injuries, goals, raw synced data |
 
 Things worth knowing when chatting:
@@ -304,6 +304,7 @@ a manual tool, not part of CI. Needs `DIRECT_DATABASE_URL`.
 ```powershell
 python manage.py run_evals               # whole set
 python manage.py run_evals --case <id>   # one case
+python manage.py run_evals --user <name> # score that user's own coach instructions
 ```
 
 This is the layer that would have caught the extended-thinking API-shape bug

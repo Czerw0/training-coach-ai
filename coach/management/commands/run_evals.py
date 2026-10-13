@@ -25,6 +25,10 @@ class Command(BaseCommand):
             "--case", dest="case_id", default=None,
             help="Run only the case with this id, instead of the whole set.",
         )
+        parser.add_argument(
+            "--user", dest="username", default=None,
+            help="Score this user's active coach instructions (Settings) instead of the default.",
+        )
 
     def handle(self, *args, **options):
         from coach.evals.harness import load_cases, run_all
@@ -51,6 +55,21 @@ class Command(BaseCommand):
         settings.DATABASES['default'].update(environ.Env.db_url_config(direct_url))
         connections.close_all()
 
+        # read before the throwaway test DB exists — it has no users
+        chat_fn = None
+        if options.get("username"):
+            from django.contrib.auth import get_user_model
+
+            from coach.agent import chat
+            from coach.prompts import active_prompt
+            user = get_user_model().objects.filter(username=options["username"]).first()
+            if not user:
+                self.stdout.write(self.style.ERROR(f"No user '{options['username']}'"))
+                return
+            prompt = active_prompt(user)
+            self.stdout.write(f"Prompt: {prompt[1]}")
+            chat_fn = lambda message, history: chat(message, history, prompt=prompt)  # noqa: E731
+
         cases = load_cases()
         case_id = options.get("case_id")
         if case_id:
@@ -70,7 +89,7 @@ class Command(BaseCommand):
         runner = DiscoverRunner(interactive=False)
         old_config = self._setup_databases_with_retry(runner)
         try:
-            results = run_all(cases=cases)
+            results = run_all(chat_fn=chat_fn, cases=cases)
         finally:
             connections.close_all()
             try:

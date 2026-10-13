@@ -69,7 +69,7 @@ def chat_message(request):
     ]
 
     try:
-        reply, tools_used = chat(user_message, history)
+        reply, tools_used = chat(user_message, history, user=request.user)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 

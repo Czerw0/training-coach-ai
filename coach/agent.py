@@ -236,13 +236,15 @@ PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
 PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 
 
-def build_system_prompt(user_message=None):
-    """(instructions, data_block) — separate blocks so each gets a cache breakpoint."""
+def build_system_prompt(user_message=None, instructions=None):
+    """(instructions, data_block) — separate blocks so each gets a cache breakpoint.
+    instructions: the user's prompt text (coach/prompts.py); None = INSTRUCTIONS."""
     from coach import skills, triage
+    text = instructions if instructions is not None else INSTRUCTIONS
     if triage.ENABLE_TURN_TRIAGE:
-        instructions = skills.assemble_instructions(triage.classify_turn(user_message))
+        instructions = skills.assemble_instructions(triage.classify_turn(user_message), text)
     else:
-        instructions = INSTRUCTIONS
+        instructions = text
 
     context = build_context()
     data_block = (
@@ -290,14 +292,22 @@ def _record_usage(agg, model, api_calls, tools_used, user_message, prompt_versio
         pass
 
 
-def chat(user_message, conversation_history=None):
+def chat(user_message, conversation_history=None, user=None, prompt=None):
     """Run one coaching turn.
+
+    user: whose coach instructions to use (coach/prompts.py); None = default.
+    prompt: explicit (text, tag), overrides `user` — run_evals uses it, since
+    its throwaway test DB has no users.
 
     Returns (reply_text, tools_used).
     Records one ApiUsage row summarising the whole turn's token use + cost.
     """
     if conversation_history is None:
         conversation_history = []
+    if prompt is None:
+        from coach import prompts
+        prompt = prompts.active_prompt(user)
+    prompt_text, prompt_tag = prompt
 
     # enforced in code — the model isn't trusted to skip writes itself
     is_test = user_message.strip().lower().startswith("(test)")
@@ -308,7 +318,7 @@ def chat(user_message, conversation_history=None):
     else:
         model = MODEL
 
-    instructions_block, data_block = build_system_prompt(user_message)
+    instructions_block, data_block = build_system_prompt(user_message, prompt_text)
     system_prompt = [
         {"type": "text", "text": instructions_block, "cache_control": {"type": "ephemeral"}},
         {"type": "text", "text": data_block, "cache_control": {"type": "ephemeral"}},
@@ -359,7 +369,7 @@ def chat(user_message, conversation_history=None):
                     user_message=user_message,
                 )
             _record_usage(agg, model, api_calls, tools_used, user_message,
-                          PROMPT_TAG, CONFIG_VERSION, trace, final_text, round_notes)
+                          prompt_tag, CONFIG_VERSION, trace, final_text, round_notes)
             return final_text, tools_used
 
         messages.append({"role": "assistant", "content": response.content})
@@ -387,6 +397,6 @@ def chat(user_message, conversation_history=None):
 
     cap_message = ("I hit my internal tool-call limit for one turn — the actions so "
                    "far ran, but please re-ask to continue.")
-    _record_usage(agg, model, api_calls, tools_used, user_message, PROMPT_TAG,
+    _record_usage(agg, model, api_calls, tools_used, user_message, prompt_tag,
                   CONFIG_VERSION, trace, cap_message, round_notes)
     return (cap_message, tools_used)

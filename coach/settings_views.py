@@ -1,5 +1,5 @@
-"""Settings page: athlete profile, HR zones, instruction days and weather
-locations. Every write is validated before it reaches the database."""
+"""Settings page: athlete profile, HR zones, instruction days, weather
+locations and the coach instructions. Every write is validated before it reaches the database."""
 import json
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -13,7 +13,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from pydantic import BaseModel, Field, ValidationError
 
-from coach import agent
+from coach import agent, prompts
+from coach.models import CoachPrompt
 from coach.schemas import format_validation_error
 from sync.models import UserProfile, WeatherLocation
 from sync.weather import fetch_forecast, geocode
@@ -29,6 +30,11 @@ class ProfileIn(BaseModel):
     athlete_notes: str = Field(default="", max_length=20000)
     instruction_days: list[int] = Field(default_factory=list)
     hr_zones: Optional[list[dict]] = None
+
+
+class PromptIn(BaseModel):
+    text: str = Field(max_length=prompts.MAX_CHARS)
+    note: str = Field(default="", max_length=200)
 
 
 class LocationIn(BaseModel):
@@ -70,9 +76,41 @@ def settings_data(request):
             "hr_zones": p.hr_zones or [],
         },
         "locations": _locations(),
-        "coach": {"model": agent.MODEL, "prompt": agent.PROMPT_TAG, "config": agent.CONFIG_VERSION,
+        "coach": {"model": agent.MODEL, "prompt": prompts.active_prompt(request.user)[1], "config": agent.CONFIG_VERSION,
                   "thinking": agent.THINKING_EFFORT, "max_tokens": agent.MAX_TOKENS},
+        "prompt": prompts.summary(request.user),
     })
+
+
+def _prompt_saved(request, row, created):
+    return JsonResponse({"ok": True, "created": created, "prompt": prompts.summary(request.user)})
+
+
+@login_required
+@require_http_methods(["POST"])
+def save_prompt(request):
+    try:
+        data = PromptIn(**_body(request))
+    except ValidationError as exc:
+        return JsonResponse({"ok": False, "error": format_validation_error(exc)}, status=400)
+    if not data.text.strip():
+        return JsonResponse({"ok": False, "error": "Instructions can't be empty. Use Reset to default instead."}, status=400)
+    return _prompt_saved(request, *prompts.save_version(request.user, data.text, data.note))
+
+
+@login_required
+@require_http_methods(["POST"])
+def reset_prompt(request):
+    return _prompt_saved(request, *prompts.save_version(request.user, "", "reset to default"))
+
+
+@login_required
+@require_http_methods(["POST"])
+def restore_prompt(request):
+    row = CoachPrompt.objects.filter(user=request.user, version=_body(request).get("version")).first()
+    if not row:
+        return JsonResponse({"ok": False, "error": "Version not found."}, status=404)
+    return _prompt_saved(request, *prompts.save_version(request.user, row.text, f"restored v{row.version}"))
 
 
 @login_required
