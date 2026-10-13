@@ -145,6 +145,7 @@ def test_check_week_bad_input_returns_message_not_exception():
     assert check_week("not a list").startswith("Invalid week")
 
 
+@pytest.mark.django_db
 def test_check_training_week_tool_runs_the_real_checker():
     out = execute_tool("check_training_week", {"sessions": [
         {"id": "gym/lower-eccentric", "start": "2026-08-10T18:00"},

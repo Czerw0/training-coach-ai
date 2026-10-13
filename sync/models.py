@@ -158,8 +158,11 @@ class UserProfile(models.Model):
     athlete_notes = models.TextField(null=True, blank=True)
     # [{"zone": "Z1", "min_bpm": 0, "max_bpm": 150}, ...]; max_bpm null = open-ended
     hr_zones = models.JSONField(null=True, blank=True)
-    # usual skating-instruction weekdays, Mon=0..Sun=6; empty = paused
+    # usual light-activity weekdays (e.g. teaching a sport), Mon=0..Sun=6; empty = none.
+    # rules.light_day_label says what they are.
     instruction_days = models.JSONField(default=list, null=True, blank=True)
+    # per-athlete rules the code enforces — schema in coach/athlete_rules.py
+    rules = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def clean(self):

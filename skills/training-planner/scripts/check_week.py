@@ -6,7 +6,10 @@ in Python, not in the model's head, so a persuasive prompt can't argue the plan
 out of a hard constraint. Run this on a draft week BEFORE writing it up; fix
 every `error`, and either fix or explicitly state every `warning`.
 
-Input — a JSON array of planned sessions (file path, or stdin):
+Input — a JSON array of planned sessions (file path, or stdin), or an object
+{"sessions": [...], "rules": {...}} carrying the athlete's own rules:
+`weekly_caps` {category: N} and `unavailable` [category]. Athlete caps replace
+any cap a leaf declares for that category:
 
     [
       {"id": "gym/lower-eccentric", "start": "2026-08-10T07:00"},
@@ -41,7 +44,10 @@ Output — JSON (default) or `--format text`. Exit code is non-zero if any
    enough to ignore.
 4. Weekly caps. A leaf may declare `category_max_per_week: N`: at most N
    sessions of that leaf's CATEGORY in any rolling 7-day window. If leaves of
-   one category disagree, the strictest (min) wins. Exceeding it is an error.
+   one category disagree, the strictest (min) wins. The athlete's own
+   `weekly_caps` replace the leaf caps for their categories — personal limits
+   live with the athlete, not in the library. Exceeding a cap is an error, and
+   so is any session in an `unavailable` category.
 5. Severity. `error` = the plan is wrong, fix it. `warning` = a defensible
    compromise the model must state in the plan rather than bury.
 """
@@ -63,8 +69,13 @@ _HARD_AXES = ("neural", "mechanical", "metabolic", "damage")
 
 
 def _load_week(source):
+    """(sessions, rules) from a bare session list or {"sessions", "rules"}."""
     raw = sys.stdin.read() if source in ("-", None) else open(source, encoding="utf-8").read()
     data = json.loads(raw)
+    rules = {}
+    if isinstance(data, dict):
+        rules = data.get("rules") or {}
+        data = data.get("sessions") or []
     sessions = []
     for i, item in enumerate(data):
         sid = item.get("id") or item.get("session")
@@ -73,7 +84,7 @@ def _load_week(source):
             raise ValueError(f"session #{i} needs both 'id' and 'start'")
         sessions.append({"id": sid, "start": datetime.fromisoformat(start)})
     sessions.sort(key=lambda s: s["start"])
-    return sessions
+    return sessions, rules
 
 
 def _axis_val(meta, axis):
@@ -104,8 +115,17 @@ def _required_spacing(a_meta, b_meta, a_id, b_id):
     return max(vals) if vals else None
 
 
-def check(sessions):
+def check(sessions, rules=None):
+    rules = rules or {}
     violations = []
+    unavailable = set(rules.get("unavailable") or [])
+    for s in sessions:
+        cat = s["id"].partition("/")[0]
+        if cat in unavailable:
+            violations.append({
+                "kind": "unavailable", "severity": "error", "category": cat, "session": s["id"],
+                "message": f"{s['id']}: {cat} is unavailable for this athlete right now (athlete_rules).",
+            })
     metas = {}
     for s in sessions:
         m = load_session_meta(s["id"])
@@ -196,13 +216,17 @@ def check(sessions):
                             f"({', '.join(ids)}) — the pattern that overloads that axis."),
             })
 
-    # 5. weekly category caps — rolling 7 days, strictest declared cap wins
+    # 5. weekly category caps — rolling 7 days, strictest declared cap wins;
+    #    the athlete's own caps replace the leaf caps for their categories
     caps = {}
     for s in sessions:
         cap = metas[s["id"]].get("category_max_per_week")
         if isinstance(cap, int):
             cat = s["id"].partition("/")[0]
             caps[cat] = min(cap, caps.get(cat, cap))
+    for cat, cap in (rules.get("weekly_caps") or {}).items():
+        if isinstance(cap, int):
+            caps[cat] = cap
     for cat, cap in caps.items():
         in_cat = [s for s in sessions if s["id"].partition("/")[0] == cat]
         for i, anchor in enumerate(in_cat):
@@ -248,11 +272,11 @@ def main(argv):
     text = "--format" in argv and "text" in argv
     source = args[0] if args else "-"
     try:
-        sessions = _load_week(source)
+        sessions, rules = _load_week(source)
     except (ValueError, json.JSONDecodeError, OSError) as e:
         print(f"input error: {e}", file=sys.stderr)
         return 2
-    violations = check(sessions)
+    violations = check(sessions, rules)
     print(_format_text(violations) if text else json.dumps(violations, indent=2, default=str))
     return 1 if any(v["severity"] == "error" for v in violations) else 0
 

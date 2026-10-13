@@ -4,7 +4,7 @@ from django.utils import timezone
 from zoneinfo import ZoneInfo
 
 from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, WeatherLocation, UserProfile, FTPRecord, IndoorCyclingWorkout, Exercise
-from coach import profile_changes
+from coach import athlete_rules, profile_changes
 from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, PlannedSession
 from coach.metrics import acwr
 from coach.training_skills import list_skills
@@ -115,6 +115,8 @@ def build_context():
         'primary_sport': profile.primary_sport if profile else None,
         'injury_history': profile.injury_history if profile else None,
         'athlete_notes': profile.athlete_notes if profile else None,
+        # enforced in code: check_training_week and create_planned_session
+        'athlete_rules': athlete_rules.as_context(athlete_rules.load(profile)),
     }
 
     recent_recommendations = list(CoachRecommendation.objects.filter(
@@ -190,9 +192,9 @@ def build_context():
     ))
     weather_summary = _summarise_weather(weather_hours, ZoneInfo(location.timezone) if location else None)
 
-    indoor_cyc_workouts = list(IndoorCyclingWorkout.objects.all().values(
-        'name', 'category', 'duration_min', 'intensity_factor', 'tss', 'description'
-    ))
+    # no catalog to tempt the model when cycling isn't possible right now
+    indoor_cyc_workouts = [] if athlete_rules.blocked("cycling", athlete_rules.load(profile)) else list(
+        IndoorCyclingWorkout.objects.all().values('name', 'category', 'duration_min', 'intensity_factor', 'tss', 'description'))
 
     # index only — details via get_exercise_detail
     exercise_library = list(Exercise.objects.all().values(

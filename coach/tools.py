@@ -160,6 +160,12 @@ def create_planned_session(date, weekday, activity_type, title="",
     if not ok:
         return result   # goes back to the model, nothing written
 
+    # the athlete's rules are enforced here too, not only in the week checker
+    from coach import athlete_rules
+    refusal = athlete_rules.blocked(payload.activity_type)
+    if refusal:
+        return refusal
+
     session = PlannedSession.objects.create(
         date=result, activity_type=payload.activity_type, title=payload.title,
         description=payload.description, duration_minutes=payload.duration_minutes,
@@ -254,7 +260,8 @@ def get_training_principles():
 
 
 def check_training_week(sessions):
-    return check_week(sessions)
+    from coach import athlete_rules
+    return check_week(sessions, athlete_rules.for_checker())
 
 
 TOOL_DEFINITIONS = [

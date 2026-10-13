@@ -69,6 +69,17 @@
   .ver b { font-family: var(--f-num); font-size: 15px; }
   .ver .meta { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   details summary { cursor: pointer; font-weight: 700; font-size: 13.5px; }
+  .rules { display: grid; gap: 14px; }
+  .caps { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: 700px) { .caps { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .cap { display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 8px; align-items: center; padding: 6px 6px 6px 12px; border-radius: var(--r-sm); background: var(--sunken); font-size: 13px; font-weight: 600; }
+  .cap .input { padding: 6px 8px; text-align: center; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { position: relative; }
+  .chip input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .chip span { display: inline-flex; padding: 7px 13px; border-radius: 999px; border: 1.5px solid var(--line); font-size: 13px; font-weight: 600; }
+  .chip input:checked + span { border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
+  .chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
   .pr-update { display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--accent-soft); font-size: 13.5px; }
   .pr-update pre { margin: 0; max-height: 260px; overflow: auto; white-space: pre-wrap; font-size: 12px; background: var(--surface); border-radius: 8px; padding: 10px; }
 </style>
@@ -118,9 +129,22 @@
       <div class="zones" id="zones"></div>
     </section>
 
+    <section class="card" aria-labelledby="h-rules">
+      <h2 id="h-rules">Rules Apex must follow</h2>
+      <p class="lede">Enforced in code, not just suggested: the week checker rejects a plan that breaks them and Apex can't write such a session to your calendar.</p>
+      <div class="rules">
+        <div><div class="section-title">Max sessions per 7 days</div><div class="caps" id="r-caps"></div>
+          <div class="meta">Empty = no limit.</div></div>
+        <div><div class="section-title">Not possible right now</div><div class="chips" id="r-unavailable"></div>
+          <div class="meta">No equipment where you are, or paused by choice. Apex won't plan these at all.</div></div>
+        <div class="field"><label for="r-focus">Focus areas</label><input class="input" id="r-focus" type="text" placeholder="e.g. hamstrings, glutes, balance"></div>
+      </div>
+    </section>
+
     <section class="card" aria-labelledby="h-days">
-      <h2 id="h-days">Skating instruction days</h2>
-      <p class="lede">Your usual teaching days. Instruction is light work, so Apex only avoids maximal leg intervals on them. Leave all off while the season is paused.</p>
+      <h2 id="h-days">Light days</h2>
+      <p class="lede">Days with regular light activity that isn't training, e.g. teaching a sport. Apex plans normally on them but avoids maximal leg intervals. Leave all off when there are none.</p>
+      <div class="field"><label for="r-light">What are these days?</label><input class="input" id="r-light" type="text" maxlength="60" placeholder="e.g. Skating instruction"></div>
       <div class="days" id="days"></div>
     </section>
 
@@ -236,6 +260,29 @@
     }).join('');
   }
 
+  // ---- rules ----
+  let ruleGroups = [];
+  const label = g => g === 'gym' ? 'Gym' : g === 'mountaineering' ? 'Hiking / mountains' : g[0].toUpperCase() + g.slice(1);
+  function renderRules(r, groups) {
+    ruleGroups = groups;
+    $('r-caps').innerHTML = groups.map(g => `<label class="cap">${label(g)}<input class="input" type="number" min="0" max="14" inputmode="numeric" data-cap="${g}" value="${r.weekly_caps[g] ?? ''}" aria-label="${label(g)}: max sessions per 7 days"></label>`).join('');
+    $('r-unavailable').innerHTML = groups.map(g => `<label class="chip"><input type="checkbox" data-off="${g}" ${r.unavailable.includes(g) ? 'checked' : ''}><span>${label(g)}</span></label>`).join('');
+    $('r-focus').value = r.focus_areas.join(', ');
+    $('r-light').value = r.light_day_label || '';
+    document.querySelectorAll('#r-caps input, #r-focus, #r-light').forEach(el => el.addEventListener('input', markDirty));
+    document.querySelectorAll('#r-unavailable input').forEach(el => el.addEventListener('change', markDirty));
+  }
+  function readRules() {
+    const caps = {};
+    document.querySelectorAll('[data-cap]').forEach(i => { if (i.value !== '') caps[i.dataset.cap] = +i.value; });
+    return {
+      weekly_caps: caps,
+      unavailable: [...document.querySelectorAll('[data-off]:checked')].map(i => i.dataset.off),
+      focus_areas: $('r-focus').value.split(',').map(s => s.trim()).filter(Boolean),
+      light_day_label: $('r-light').value.trim(),
+    };
+  }
+
   // ---- coach instructions ----
   // mirrors GUARDRAILS in coach/prompts.py, so the warning shows while typing
   const GUARDS = [["=== DATES — READ, DON'T CALCULATE ===", 'the dates section (the coach copies dates from the data instead of calculating them)'],
@@ -297,6 +344,7 @@
     $('p-ftp').value = p.ftp_watts ?? ''; $('p-maxhr').value = p.max_hr ?? ''; $('p-lthr').value = p.lthr ?? '';
     $('p-weight').value = p.weight_kg ?? ''; $('p-sport').value = p.primary_sport || '';
     $('p-injury').value = p.injury_history; $('p-notes').value = p.athlete_notes;
+    renderRules(p.rules, d.rule_groups);
     $('days').innerHTML = DAYS.map((name, i) => `<label class="day"><input type="checkbox" value="${i}" ${p.instruction_days.includes(i) ? 'checked' : ''}><span>${name}</span></label>`).join('');
     renderZones(p.hr_zones);
     renderLocations(d.locations);
@@ -316,7 +364,7 @@
       const res = await TC.postJSON('/settings/profile/', {
         ftp_watts: num('p-ftp'), max_hr: num('p-maxhr'), lthr: num('p-lthr'), weight_kg: num('p-weight'),
         primary_sport: $('p-sport').value.trim() || 'cycling', injury_history: $('p-injury').value, athlete_notes: $('p-notes').value,
-        instruction_days: [...document.querySelectorAll('#days input:checked')].map(x => +x.value), hr_zones: readZones(),
+        instruction_days: [...document.querySelectorAll('#days input:checked')].map(x => +x.value), hr_zones: readZones(), rules: readRules(),
       }).then(r => r.json());
       dirty = !res.ok;
       setStatus($('save-status'), res.ok ? 'Saved. The coach sees this from the next message.' : res.error, res.ok ? 'ok' : 'err');

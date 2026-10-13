@@ -50,6 +50,8 @@ def test_readiness_label_thresholds():
 
 @pytest.mark.django_db
 def test_insights_flag_more_than_one_run_a_week():
+    from sync.models import UserProfile
+    UserProfile.objects.create(pk=1, rules={"weekly_caps": {"running": 1}})   # the cap is the athlete's rule
     week = [{"date": (TODAY + dt.timedelta(days=i)).isoformat(), "done": [], "planned": []} for i in range(-1, 6)]
     week[0]["done"] = ["running"]
     week[3]["planned"] = [{"type": "running", "title": "Tempo"}]

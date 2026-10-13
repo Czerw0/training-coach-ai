@@ -78,15 +78,15 @@ def load_principles():
     return "\n\n---\n\n".join(parts) if parts else "No training principles available."
 
 
-def check_week(sessions):
+def check_week(sessions, rules=None):
     """Run the skill's own scripts/check_week.py, so the rules live in one place.
 
-    sessions: [{"id": "category/skill", "start": "<ISO-8601>"}]. Never raises.
+    sessions: [{"id": "category/skill", "start": "<ISO-8601>"}]. rules: the
+    athlete's {"weekly_caps", "unavailable"} (coach/athlete_rules.py). Never raises.
     """
     try:
-        payload = json.dumps([
-            {"id": s.get("id"), "start": s.get("start")} for s in sessions
-        ])
+        week = [{"id": s.get("id"), "start": s.get("start")} for s in sessions]
+        payload = json.dumps({"sessions": week, "rules": rules or {}})
     except (TypeError, AttributeError):
         return "Invalid week: expected a list of {id, start} objects."
     try:

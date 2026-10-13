@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from pydantic import BaseModel, Field, ValidationError
 
-from coach import agent, profile_changes, prompts
+from coach import agent, athlete_rules, profile_changes, prompts
 from coach.models import CoachPrompt
 from coach.schemas import format_validation_error
 from sync.models import UserProfile, WeatherLocation
@@ -30,10 +30,11 @@ class ProfileIn(BaseModel):
     athlete_notes: str = Field(default="", max_length=20000)
     instruction_days: list[int] = Field(default_factory=list)
     hr_zones: Optional[list[dict]] = None
+    rules: athlete_rules.AthleteRules = Field(default_factory=athlete_rules.AthleteRules)
 
 
 TEXT_FIELDS = ["injury_history", "athlete_notes", "primary_sport"]
-VALUE_FIELDS = ["ftp_watts", "max_hr", "lthr", "weight_kg", "instruction_days", "hr_zones"]
+VALUE_FIELDS = ["ftp_watts", "max_hr", "lthr", "weight_kg", "instruction_days", "hr_zones", "rules"]
 
 
 class PromptIn(BaseModel):
@@ -78,7 +79,9 @@ def settings_data(request):
             "primary_sport": p.primary_sport, "injury_history": p.injury_history or "",
             "athlete_notes": p.athlete_notes or "", "instruction_days": p.instruction_days or [],
             "hr_zones": p.hr_zones or [],
+            "rules": athlete_rules.as_context(athlete_rules.load(p)),
         },
+        "rule_groups": athlete_rules.GROUPS,
         "locations": _locations(),
         "coach": {"model": agent.MODEL, "prompt": prompts.active_prompt(request.user)[1], "config": agent.CONFIG_VERSION,
                   "thinking": agent.THINKING_EFFORT, "max_tokens": agent.MAX_TOKENS},
@@ -129,8 +132,10 @@ def save_profile(request):
 
     p, _ = UserProfile.objects.get_or_create(pk=1)
     before = {f: getattr(p, f) for f in TEXT_FIELDS + VALUE_FIELDS}
-    for field, value in data.model_dump().items():
+    before["rules"] = athlete_rules.load(p).model_dump()   # normalised, so {} == "no rules"
+    for field, value in data.model_dump(exclude={"rules"}).items():
         setattr(p, field, value)
+    p.rules = data.rules.model_dump()
     p.instruction_days = sorted(set(data.instruction_days))
     p.hr_zones = data.hr_zones or None
     try:

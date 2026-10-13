@@ -11,7 +11,7 @@ from django.views.decorators.http import require_http_methods
 
 from pydantic import BaseModel, Field, ValidationError
 
-from coach import metrics, sync_schedule
+from coach import athlete_rules, metrics, sync_schedule
 from coach.models import DailyFeeling, Injury, PlannedSession, SyncStatus
 from coach.schemas import format_validation_error
 from coach.tools import log_daily_feeling
@@ -143,18 +143,22 @@ def build_insights(today, hrv_today, baseline, ratio, week):
         if any("run" in (t or "") for t in d["done"])
         or (d["date"] >= today.isoformat() and any(p["type"] == "running" for p in d["planned"]))
     )
-    if runs > 1:
+    rules = athlete_rules.load()
+    run_cap = rules.weekly_caps.get("running")
+    if run_cap is not None and runs > run_cap:
         out.append({"level": "bad", "title": f"{runs} runs this week",
-                    "text": "The plan allows one run per week for the knee. Swap the extra one for cycling."})
+                    "text": f"Your rules allow {run_cap} run{'' if run_cap == 1 else 's'} a week. Swap the extra one for something else."})
 
     legs = Activity.objects.filter(start_time__date__gt=today - dt.timedelta(days=10),
                                    activity_type__icontains="strength").exists()
     if not legs:
+        focus = " and ".join(rules.focus_areas[:2])
         out.append({"level": "info", "title": "No strength session in 10 days",
-                    "text": "Hamstrings and glutes are your documented weak spot. Worth fitting a gym day in."})
+                    "text": f"{focus[:1].upper() + focus[1:]} are on your focus list. Worth fitting a gym day in." if focus
+                    else "Worth fitting a gym day in to keep strength ticking over."})
 
     ftp = FTPRecord.objects.order_by("-date").first()
-    if ftp and (today - ftp.date).days > 70:
+    if ftp and (today - ftp.date).days > 70 and "cycling" not in rules.unavailable:
         weeks = (today - ftp.date).days // 7
         out.append({"level": "info", "title": f"FTP {ftp.ftp_watts} W is {weeks} weeks old",
                     "text": "Power targets are based on it. A new test would keep your indoor workouts accurate."})
