@@ -44,21 +44,21 @@ def make_tool_use_response(tool_name, tool_input, tool_id="tool_1", thinking=Non
 # --- pricing (backlog item 2: Sonnet cost constants) ---
 
 def test_compute_cost_input_only():
-    assert compute_cost(1_000_000, 0, 0, 0) == pytest.approx(3.00)
+    assert compute_cost(1_000_000, 0, 0, 0) == pytest.approx(2.00)
 
 
 def test_compute_cost_output_only():
-    assert compute_cost(0, 0, 0, 1_000_000) == pytest.approx(15.00)
+    assert compute_cost(0, 0, 0, 1_000_000) == pytest.approx(10.00)
 
 
 def test_compute_cost_cache_write_and_read():
-    # 3.75 write + 0.30 read
-    assert compute_cost(0, 1_000_000, 1_000_000, 0) == pytest.approx(4.05)
+    # 2.50 write + 0.20 read
+    assert compute_cost(0, 1_000_000, 1_000_000, 0) == pytest.approx(2.70)
 
 
 def test_compute_cost_mixed_turn():
-    # 100k in + 10k out: 0.30 + 0.15 = 0.45 at Sonnet 5 standard pricing
-    assert compute_cost(100_000, 0, 0, 10_000) == pytest.approx(0.45)
+    # 100k in + 10k out: 0.20 + 0.10 = 0.30 at Sonnet 5 pricing
+    assert compute_cost(100_000, 0, 0, 10_000) == pytest.approx(0.30)
 
 
 # --- config_version / tool_trace recording (backlog items 1 & 3) ---

@@ -22,17 +22,22 @@ MAX_TOKENS = 12000
 # v1  no temperature, no caching
 # v2  prompt caching on
 # v3  adaptive thinking, effort=low
-# v4  sonnet 5 standard pricing (v3 rows from sept 1 are under-costed ~1.5x)
+# v4  sonnet 5 "standard" pricing $3/$15 — wrong, see v6 (v3 rows were correct)
 # v5  max_tokens 4096 -> 12000 (thinking + detailed session cards)
-CONFIG_VERSION = "v5-thinking-low"
+# v6  pricing corrected: the announced Sept 1 rise to $3/$15 never happened,
+#     $2/$2.50/$0.20/$10 is the standard Sonnet 5 price.
+#     v4 and v5 rows used $3/$3.75/$0.30/$15 and are over-costed 1.5x;
+#     their token columns are right, so cost can be recomputed from them.
+CONFIG_VERSION = "v6-thinking-low"
 THINKING_EFFORT = "low"
 
 
-# USD per token — must match MODEL (sonnet 5 standard pricing)
-PRICE_INPUT       = 3.00 / 1_000_000
-PRICE_CACHE_WRITE = 3.75 / 1_000_000
-PRICE_CACHE_READ  = 0.30 / 1_000_000
-PRICE_OUTPUT      = 15.00 / 1_000_000
+# USD per token — must match MODEL. Source:
+# https://platform.claude.com/docs/en/models/sonnet-5/overview (5-minute cache writes)
+PRICE_INPUT       = 2.00 / 1_000_000
+PRICE_CACHE_WRITE = 2.50 / 1_000_000
+PRICE_CACHE_READ  = 0.20 / 1_000_000
+PRICE_OUTPUT      = 10.00 / 1_000_000
 
 
 def compute_cost(inp, cache_write, cache_read, out):
