@@ -474,7 +474,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "get_workout_detail",
-        "description": "Get the interval watt targets for one indoor cycling workout. Call before prescribing an indoor session. Use the exact name from indoor_workouts.",
+        "description": "Get the interval watt targets for one indoor cycling workout. Call before prescribing an indoor session. Use the exact name from indoor_cycling_workouts.",
         "input_schema": {
             "type": "object",
             "properties": {"name": {"type": "string"}},

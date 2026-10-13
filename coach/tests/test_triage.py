@@ -14,7 +14,7 @@ def test_default_assembled_prompt_matches_original_instructions_exactly():
 
 
 def test_core_instructions_excludes_workout_skill_text():
-    assert "For indoor cycling, pick a workout from indoor_workouts" not in CORE_INSTRUCTIONS
+    assert "For indoor cycling, pick a workout from indoor_cycling_workouts" not in CORE_INSTRUCTIONS
 
 
 def test_assemble_instructions_includes_workout_skill_when_classified():

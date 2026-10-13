@@ -54,7 +54,7 @@ def test_value_fields_record_old_and_new(user_client):
 
 @pytest.mark.django_db
 def test_prompt_save_logs_the_instruction_diff_and_based_on(user):
-    custom = agent.INSTRUCTIONS.replace("ONE run per week", "TWO runs per week") + "\nNo bike in Innsbruck."
+    custom = "Skiing is my goal.\nNo bike in Innsbruck."
     row, _ = prompts.save_version(user, custom)
     assert row.based_on == agent.PROMPT_VERSION
     change = ProfileChange.objects.get(field="coach_instructions")
@@ -78,20 +78,10 @@ def test_data_block_carries_the_prompt_version(user):
     with mock.patch.object(agent.client.messages, "create", return_value=reply) as m:
         agent.chat("(test) which version?", user=user)
     data = m.call_args.kwargs["system"][1]["text"]
-    assert f'"coach_instructions_version":"u{user.id}/v1@' in data
+    assert f'"coach_instructions_version":"{agent.PROMPT_TAG}+u{user.id}/v1@' in data
 
 
 def test_default_prompt_has_the_replan_rules():
     assert "recent_profile_changes" in agent.INSTRUCTIONS
     assert "coach_instructions_version" in agent.INSTRUCTIONS
     assert "overrides anything said earlier" in agent.INSTRUCTIONS
-
-
-@pytest.mark.django_db
-def test_settings_flags_a_custom_prompt_made_on_an_older_default(user):
-    CoachPrompt.objects.create(user=user, version=1, text="Old custom rules.", based_on="v1.7.0")
-    s = prompts.summary(user)
-    assert s["default_updated"] and s["based_on"] == "v1.7.0"
-    assert "=== CONTINUITY ===" in s["missing_default_lines"]
-    CoachPrompt.objects.create(user=user, version=2, text="Fresh.", based_on=agent.PROMPT_VERSION)
-    assert prompts.summary(user)["default_updated"] is False

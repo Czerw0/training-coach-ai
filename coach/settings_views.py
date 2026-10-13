@@ -101,7 +101,7 @@ def save_prompt(request):
     except ValidationError as exc:
         return JsonResponse({"ok": False, "error": format_validation_error(exc)}, status=400)
     if not data.text.strip():
-        return JsonResponse({"ok": False, "error": "Instructions can't be empty. Use Reset to default instead."}, status=400)
+        return JsonResponse({"ok": False, "error": "Your section is empty. Use Remove my section instead."}, status=400)
     return _prompt_saved(request, *prompts.save_version(request.user, data.text, data.note))
 
 

@@ -4,7 +4,7 @@ import if a marker disappears). Safety rules always stay in core.
 """
 from coach.agent import INSTRUCTIONS
 
-_SKILL_START_MARKER = "- For indoor cycling, pick a workout from indoor_workouts"
+_SKILL_START_MARKER = "- For indoor cycling, pick a workout from indoor_cycling_workouts"
 _SKILL_END_MARKER = "  card (see SESSION DETAIL).\n"
 
 _skill_start = INSTRUCTIONS.index(_SKILL_START_MARKER)

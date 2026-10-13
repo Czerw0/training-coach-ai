@@ -61,8 +61,6 @@
   .pr-bar .note { flex: 1 1 220px; }
   .pr-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .pr-count.over { color: var(--bad); font-weight: 700; }
-  .pr-warn { display: grid; gap: 4px; font-size: 13px; color: var(--warn); font-weight: 600; }
-  .pr-warn:empty { display: none; }
   .versions { display: grid; gap: 6px; margin-top: 8px; }
   .ver { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: var(--r-sm); background: var(--sunken); font-size: 13px; }
   .ver.active { background: var(--accent-soft); }
@@ -80,8 +78,7 @@
   .chip span { display: inline-flex; padding: 7px 13px; border-radius: 999px; border: 1.5px solid var(--line); font-size: 13px; font-weight: 600; }
   .chip input:checked + span { border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
   .chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .pr-update { display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--accent-soft); font-size: 13.5px; }
-  .pr-update pre { margin: 0; max-height: 260px; overflow: auto; white-space: pre-wrap; font-size: 12px; background: var(--surface); border-radius: 8px; padding: 10px; }
+  .pr-default { margin: 8px 0 0; max-height: 360px; overflow: auto; white-space: pre-wrap; font-size: 12px; background: var(--sunken); border-radius: 8px; padding: 10px; }
 </style>
 {% endblock %}
 
@@ -150,19 +147,18 @@
 
     <section class="card" aria-labelledby="h-prompt">
       <div class="pr-head"><h2 id="h-prompt">Coach instructions</h2><span class="badge" id="pr-badge"></span></div>
-      <p class="lede">The system prompt Apex follows in your chats. Edit it freely: every save is a new version, every message logs which version answered, and you can go back to the default at any time.</p>
-      <div class="pr-update" id="pr-update" hidden></div>
-      <textarea class="input pr-text" id="pr-text" spellcheck="false" aria-label="Coach instructions"></textarea>
+      <p class="lede">Apex always follows its default instructions — the same for everyone and updated with the app. Here you write your own section: goals, how you like to train, what to watch out for. It's added after the default, under THIS ATHLETE. Hard limits (max sessions, no bike) belong in Rules above, where they're enforced.</p>
+      <textarea class="input pr-text" id="pr-text" spellcheck="false" aria-label="Your instructions for Apex" placeholder="e.g. Skiing is my main goal. I like structured gym work. Keep steep descents easy on runs."></textarea>
       <div class="pr-count" id="pr-count"></div>
-      <div class="pr-warn" id="pr-warn"></div>
       <div class="pr-bar">
         <input class="input note" id="pr-note" type="text" maxlength="200" placeholder="What changed? (optional)" aria-label="Note for this version">
         <button class="btn ghost" id="pr-discard" type="button" hidden>Discard</button>
-        <button class="btn ghost" id="pr-reset" type="button" hidden>Reset to default</button>
+        <button class="btn ghost" id="pr-reset" type="button" hidden>Remove my section</button>
         <button class="btn" id="pr-save" type="button" disabled>Save</button>
       </div>
       <div class="status" id="pr-status" role="status"></div>
       <details id="pr-history"><summary>Versions</summary><div class="versions" id="pr-versions"></div></details>
+      <details><summary>Default instructions (read-only)</summary><pre class="pr-default" id="pr-default"></pre></details>
     </section>
 
     <section class="card" aria-labelledby="h-coach">
@@ -284,24 +280,18 @@
   }
 
   // ---- coach instructions ----
-  // mirrors GUARDRAILS in coach/prompts.py, so the warning shows while typing
-  const GUARDS = [["=== DATES — READ, DON'T CALCULATE ===", 'the dates section (the coach copies dates from the data instead of calculating them)'],
-                  ['Never invent\n  watt numbers.', 'the rule against inventing watt numbers']];
   let prompt = null, promptDirty = false;
   function renderPrompt(pr) {
     prompt = pr;
     $('pr-text').value = pr.text;
-    $('pr-badge').textContent = pr.is_default ? `Default · ${pr.default_version}` : `Your version · v${pr.version}`;
-    $('pr-badge').className = 'badge' + (pr.is_default ? '' : ' custom');
-    $('pr-reset').hidden = pr.is_default;
+    $('pr-badge').textContent = pr.has_section ? `Default ${pr.default_version} + your section v${pr.version}` : `Default ${pr.default_version}`;
+    $('pr-badge').className = 'badge' + (pr.has_section ? ' custom' : '');
+    $('pr-reset').hidden = !pr.has_section;
+    $('pr-default').textContent = pr.default_text;
     if ($('coach-prompt')) $('coach-prompt').textContent = pr.tag;
-    $('pr-update').hidden = !pr.default_updated;
-    $('pr-update').innerHTML = pr.default_updated ? `<div><b>The default was updated to ${e(pr.default_version)}</b> after you saved your version (made on ${e(pr.based_on)}). ` +
-      `Your version keeps working, but doesn't get the new rules. Lines in the default that yours doesn't have — copy what you want:</div>` +
-      `<pre>${e(pr.missing_default_lines.join('\n'))}</pre>` : '';
     $('pr-versions').innerHTML = pr.versions.map(v => `
       <div class="ver${v.active ? ' active' : ''}"><b>v${v.version}</b>
-        <div class="meta">${new Date(v.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${v.is_default ? 'default' : v.chars.toLocaleString() + ' chars'}${v.note ? ' · ' + e(v.note) : ''}</div>
+        <div class="meta">${new Date(v.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${v.empty ? 'no section' : v.chars.toLocaleString() + ' chars'}${v.note ? ' · ' + e(v.note) : ''}</div>
         ${v.active ? '<span class="badge custom">active</span>' : `<button class="btn ghost" type="button" data-restore="${v.version}">Restore</button>`}</div>`).join('');
     $('pr-history').hidden = !pr.versions.length;
     promptChanged();
@@ -312,10 +302,8 @@
     $('pr-count').textContent = `${n.toLocaleString()} / ${prompt.max_chars.toLocaleString()} characters · about ${Math.round(n / 4).toLocaleString()} tokens per message`;
     $('pr-count').className = 'pr-count' + (n > prompt.max_chars ? ' over' : '');
     $('pr-save').disabled = !promptDirty || !text.trim() || n > prompt.max_chars;
-    $('pr-save').textContent = text.trim() === prompt.default_text.trim() ? 'Save as default' : `Save as v${prompt.version + 1}`;
+    $('pr-save').textContent = `Save as v${prompt.version + 1}`;
     $('pr-discard').hidden = !promptDirty;
-    const removed = GUARDS.filter(([m]) => prompt.default_text.includes(m) && !text.includes(m)).map(([, l]) => `Removed ${l}.`);
-    $('pr-warn').innerHTML = removed.map(w => `<div>⚠ ${e(w)} Saving is allowed, but Apex may get less reliable.</div>`).join('');
   }
   async function promptPost(url, body, okText) {
     setStatus($('pr-status'), 'Saving…');
@@ -329,8 +317,8 @@
   }
   $('pr-text').addEventListener('input', promptChanged);
   $('pr-save').addEventListener('click', () => promptPost('/settings/prompt/', { text: $('pr-text').value, note: $('pr-note').value.trim() },
-    p => p.is_default ? 'Back on the default.' : `Saved as v${p.version}. Apex uses it from your next message.`));
-  $('pr-reset').addEventListener('click', () => promptPost('/settings/prompt/reset/', {}, () => 'Back on the default. Your versions stay in the history.'));
+    p => `Saved as v${p.version}. Apex uses it from your next message.`));
+  $('pr-reset').addEventListener('click', () => promptPost('/settings/prompt/reset/', {}, () => 'Your section is removed; Apex runs on the default only. Versions stay in the history.'));
   $('pr-discard').addEventListener('click', () => { $('pr-text').value = prompt.text; promptChanged(); setStatus($('pr-status'), ''); });
   $('pr-versions').addEventListener('click', ev => {
     const b = ev.target.closest('[data-restore]'); if (!b) return;

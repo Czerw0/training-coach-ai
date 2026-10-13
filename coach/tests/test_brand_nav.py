@@ -13,7 +13,7 @@ def client_in(client, db):
 
 def test_prompt_names_apex_and_still_slices_cleanly():
     assert agent.INSTRUCTIONS.startswith("You are Apex")
-    assert agent.PROMPT_VERSION == "v1.8.0"
+    assert agent.PROMPT_VERSION == "v2.0.0"
     assert skills.assemble_all() == agent.INSTRUCTIONS
 
 
