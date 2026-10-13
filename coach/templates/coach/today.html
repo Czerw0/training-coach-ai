@@ -1,5 +1,5 @@
 {% extends "coach/base.html" %}
-{% block title %}Today · Training Coach{% endblock %}
+{% block title %}Today · ApexFit{% endblock %}
 {% block mobile_title %}Today{% endblock %}
 
 {% block head %}
@@ -18,11 +18,13 @@
   #c-ready { grid-area: ready; } #c-session { grid-area: session; } #c-insights { grid-area: insights; }
   #c-week { grid-area: week; } #c-hrv { grid-area: hrv; } #c-sleep { grid-area: sleep; }
   #c-load { grid-area: load; } #c-latest { grid-area: latest; } #c-weather { grid-area: weather; }
-  .wx-now { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .wx-day { display: grid; gap: 6px; }
-  .wx-day + .wx-day { border-top: 1px solid var(--line); padding-top: 10px; }
-  .wx-row { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 10px; font-size: 13px; }
-  .wx-row b { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .wx-now { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .wx-now svg { width: 58px; height: 58px; flex-shrink: 0; }
+  .wx-now .big { font-size: 42px; }
+  .wx-parts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .wx-part { background: var(--sunken); border-radius: 12px; padding: 10px 4px; display: grid; justify-items: center; gap: 2px; font-size: 11.5px; color: var(--muted); text-align: center; }
+  .wx-part svg { width: 34px; height: 34px; }
+  .wx-part b { font-family: var(--f-num); font-size: 17px; color: var(--fg); }
   #c-insights { align-self: start; }
 
   /* readiness */
@@ -101,7 +103,7 @@
       <h1 id="today-title">Today</h1>
       <div class="sub" id="today-sub">Loading your data…</div>
     </div>
-    <a class="btn" href="/coach/">Ask the coach</a>
+    <a class="btn" href="/coach/">✦ Ask Apex</a>
   </div>
 
   <div class="today-grid">
@@ -217,7 +219,7 @@
 
   function sessionBlock(s) {
     const meta = [s.duration_minutes ? chip(`${s.duration_minutes} min`, 'muted') : '', s.intensity ? chip(s.intensity, 'acc') : '',
-      chip(s.created_by === 'human' ? 'Planned by you' : 'Planned by coach', 'muted'), s.completed ? chip('Done', 'good') : ''].join('');
+      chip(s.created_by === 'human' ? 'Planned by you' : 'Planned by Apex', 'muted'), s.completed ? chip('Done', 'good') : ''].join('');
     const ex = s.exercises.length ? '<div class="ex">' + s.exercises.map(x =>
       `<div><span>${e(x.name)}</span><span class="s">${x.sets ?? '–'} × ${x.reps ?? '–'}</span><span class="r">${x.weight_kg != null ? e(x.weight_kg) + ' kg' : ''}${x.notes ? ' · ' + e(x.notes) : ''}</span></div>`).join('') + '</div>' : '';
     return `<div class="sess"><div class="sess-title"><span class="dot" style="--c:${typeColor(s.activity_type)}"></span>${e(s.title)}</div>` +
@@ -234,7 +236,7 @@
     document.getElementById('session-head').textContent = 'Rest day';
     body.innerHTML = '<p class="meta">Nothing planned for today. Every empty day is a rest day.</p>' +
       (d.next_session ? `<div class="section-title" style="margin-top:10px">Next up · ${fmtDate(d.next_session.date)}</div>${sessionBlock(d.next_session)}` : '') +
-      '<div class="actions"><a class="btn" href="/coach/">Plan with the coach</a></div>';
+      '<div class="actions"><a class="btn" href="/coach/">Plan with Apex</a></div>';
   }
 
   function renderWeek(d) {
@@ -307,18 +309,15 @@
       : '<div class="empty">Nothing stands out today.</div>';
   }
 
-  const WX = { 0: 'Clear', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Fog', 51: 'Light drizzle', 53: 'Drizzle',
-    55: 'Heavy drizzle', 61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 80: 'Showers', 81: 'Showers', 82: 'Heavy showers', 95: 'Thunderstorm' };
   function renderWeather(d) {
     const w = d.weather, body = document.getElementById('wx-body');
     if (!w) { body.innerHTML = '<div class="empty">No location set.</div>'; return; }
     document.getElementById('wx-loc').textContent = w.location + ' · change';
-    const days = Object.entries(w.days).slice(0, 2);
-    if (!w.now && !days.length) { body.innerHTML = '<div class="empty">No forecast yet. It arrives with the next weather sync.</div>'; return; }
-    const order = ['morning (06-12)', 'afternoon (12-18)', 'evening (18-22)'];
-    body.innerHTML = (w.now ? `<div class="wx-now"><span class="big">${Math.round(w.now.temp)}°</span><span class="meta">${e(WX[w.now.code] || '')} · rain ${w.now.rain ?? 0}% · wind ${Math.round(w.now.wind)} km/h</span></div>` : '') +
-      days.map(([date, blocks]) => `<div class="wx-day"><div class="section-title">${fmtDate(date)}</div>` +
-        order.filter(b => blocks[b]).map(b => `<div class="wx-row"><b>${b.split(' ')[0]}</b><span>${e(blocks[b])}</span></div>`).join('') + '</div>').join('');
+    if (!w.now && !w.parts.length) { body.innerHTML = '<div class="empty">No forecast yet. It arrives with the next weather sync.</div>'; return; }
+    const range = p => p.t_min == null ? '–' : p.t_min === p.t_max ? `${p.t_min}°` : `${p.t_min}–${p.t_max}°`;
+    body.innerHTML = (w.now ? `<div class="wx-now">${TC.weatherIcon(w.now.code, w.now.is_day)}<span class="big">${Math.round(w.now.temp)}°</span>` +
+        `<span class="meta">${e(TC.WEATHER_LABELS[w.now.code] || '')}<br>rain ${w.now.rain ?? 0}% · wind ${Math.round(w.now.wind)} km/h</span></div>` : '') +
+      `<div class="wx-parts">${w.parts.map(p => `<div class="wx-part">${p.part}${TC.weatherIcon(p.code, p.is_day)}<b>${range(p)}</b>rain ${p.rain ?? 0}%</div>`).join('')}</div>`;
   }
 
   function drawCharts() {

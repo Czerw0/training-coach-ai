@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0F1B2D">
-  <title>{% block title %}Training Coach{% endblock %}</title>
+  <meta name="theme-color" content="#F3F6FA" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0B1320" media="(prefers-color-scheme: dark)">
+  <title>{% block title %}ApexFit{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'coach/img/apexfit.svg' %}">
   <script>
     // set the theme before first paint to avoid a flash
     try { var t = localStorage.getItem('tc-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
@@ -18,28 +20,27 @@
 <body class="{% block body_class %}{% endblock %}">
   <div class="shell">
     <aside class="sidebar" aria-label="Main navigation">
-      <a class="logo" href="/">Training<span>Coach</span></a>
+      <a class="logo" href="/">{% include "coach/_logo.html" %}<b>Apex<span>Fit</span></b></a>
       <nav>{% include "coach/_nav.html" %}</nav>
+      {% with u=request.resolver_match.url_name|default:'' %}
       <div class="sidebar-foot">
-        <button class="side-btn" type="button" data-theme-toggle>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
-          <span data-theme-label>Theme: auto</span>
-        </button>
-        <form method="post" action="{% url 'logout' %}">{% csrf_token %}
-          <button class="side-btn" type="submit">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3"/></svg>
-            <span>Sign out</span>
-          </button>
-        </form>
+        <a class="me-row" href="/me/">
+          <span class="avatar" aria-hidden="true">{{ request.user.username|default:"?"|first|upper }}</span>
+          <span><b>{{ request.user.first_name|default:request.user.username }}</b><small>{% if nav_location %}in {{ nav_location }}{% else %}Profile{% endif %}</small></span>
+        </a>
+        <a class="side-btn{% if u == 'settings_page' %} active{% endif %}" href="/settings/">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>Settings
+        </a>
+        <a class="side-btn{% if u == 'usage_page' or u == 'usage_detail_page' %} active{% endif %}" href="/usage/">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.8 9.2c-.5-.8-1.5-1.2-2.8-1.2-1.6 0-2.8.8-2.8 2s1.1 1.7 2.8 2 2.8.8 2.8 2-1.2 2-2.8 2c-1.3 0-2.4-.5-2.9-1.3M12 6.5V8m0 8v1.5"/></svg>Usage
+        </a>
       </div>
+      {% endwith %}
     </aside>
 
     <header class="mobile-header">
-      <a class="logo" href="/">Training<span>Coach</span></a>
+      <a class="logo" href="/">{% include "coach/_logo.html" %}<b>Apex<span>Fit</span></b></a>
       <span class="page-name">{% block mobile_title %}{% endblock %}</span>
-      <button class="side-btn" type="button" data-theme-toggle aria-label="Switch theme">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
-      </button>
     </header>
 
     <main class="main">

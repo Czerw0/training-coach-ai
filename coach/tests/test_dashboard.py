@@ -91,3 +91,17 @@ def test_today_data_payload_shape(client):
     assert data["today_sessions"][0]["title"] == "Tempo"
     assert len(data["week"]) == 7
     assert len(data["load"]["weekly"]) == 8
+
+
+def test_weather_parts_bucket_in_local_time_with_night_after_midnight():
+    from zoneinfo import ZoneInfo
+    from coach.dashboard import weather_parts
+    tz = ZoneInfo("Europe/Vienna")
+    def h(hour, day=13, code=2, temp=10):
+        return {"datetime": dt.datetime(2026, 10, day, hour, tzinfo=tz), "temp": temp,
+                "precipitation_probability": 10, "wind_speed": 5, "weather_code": code, "is_day": 6 <= hour < 19}
+    rows = [h(9), h(10, code=61, temp=12), h(23, code=0), h(2, day=14, code=3, temp=4)]
+    parts = weather_parts(rows, tz)
+    assert [(p["part"], p["date"]) for p in parts] == [("Morning", "2026-10-13"), ("Night", "2026-10-13")]
+    assert parts[0]["code"] == 61 and (parts[0]["t_min"], parts[0]["t_max"]) == (10, 12)
+    assert parts[1]["is_day"] is False and parts[1]["t_min"] == 4

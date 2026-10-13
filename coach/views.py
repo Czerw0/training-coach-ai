@@ -462,3 +462,13 @@ def usage_detail_data(request, usage_id):
 @login_required
 def stats_page(request):
     return render(request, 'coach/stats.html')
+
+
+@login_required
+def me_page(request):
+    from sync.models import UserProfile
+    month_start = datetime.date.today().replace(day=1)
+    return render(request, 'coach/me.html', {
+        "ftp": UserProfile.objects.filter(pk=1).values_list("ftp_watts", flat=True).first(),
+        "month_cost": ApiUsage.objects.filter(created_at__date__gte=month_start).aggregate(s=Sum('cost_usd'))['s'] or 0,
+    })

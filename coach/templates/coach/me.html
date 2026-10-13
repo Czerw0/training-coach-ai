@@ -1,0 +1,48 @@
+{% extends "coach/base.html" %}
+{% block title %}Profile · ApexFit{% endblock %}
+{% block mobile_title %}Profile{% endblock %}
+
+{% block head %}
+<style>
+  .me { display: grid; gap: 16px; max-width: 720px; }
+  .me-hero { display: flex; align-items: center; gap: 14px; }
+  .me-hero .avatar { width: 56px; height: 56px; font-size: 22px; }
+  .me-hero b { font-family: var(--f-num); font-size: 26px; font-weight: 700; display: block; line-height: 1.1; }
+  .list { display: grid; }
+  .list > * { all: unset; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 15px 4px; border-top: 1px solid var(--line); font-weight: 600; }
+  .list > :first-child { border-top: 0; }
+  .list svg { width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .list .hint { color: var(--muted); font-weight: 500; font-size: 13px; }
+  .list .chev { margin-left: auto; color: var(--muted); font-size: 18px; }
+  .list form { display: contents; }
+  .list :focus-visible { outline: 2px solid var(--accent); border-radius: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-inner">
+  <div class="me">
+    <section class="card">
+      <div class="me-hero">
+        <span class="avatar" aria-hidden="true">{{ request.user.username|default:"?"|first|upper }}</span>
+        <div><b>{{ request.user.first_name|default:request.user.username }}</b>
+          <span class="meta">{% if nav_location %}In {{ nav_location }} right now{% endif %}{% if ftp %} · FTP {{ ftp }} W{% endif %}</span></div>
+      </div>
+    </section>
+    <section class="card">
+      <nav class="list" aria-label="Profile">
+        <a href="/settings/"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
+          Settings <span class="hint">location, profile, zones</span><span class="chev">›</span></a>
+        <a href="/usage/"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 6.5v11"/></svg>
+          Usage <span class="hint">{% if month_cost is not None %}${{ month_cost|floatformat:2 }} this month{% endif %}</span><span class="chev">›</span></a>
+        <button type="button" data-theme-toggle><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+          <span data-theme-label>Theme: auto</span><span class="chev">›</span></button>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+          <button type="submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3"/></svg>
+            Sign out<span class="chev">›</span></button>
+        </form>
+      </nav>
+    </section>
+  </div>
+</div>
+{% endblock %}

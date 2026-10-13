@@ -3,16 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0F1B2D">
-  <title>Sign in · Training Coach</title>
+  <meta name="theme-color" content="#F3F6FA">
+  <link rel="icon" type="image/svg+xml" href="{% static 'coach/img/apexfit.svg' %}">
+  <title>Sign in · ApexFit</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700;800&family=Public+Sans:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="{% static 'coach/css/app.css' %}">
   <style>
-    body { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; background: var(--nav-bg); }
+    body { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; background: radial-gradient(1200px 600px at 50% -10%, var(--accent-soft), var(--bg)); }
     .login { width: 100%; max-width: 380px; display: grid; gap: 18px; }
-    .login .logo { font-size: 30px; text-align: center; }
+    .login .logo { justify-self: center; } .login .logo svg { width: 40px; height: 40px; } .login .logo b { font-size: 32px; }
     .login .card { padding: 24px 22px; gap: 14px; }
     .login h1 { font-family: var(--f-num); font-size: 24px; font-weight: 700; }
     .login .sub { color: var(--muted); font-size: 14px; margin-top: -8px; }
@@ -22,10 +23,10 @@
 </head>
 <body>
   <main class="login">
-    <div class="logo">Training<span>Coach</span></div>
+    <div class="logo">{% include "coach/_logo.html" %}<b>Apex<span>Fit</span></b></div>
     <div class="card">
       <h1>Sign in</h1>
-      <p class="sub">Your coach, your data.</p>
+      <p class="sub">Train with Apex, your AI coach.</p>
 
       {% if form.errors %}
         <div class="error" role="alert">Incorrect username or password. Try again.</div>

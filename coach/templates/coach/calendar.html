@@ -1,5 +1,5 @@
 {% extends "coach/base.html" %}
-{% block title %}Calendar · Training Coach{% endblock %}
+{% block title %}Calendar · ApexFit{% endblock %}
 {% block mobile_title %}Calendar{% endblock %}
 
 {% block head %}
@@ -162,7 +162,7 @@
         </div>
 
         <div class="group">
-          <div class="group-head"><b>Session card</b><span>what the coach fills in when it plans</span></div>
+          <div class="group-head"><b>Session card</b><span>what Apex fills in when it plans</span></div>
           <div class="card-fields" id="card-fields"></div>
         </div>
       </div>
@@ -298,7 +298,7 @@
     const p = ev.extendedProps;
     editingId = p.session_id;
     $('modal-title').textContent = p.title || 'Edit session';
-    $('who-line').textContent = (p.created_by === 'human' ? 'Planned by you' : 'Planned by the AI coach') + ' · ' + ev.startStr.slice(0, 10);
+    $('who-line').textContent = (p.created_by === 'human' ? 'Planned by you' : 'Planned by Apex') + ' · ' + ev.startStr.slice(0, 10);
     showForm(true); deleteBtn.style.display = '';
     $('f-date').value = ev.startStr.slice(0, 10); setType(p.activity_type || 'other'); setIntensity(p.intensity);
     $('f-title').value = p.title || ''; $('f-duration').value = p.duration_minutes || ''; $('f-completed').checked = !!p.completed;

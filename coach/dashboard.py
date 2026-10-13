@@ -11,7 +11,6 @@ from django.views.decorators.http import require_http_methods
 
 from coach import metrics
 from coach.models import PlannedSession
-from coach.context import _summarise_weather
 from sync.models import Activity, DailyStats, FTPRecord, HRVRecord, SleepRecord, UserProfile, WeatherHourly, WeatherLocation
 
 ZONES = range(1, 6)
@@ -167,15 +166,44 @@ def _weather():
     now = timezone.now()
     hours = list(WeatherHourly.objects.filter(location=loc, datetime__gte=now - dt.timedelta(hours=1),
                                               datetime__lte=now + dt.timedelta(hours=48))
-                 .order_by("datetime").values("datetime", "temp", "precipitation_probability", "wind_speed", "weather_code"))
+                 .order_by("datetime").values("datetime", "temp", "precipitation_probability", "wind_speed",
+                                              "weather_code", "is_day"))
     tz = ZoneInfo(loc.timezone)
     current = hours[0] if hours else None
     return {
         "location": loc.name,
         "now": None if not current else {"temp": current["temp"], "rain": current["precipitation_probability"],
-                                         "wind": current["wind_speed"], "code": current["weather_code"]},
-        "days": _summarise_weather(hours, tz),
+                                         "wind": current["wind_speed"], "code": current["weather_code"],
+                                         "is_day": current["is_day"]},
+        "parts": weather_parts(hours, tz),
     }
+
+
+PARTS = (("Morning", 6, 12), ("Afternoon", 12, 18), ("Evening", 18, 22), ("Night", 22, 30))
+
+
+def weather_parts(hours, tz, limit=4):
+    """The next `limit` day-parts in local time: temp range, max rain chance,
+    the worst weather code (drives the icon) and whether it's daytime."""
+    buckets = {}
+    for h in hours:
+        local = h["datetime"].astimezone(tz)
+        hour = local.hour if local.hour >= 6 else local.hour + 24
+        day = local.date() if local.hour >= 6 else local.date() - dt.timedelta(days=1)
+        name = next(n for n, lo, hi in PARTS if lo <= hour < hi)
+        buckets.setdefault((day, name), []).append(h)
+    out = []
+    for (day, name), rows in buckets.items():
+        temps = [r["temp"] for r in rows if r["temp"] is not None]
+        codes = [r["weather_code"] for r in rows if r["weather_code"] is not None]
+        rain = [r["precipitation_probability"] for r in rows if r["precipitation_probability"] is not None]
+        out.append({
+            "date": day.isoformat(), "part": name,
+            "t_min": round(min(temps)) if temps else None, "t_max": round(max(temps)) if temps else None,
+            "rain": max(rain) if rain else None, "code": max(codes) if codes else None,
+            "is_day": name != "Night",
+        })
+    return out[:limit]
 
 
 @login_required

@@ -5,6 +5,7 @@ urlpatterns = [
     path('', dashboard.today_page, name='today_page'),
     path('today/data/', dashboard.today_data, name='today_data'),
     path('coach/', views.chat_page, name='chat_page'),
+    path('me/', views.me_page, name='me_page'),
     path('message/', views.chat_message, name='chat_message'),
     path('reset/', views.chat_reset, name='chat_reset'),
     path('calendar/', views.calendar_page, name='calendar_page'),
