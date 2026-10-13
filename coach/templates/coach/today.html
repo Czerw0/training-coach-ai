@@ -115,11 +115,6 @@
   .legend-row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
   .legend-row span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: var(--c); vertical-align: middle; }
 
-  /* zones */
-  .zonebar { display: flex; height: 10px; border-radius: 99px; overflow: hidden; gap: 2px; background: var(--sunken); }
-  .zonebar i { display: block; }
-  .zone-l { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .zone-l span b { display: block; color: var(--fg); font-family: var(--f-num); font-size: 14px; }
   .stat-row { display: flex; flex-wrap: wrap; gap: 14px 22px; }
   .stat-row div .v { font-size: 22px; }
 
@@ -352,12 +347,8 @@
     if (a.zone_minutes) {
       const total = a.zone_minutes.reduce((x, y) => x + y, 0) || 1;
       const hz = d.hr_zones || [];
-      zones = `<div class="section-title">Time in heart-rate zones</div><div class="zonebar">${a.zone_minutes.map((m, i) =>
-        m ? `<i style="flex:${m};background:var(--z${i + 1})" title="Z${i + 1}: ${m} min"></i>` : '').join('')}</div>` +
-        `<div class="zone-l">${a.zone_minutes.map((m, i) => {
-          const z = hz[i]; const range = z ? (z.max_bpm == null ? `${z.min_bpm}+` : `${z.min_bpm}–${z.max_bpm}`) : '';
-          return `<span><b>${m}′</b>Z${i + 1}${range ? ' · ' + range : ''}</span>`;
-        }).join('')}</div>`;
+      zones = `<div class="section-title">Time in heart-rate zones</div>` + TC.zoneStrip(a.zone_minutes,
+        a.zone_minutes.map((m, i) => `var(--z${i + 1})`), hz.map(z => z.max_bpm == null ? `${z.min_bpm}+` : `${z.min_bpm}–${z.max_bpm}`));
     }
     body.innerHTML = `<div class="sess-title"><span class="dot" style="--c:${typeColor(a.type)}"></span>${e(a.name)}</div>` +
       `<div class="stat-row">${stats.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${e(v)}</div></div>`).join('')}</div>${zones}`;

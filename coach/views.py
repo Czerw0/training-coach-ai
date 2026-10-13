@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 
 from pydantic import ValidationError
 
+from coach import agent, prompts
 from coach.agent import chat
 from coach.models import Goal, Injury, Message, PlannedExercise, PlannedSession
 from coach.schemas import PlannedExerciseIn
@@ -471,4 +472,5 @@ def me_page(request):
     return render(request, 'coach/me.html', {
         "ftp": UserProfile.objects.filter(pk=1).values_list("ftp_watts", flat=True).first(),
         "month_cost": ApiUsage.objects.filter(created_at__date__gte=month_start).aggregate(s=Sum('cost_usd'))['s'] or 0,
+        "prompt_custom": prompts.active_prompt(request.user)[1] != agent.PROMPT_TAG,
     })

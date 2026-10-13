@@ -151,6 +151,15 @@
       return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
     },
 
+    // Time-in-zone strip: each zone is one column holding its bar segment and its
+    // label, so labels always sit under their segment. Width follows minutes,
+    // with a floor so short zones still fit a readable label.
+    zoneStrip(minutes, colors, labels = []) {
+      const total = minutes.reduce((a, b) => a + b, 0) || 1;
+      return `<div class="zstrip">${minutes.map((m, i) => `<div style="flex-grow:${Math.max(m / total, 0.06).toFixed(3)}" title="Z${i + 1}: ${m} min">` +
+        `<i style="background:${m ? colors[i] : 'var(--sunken)'}"></i><span><b>${m}′</b>Z${i + 1}${labels[i] ? `<small>${TC.escapeHtml(labels[i])}</small>` : ''}</span></div>`).join('')}</div>`;
+    },
+
     // Apex insights: saved per activity / tile, generated only on click.
     // opts: scope, key, big (activity page button), filter(items) -> items shown
     insights(el, opts) {

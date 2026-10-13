@@ -14,10 +14,6 @@
   .metric .v { font-size: 24px; }
   .cmp { font-size: 11.5px; font-weight: 700; margin-top: 2px; color: var(--muted); }
   .cmp.up { color: var(--accent); }
-  .zonebar { display: flex; height: 12px; border-radius: 99px; overflow: hidden; gap: 2px; background: var(--sunken); }
-  .zonebar i { display: block; }
-  .zone-l { display: grid; gap: 4px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .zone-l b { display: block; color: var(--fg); font-family: var(--f-num); font-size: 15px; }
   .ex div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; align-items: baseline; }
   .ex div:first-child { border-top: 0; }
   .ex .s { font-family: var(--f-num); font-weight: 700; font-size: 15px; }
@@ -50,11 +46,11 @@
   <div class="grid grid-2">
     <section class="card" id="c-hr" hidden>
       <div class="card-head"><h2>Heart-rate zones</h2><span class="sub">your zones</span></div>
-      <div class="zonebar" id="hr-bar"></div><div class="zone-l" id="hr-l"></div>
+      <div id="hr-bar"></div>
     </section>
     <section class="card" id="c-power" hidden>
       <div class="card-head"><h2>Power zones</h2><span class="sub" id="power-sub"></span></div>
-      <div class="zonebar" id="power-bar"></div><div class="zone-l" id="power-l"></div>
+      <div id="power-bar"></div>
     </section>
     <section class="card" id="c-ex" hidden>
       <div class="card-head"><h2>Exercises</h2><span class="sub">from Garmin</span></div>
@@ -82,11 +78,8 @@
   const fmtVal = m => m.key === 'pace' ? fmtPace(m.value) : Number(m.value).toLocaleString();
   let data = null;
 
-  function zoneBlock(minutes, colors, labels, barId, lId) {
-    document.getElementById(barId).innerHTML = minutes.map((m, i) => m ? `<i style="flex:${m};background:${colors[i]}" title="Z${i + 1}: ${m} min"></i>` : '').join('');
-    const l = document.getElementById(lId);
-    l.style.gridTemplateColumns = `repeat(${minutes.length}, minmax(0, 1fr))`;
-    l.innerHTML = minutes.map((m, i) => `<span><b>${m}′</b>Z${i + 1}${labels[i] ? ' · ' + labels[i] : ''}</span>`).join('');
+  function zoneBlock(minutes, colors, labels, barId) {
+    document.getElementById(barId).innerHTML = TC.zoneStrip(minutes, colors, labels);
   }
 
   function render(d) {
@@ -117,12 +110,12 @@
     if (d.hr_zones) {
       document.getElementById('c-hr').hidden = false;
       const b = d.hr_zone_bounds || [];
-      zoneBlock(d.hr_zones, [1, 2, 3, 4, 5].map(z => `var(--z${z})`), b.map(z => z.max_bpm == null ? `${z.min_bpm}+` : `${z.min_bpm}–${z.max_bpm}`), 'hr-bar', 'hr-l');
+      zoneBlock(d.hr_zones, [1, 2, 3, 4, 5].map(z => `var(--z${z})`), b.map(z => z.max_bpm == null ? `${z.min_bpm}+` : `${z.min_bpm}–${z.max_bpm}`), 'hr-bar');
     }
     if (d.power_zones) {
       document.getElementById('c-power').hidden = false;
       document.getElementById('power-sub').textContent = d.ftp ? `FTP ${d.ftp} W` : '';
-      zoneBlock(d.power_zones, ['var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)', 'var(--z5)', 'var(--t-strength)'], POWER_ZONES, 'power-bar', 'power-l');
+      zoneBlock(d.power_zones, ['var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)', 'var(--z5)', 'var(--t-strength)'], POWER_ZONES, 'power-bar');
     }
     if (d.exercises.length) {
       document.getElementById('c-ex').hidden = false;
