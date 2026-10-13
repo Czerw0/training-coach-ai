@@ -55,3 +55,27 @@ def test_stats_data_period_param_and_unknown_period(client):
     assert len(data["recovery"]) == 28
     assert client.get(reverse("stats_data") + "?days=999").json()["period"]["days"] == 84
     assert client.get(reverse("stats_data") + "?days=abc").json()["period"]["days"] == 84
+
+
+@pytest.mark.django_db
+def test_feel_stats_counts_parts_and_averages():
+    from coach.models import DailyFeeling
+    from coach.stats import feel_stats
+    for i, (s, parts) in enumerate([(6, "Hamstrings, Glutes"), (4, "hamstrings"), (2, None)]):
+        DailyFeeling.objects.create(date=D - dt.timedelta(days=i), muscle_soreness=s, energy_level=7, muscle_sore=parts)
+    out = feel_stats(D - dt.timedelta(days=27), D)
+    assert out["days_logged"] == 3 and out["avg"]["soreness"] == 4.0
+    assert out["parts"][0] == {"part": "Hamstrings", "n": 2}
+    assert out["after_hard"] is None   # not enough data
+
+
+@pytest.mark.django_db
+def test_injury_list_keeps_last_12_months_and_open_ones():
+    from coach.models import Injury
+    from coach.stats import injury_list
+    Injury.objects.create(body_part="left knee", date_started=D - dt.timedelta(days=400))                     # still open
+    Injury.objects.create(body_part="wrist", date_started=D - dt.timedelta(days=60), date_resolved=D - dt.timedelta(days=30))
+    Injury.objects.create(body_part="back", date_started=D - dt.timedelta(days=500), date_resolved=D - dt.timedelta(days=450))
+    out = {i["body_part"]: i for i in injury_list(D)}
+    assert set(out) == {"Left Knee", "Wrist"}
+    assert out["Wrist"]["days"] == 30 and out["Left Knee"]["end"] is None

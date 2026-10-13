@@ -10,7 +10,7 @@ from django.db.models import Count, Sum
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
-from coach.models import Goal, Injury, PlannedSession
+from coach.models import DailyFeeling, Goal, Injury, PlannedSession
 from sync.models import Activity, DailyStats, FTPRecord, HRVRecord, SleepRecord
 
 PERIODS = (28, 84, 182, 365)
@@ -168,6 +168,44 @@ def _adherence(today, start):
     }
 
 
+def feel_stats(start, end):
+    """Soreness / energy / motivation series, most-reported sore areas, and
+    next-day soreness after the hardest training days vs the rest."""
+    rows = list(DailyFeeling.objects.filter(date__gte=start, date__lte=end).order_by("date"))
+    series = [{"date": f.date.isoformat(), "soreness": f.muscle_soreness, "energy": f.energy_level,
+               "motivation": f.motivation} for f in rows]
+    parts = defaultdict(int)
+    for f in rows:
+        for part in (f.muscle_sore or "").split(","):
+            if part.strip():
+                parts[part.strip().replace("_", " ").title()] += 1
+    soreness = {f.date: f.muscle_soreness for f in rows if f.muscle_soreness is not None}
+    after_hard = None
+    loads = daily_load(start, end)
+    trained = [v for v in loads.values() if v > 0]
+    if len(trained) >= 8:
+        cut = statistics.quantiles(trained, n=4)[2]
+        hard, other = [], []
+        for d, s in soreness.items():
+            (hard if loads.get(d - dt.timedelta(days=1), 0) >= cut else other).append(s)
+        if len(hard) >= 5 and len(other) >= 5:
+            after_hard = {"hard": round(_mean(hard), 1), "other": round(_mean(other), 1), "n_hard": len(hard), "n_other": len(other)}
+    avg = lambda k: round(_mean([r[k] for r in series if r[k] is not None]), 1) if any(r[k] is not None for r in series) else None
+    return {"series": series, "days_logged": len(rows), "avg": {k: avg(k) for k in ("soreness", "energy", "motivation")},
+            "parts": [{"part": k, "n": v} for k, v in sorted(parts.items(), key=lambda kv: -kv[1])][:8],
+            "after_hard": after_hard}
+
+
+def injury_list(today):
+    """Every injury active at some point in the last 12 months. Stats are
+    computed in the browser so injuries hidden from view drop out of them too."""
+    since = today - dt.timedelta(days=365)
+    return [{"id": i.id, "body_part": (i.body_part or "Injury").title(), "severity": i.severity,
+             "start": i.date_started.isoformat(), "end": i.date_resolved.isoformat() if i.date_resolved else None,
+             "days": ((i.date_resolved or today) - i.date_started).days}
+            for i in Injury.objects.filter(date_started__lte=today).exclude(date_resolved__lt=since).order_by("date_started")]
+
+
 @login_required
 @require_http_methods(["GET"])
 def stats_data(request):
@@ -281,4 +319,7 @@ def stats_data(request):
         "records": records(rows, weeks),
         "correlations": correlations(start, today),
         "adherence": _adherence(today, start),
+        "feel": feel_stats(start, today),
+        "injuries": injury_list(today),
+        "injury_window": {"start": (today - dt.timedelta(days=365)).isoformat(), "end": today.isoformat()},
     })

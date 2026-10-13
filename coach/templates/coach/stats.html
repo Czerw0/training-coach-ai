@@ -56,6 +56,17 @@
   .finding b { display: block; font-size: 14.5px; }
   .finding p { font-size: 13px; color: var(--muted); margin-top: 2px; }
 
+  .timeline { display: grid; gap: 10px; }
+  .tl-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+  .tl-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .tl-track { position: relative; height: 14px; border-radius: 99px; background: var(--sunken); }
+  .tl-track i { position: absolute; top: 0; bottom: 0; border-radius: 99px; min-width: 6px; }
+  .tl-axis { display: grid; grid-template-columns: 120px minmax(0, 1fr) 48px; gap: 10px; font-size: 11px; color: var(--muted); }
+  .tl-axis div { display: flex; justify-content: space-between; }
+  .hide-btn { all: unset; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--muted); padding: 2px 8px; border-radius: 999px; }
+  .hide-btn:hover { background: var(--sunken); color: var(--fg); }
+  .link-btn { all: unset; cursor: pointer; color: var(--accent); font-weight: 700; }
+  @media (max-width: 480px) { .tl-row, .tl-axis { grid-template-columns: 86px minmax(0, 1fr) auto; } }
   .bars-h { display: grid; gap: 10px; }
   .bar-h { display: grid; grid-template-columns: 110px minmax(0, 1fr) 54px; gap: 10px; align-items: center; font-size: 13px; }
   .bar-h .track { height: 10px; background: var(--sunken); border-radius: 99px; overflow: hidden; }
@@ -162,6 +173,33 @@
         <div class="chart-box sm"><canvas id="sleepChart" aria-label="Sleep score"></canvas></div></div>
       <div class="card"><div class="card-head"><h3>Sleep duration</h3><span class="sub" id="dur-avg"></span></div>
         <div class="chart-box sm"><canvas id="durChart" aria-label="Sleep duration in hours"></canvas></div></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>How you feel</h2>
+    <p class="lede" id="feel-lede">What you logged in the chat or with the quick log on Today, on a 1–10 scale.</p>
+    <div class="grid grid-2">
+      <div class="card"><div class="card-head"><h3>Muscle soreness</h3><span class="sub" id="f-sore-avg"></span></div>
+        <div class="chart-box sm"><canvas id="soreChart" aria-label="Muscle soreness over time"></canvas></div></div>
+      <div class="card"><div class="card-head"><h3>Energy</h3><span class="sub" id="f-energy-avg"></span></div>
+        <div class="chart-box sm"><canvas id="energyChart" aria-label="Energy over time"></canvas></div></div>
+      <div class="card"><div class="card-head"><h3>Most sore</h3><span class="sub">times reported</span></div>
+        <div class="bars-h" id="f-parts"></div></div>
+      <div class="card"><div class="card-head"><h3>Motivation &amp; patterns</h3><span class="sub" id="f-mot-avg"></span></div>
+        <div class="chart-box sm" style="min-height:140px"><canvas id="motChart" aria-label="Motivation over time"></canvas></div>
+        <div id="f-after"></div></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Injuries</h2>
+    <div class="card">
+      <div class="card-head"><h3>Last 12 months</h3><span class="sub" id="inj-sub"></span></div>
+      <div class="timeline" id="tl"></div>
+      <div class="tl-axis" id="tl-axis"></div>
+      <div class="stat-row" id="inj-stats" style="display:flex;flex-wrap:wrap;gap:12px 26px"></div>
+      <div class="meta" id="tl-hidden"></div>
     </div>
   </section>
 
@@ -290,6 +328,14 @@
     const dur = TC.css('--t-strength');
     mk('durChart', { type: 'line', data: { labels: rl, datasets: [{ label: 'Sleep', data: r.map(x => x.sleep_hours), borderColor: dur, backgroundColor: TC.alpha(dur, .12), fill: true, spanGaps: true }] }, options: lineOpts(' h') });
 
+    const fs = data.feel.series, fl2 = fs.map(x => fmtShort(x.date));
+    const scale = { y: { min: 0, max: 10, grid: { color: line }, ticks: { stepSize: 2 } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 6, maxRotation: 0 } } };
+    const feelLine = (id, key, color, label) => mk(id, { type: 'line', data: { labels: fl2, datasets: [{ label, data: fs.map(x => x[key]),
+      borderColor: color, backgroundColor: color, spanGaps: true, pointRadius: 3 }] }, options: lineOpts('/10', { scales: scale }) });
+    feelLine('soreChart', 'soreness', TC.css('--t-strength'), 'Soreness');
+    feelLine('energyChart', 'energy', TC.css('--good'), 'Energy');
+    feelLine('motChart', 'motivation', accent, 'Motivation');
+
     const ftp = data.ftp;
     mk('ftpChart', { type: 'line', data: { labels: ftp.map(x => fmtShort(x.date)), datasets: [{ label: 'FTP', data: ftp.map(x => x.watts), borderColor: accent,
       pointBackgroundColor: accent, stepped: true }] }, options: lineOpts(' W', { elements: { point: { radius: 4, hoverRadius: 6 }, line: { borderWidth: 2 } } }) });
@@ -354,6 +400,24 @@
       `<div class="finding"><div><b>${e(x.title)}</b><p>${e(x.text)}</p></div></div>`).join('')
       : '<div class="empty">Not enough data in this period yet. Try a longer period.</div>';
 
+    // feel
+    const fe = data.feel;
+    document.getElementById('feel-lede').textContent = fe.days_logged
+      ? `${fe.days_logged} days logged in this period, on a 1–10 scale. Log from the chat or the quick log on Today.`
+      : 'Nothing logged in this period yet. Use the quick log on Today or tell Apex how you feel.';
+    document.getElementById('f-sore-avg').textContent = fe.avg.soreness != null ? `avg ${fe.avg.soreness}` : '';
+    document.getElementById('f-energy-avg').textContent = fe.avg.energy != null ? `avg ${fe.avg.energy}` : '';
+    document.getElementById('f-mot-avg').textContent = fe.avg.motivation != null ? `avg ${fe.avg.motivation}` : '';
+    const maxPart = Math.max(1, ...fe.parts.map(x => x.n));
+    document.getElementById('f-parts').innerHTML = fe.parts.length ? fe.parts.map(x =>
+      `<div class="bar-h"><span>${e(x.part)}</span><span class="track"><span class="fill" style="width:${x.n / maxPart * 100}%;--c:var(--t-strength)"></span></span><span class="val">${x.n}</span></div>`).join('')
+      : '<div class="meta">No sore muscles logged in this period.</div>';
+    document.getElementById('f-after').innerHTML = fe.after_hard
+      ? `<div class="finding"><div><b>Soreness ${fe.after_hard.hard} the day after your hardest sessions</b><p>vs ${fe.after_hard.other} after everything else (${fe.after_hard.n_hard} vs ${fe.after_hard.n_other} days).</p></div></div>`
+      : '<div class="meta">Log soreness on more days to see how it follows your hardest sessions.</div>';
+
+    renderInjuries();
+
     const ad = data.adherence;
     document.getElementById('a-rate').textContent = ad.rate == null ? '–' : ad.rate + '%';
     document.getElementById('a-sub').textContent = ad.total ? `${ad.matched} of ${ad.total} planned sessions matched to a logged activity` : 'No past planned sessions yet.';
@@ -364,6 +428,36 @@
       `<div class="row-item"><div class="top"><span class="text">${e(m.title)}</span><span class="when">${fmtShort(m.date)}</span></div><div class="meta">${e(TC.label(m.activity_type))}</div></div>`).join('')
       : '<div class="empty">Nothing missed.</div>';
   }
+
+  // injuries — Hide is view-only (this device); stats below follow what's visible
+  function renderInjuries() {
+    const hidden = TC.hiddenInjuries(), all = data.injuries, list = all.filter(i => !hidden.includes(i.id));
+    const w0 = new Date(data.injury_window.start), w1 = new Date(data.injury_window.end), span = w1 - w0;
+    const pos = d => Math.max(0, Math.min(100, (new Date(d) - w0) / span * 100));
+    document.getElementById('inj-sub').textContent = list.length ? `${list.length} shown` : '';
+    document.getElementById('tl').innerHTML = list.length ? list.map(i => {
+      const left = pos(i.start), right = i.end ? 100 - pos(i.end) : 0;
+      return `<div class="tl-row"><span title="${e(i.body_part)}">${e(i.body_part)}</span>` +
+        `<span class="tl-track" title="${i.start} – ${i.end || 'now'} · ${i.days} days"><i style="left:${left}%;right:${right}%;background:${i.end ? 'var(--z1)' : 'var(--warn)'}"></i></span>` +
+        `<button class="hide-btn" type="button" data-hide="${i.id}" aria-label="Hide ${e(i.body_part)} on this device">Hide</button></div>`;
+    }).join('') : `<div class="meta">${all.length ? 'All injuries are hidden on this device.' : 'No injuries in the last 12 months.'}</div>`;
+    const months = [0, 3, 6, 9, 12].map(m => { const d = new Date(w0); d.setMonth(d.getMonth() + m); return m === 12 ? 'Now' : d.toLocaleDateString('en-GB', { month: 'short' }); });
+    document.getElementById('tl-axis').innerHTML = list.length ? `<span></span><div>${months.map(m => `<span>${m}</span>`).join('')}</div><span></span>` : '';
+    const resolved = list.filter(i => i.end), active = list.filter(i => !i.end);
+    const counts = {}; list.forEach(i => { counts[i.body_part] = (counts[i.body_part] || 0) + 1; });
+    const recurring = Object.values(counts).filter(n => n > 1).length;
+    const stat = (k, v) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`;
+    document.getElementById('inj-stats').innerHTML = list.length ? stat('Active', active.length) + stat('Resolved', resolved.length) +
+      stat('Avg recovery', resolved.length ? Math.round(resolved.reduce((a, i) => a + i.days, 0) / resolved.length) + ' d' : '–') +
+      stat('Recurring areas', recurring) : '';
+    const n = all.length - list.length;
+    document.getElementById('tl-hidden').innerHTML = n ? `${n} hidden on this device · <button class="link-btn" type="button" data-showall>show</button>` : '';
+  }
+  document.addEventListener('click', ev => {
+    const h = ev.target.closest('#tl [data-hide]');
+    if (h) { TC.setHiddenInjuries([...TC.hiddenInjuries(), +h.dataset.hide]); renderInjuries(); }
+    if (ev.target.closest('#tl-hidden [data-showall]')) { TC.setHiddenInjuries([]); renderInjuries(); }
+  });
 
   async function load() {
     document.querySelectorAll('#period button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.days === days ? 'true' : 'false'));
