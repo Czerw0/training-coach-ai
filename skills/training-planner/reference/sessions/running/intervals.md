@@ -1,10 +1,9 @@
 ---
 name: intervals
 category: running
-description: Use when planning VO2max or speed running intervals — the highest-intensity running session; do it fresh, protect the 48–72 h either side, and never as the first hard session back. For this athlete: max TWO runs per week (knee); a priority mode for a weekly run.
+description: Use when planning VO2max or speed running intervals — the highest-intensity running session; do it fresh, protect the 48–72 h either side, and never as the first hard session back.
 load: {neural: high, mechanical: high, metabolic: high, damage: moderate}
 residual_fatigue_h: 48
-category_max_per_week: 2
 same_day_conflicts: [gym/lower-eccentric, gym/lower-power, plyometrics/intensive, running/tempo-threshold, cycling/intervals]
 spacing_h: {running/tempo-threshold: 48, cycling/intervals: 48, gym/lower-eccentric: 72, gym/lower-power: 48, plyometrics/intensive: 48, running/easy-long: 24}
 pairs_well_with: [running/easy-long, cycling/endurance, gym/upper-body, gym/lower-isometric]
@@ -17,20 +16,6 @@ see_also: [principles/load-and-recovery, principles/planning-the-week, running/t
 
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
-
-> **This athlete —** running is **back, at up to TWO sessions per week**
-> (knee history; raised from one on 2026-10-13 — runs have been pain-free, uphill
-> running feels best). The week checker enforces this hard
-> (`category_max_per_week`), so a third run in any 7-day window is an error, not
-> a judgement call. Further aerobic work goes to whatever the athlete has where
-> they are now (`location` + athlete_notes): hiking in the mountains, cycling
-> only when a bike is available. Prefer hilly/uphill routes; keep steep descents
-> easy. Runs may be proposed without being asked. Skip it entirely if the knee is symptomatic or there is
-> an active knee injury. Of the running modes, `running/intervals` and
-> `running/tempo-threshold` carry the most value; use `running/easy-long` when
-> knee tolerance or readiness is uncertain, or the week is already leg-heavy.
-> Return to hard running is capped by tissue tolerance (see Don't use when):
-> reintroduce as short reps, never as the first hard session back.
 
 ## Use when
 

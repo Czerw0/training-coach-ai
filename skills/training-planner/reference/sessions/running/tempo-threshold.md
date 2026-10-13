@@ -1,10 +1,9 @@
 ---
 name: tempo-threshold
 category: running
-description: Use when planning tempo or threshold running (continuous or cruise intervals) — a key day, less taxing than full VO2max intervals; keep 48 h from other hard running or cycling. For this athlete: max TWO runs per week (knee); a priority mode for a weekly run.
+description: Use when planning tempo or threshold running (continuous or cruise intervals) — a key day, less taxing than full VO2max intervals; keep 48 h from other hard running or cycling.
 load: {neural: moderate, mechanical: moderate, metabolic: high, damage: moderate}
 residual_fatigue_h: 48
-category_max_per_week: 2
 same_day_conflicts: [gym/lower-eccentric, gym/lower-power, gym/lower-max-strength, plyometrics/intensive, running/intervals, cycling/intervals]
 spacing_h: {running/intervals: 48, cycling/intervals: 48, running/tempo-threshold: 48, gym/lower-eccentric: 72}
 pairs_well_with: [running/easy-long, cycling/endurance, gym/upper-body, gym/lower-isometric]
@@ -17,18 +16,6 @@ see_also: [principles/load-and-recovery, running/intervals]
 
 > DRAFT — coach to verify. General strength-and-conditioning guidance, not
 > individualised medical advice.
-
-> **This athlete —** running is **back, at up to TWO sessions per week**
-> (knee history; raised from one on 2026-10-13 — runs have been pain-free, uphill
-> running feels best). The week checker enforces this hard
-> (`category_max_per_week`), so a third run in any 7-day window is an error, not
-> a judgement call. Further aerobic work goes to whatever the athlete has where
-> they are now (`location` + athlete_notes): hiking in the mountains, cycling
-> only when a bike is available. Prefer hilly/uphill routes; keep steep descents
-> easy. Runs may be proposed without being asked. Skip it entirely if the knee is symptomatic or there is
-> an active knee injury. Of the running modes, `running/intervals` and
-> `running/tempo-threshold` carry the most value; use `running/easy-long` when
-> knee tolerance or readiness is uncertain, or the week is already leg-heavy.
 
 ## Use when
 

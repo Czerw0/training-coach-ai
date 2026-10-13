@@ -27,14 +27,6 @@ more specialised lower-body days (`gym/lower-max-strength`, `gym/lower-eccentric
 `gym/lower-isometric`, `gym/lower-power`) so the athlete gets varied stimulus
 across a block rather than the same squat session every week.
 
-> **This athlete —** skiing is the winter goal, so the leg half of this session
-> should always earn its place toward that: a bilateral squat or hinge for
-> maximal force, controlled tempo on the way down for the eccentric/braking
-> quality that descents demand, and real trunk work for on-snow stability. The
-> upper half keeps pulling/pressing strength for poles, packs and general
-> robustness. In a cycling-heavy week, keep the leg load submaximal (see
-> Scheduling) so it supports the riding rather than competing with it.
-
 ## Don't use when
 
 - There is an acute injury in a region this session would load — swap to a
@@ -119,7 +111,7 @@ some residue. Z2 riding the next day is comfortable; a key session is not.
 
 ## Worked example
 
-> **Context:** this athlete, mid-August (strength-building phase toward the ski
+> **Context:** an example athlete preparing for ski season, mid-August (strength-building phase toward the ski
 > season), a busy week with a mountain day on Saturday, so only one gym slot fits
 > and it has to cover legs and upper. Readiness normal.
 

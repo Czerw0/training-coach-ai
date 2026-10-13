@@ -115,19 +115,16 @@ def test_check_week_clean_week_has_no_violations():
     assert "no constraint violations" in out.lower()
 
 
-def test_check_week_caps_running_at_two_per_week():
-    # raised from one to two on 2026-10-13 (knee pain-free, uphill running)
-    two = check_week([
-        {"id": "running/tempo-threshold", "start": "2026-08-10T18:00"},
-        {"id": "running/easy-long", "start": "2026-08-15T09:00"},
-    ])
-    assert "weekly-cap" not in two
-    three = check_week([
+def test_check_week_caps_come_from_the_athletes_rules():
+    three = [
         {"id": "running/tempo-threshold", "start": "2026-08-10T18:00"},
         {"id": "running/easy-long", "start": "2026-08-13T09:00"},
         {"id": "running/easy-long", "start": "2026-08-15T09:00"},
-    ])
-    assert "weekly-cap" in three and "ERROR" in three
+    ]
+    assert "weekly-cap" not in check_week(three)                     # the library itself has no cap
+    capped = check_week(three, {"weekly_caps": {"running": 2}})
+    assert "weekly-cap" in capped and "ERROR" in capped
+    assert "weekly-cap" not in check_week(three[:2], {"weekly_caps": {"running": 2}})
 
 
 def test_check_week_flags_spacing_error():

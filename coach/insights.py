@@ -23,7 +23,7 @@ from coach.models import AiInsight, ApiUsage, DailyFeeling, Injury
 from coach.stats import feel_stats, fitness_series, injury_list
 from sync.models import Activity, DailyStats, HRVRecord, SleepRecord
 
-PROMPT_VERSION = "insights-v1.0"
+PROMPT_VERSION = "insights-v1.1"   # 1.1: generic, athlete context from the data
 CONFIG_VERSION = "insights-v1"
 MAX_TOKENS = 1200
 REFRESH_MINUTES = 10
@@ -31,9 +31,9 @@ REFRESH_MINUTES = 10
 # scope -> (min, max) bullets
 COUNTS = {"activity": (5, 8), "sleep": (3, 3), "hrv": (3, 3), "form": (3, 3), "injuries": (3, 3)}
 
-SYSTEM = """You are Apex, the AI training coach in the ApexFit app. The athlete is a multisport amateur (cycling, running, strength, skating) based in Warsaw.
+SYSTEM = """You are Apex, the AI training coach in the ApexFit app.
 
-You get one JSON object with their real data for one topic and write short insights about it.
+You get one JSON object with an athlete's real data for one topic and write short insights about it. `athlete` holds where they are and their own rules (focus areas, unavailable activities, weekly caps) — respect them and don't suggest anything they rule out.
 - Use only the numbers in the data. Never invent values, dates, sessions or trends that are not there. If something is missing, don't mention it unless the gap itself matters.
 - Each insight: a title of 2-7 words that states the point, and one sentence (max ~30 words) that gives the evidence from the data and, when useful, what to do about it.
 - Prefer comparisons the data supports (vs their own average, vs previous days or sessions, vs their zones) over generic advice.
@@ -151,6 +151,13 @@ def _injuries(key, today):
             "load": {"acute_7d": round(acute), "chronic_28d": round(chronic), "acwr": ratio}}
 
 
+def _athlete():
+    from coach import athlete_rules
+    from sync.models import WeatherLocation
+    loc = WeatherLocation.active()
+    return {"location": loc.name if loc else None, "rules": athlete_rules.as_context()}
+
+
 PAYLOADS = {"activity": _activity, "sleep": _sleep, "hrv": _hrv, "form": _form, "injuries": _injuries}
 
 
@@ -228,6 +235,7 @@ def insights_view(request, scope, key):
                              "error": f"Fresh insights can be requested once every {REFRESH_MINUTES} minutes."}, status=429)
 
     payload = PAYLOADS[scope](key, today)
+    payload["athlete"] = _athlete()
     try:
         items, usage, cost, stop_reason = generate(scope, payload)
     except Exception:

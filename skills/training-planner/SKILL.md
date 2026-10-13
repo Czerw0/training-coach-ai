@@ -16,28 +16,18 @@ runs the stdlib-only scripts.
 > must be checked against the athlete's real history, injuries and goals before
 > it drives a plan.
 
-## Who this is tuned for
+## Personalisation lives with the athlete
 
-This library is personalised for **one athlete**; the standing context lives in
-**`reference/principles/planning-the-week` §0** — load it first, don't duplicate
-it here. The essentials that change how you plan:
+The library is generic strength-and-conditioning methodology. Everything about
+one athlete comes from their layer, never from these files:
 
-- **Skiing is the winter goal and the north star.** It isn't trained in this
-  system (it happens on-snow, in season); every summer session is justified by
-  its transfer to skiing and to **long-term durability over short-term numbers**.
-- **Current priorities: gym, plyometrics, running, plus whatever aerobic work
-  the current place allows.** Check `location` and athlete_notes first: in
-  Warsaw cycling (direct-drive trainer) is the aerobic engine; away from home
-  (e.g. Innsbruck) there may be no bike — then it's hiking and hilly running.
-  Never prescribe cycling when the notes say no bike is available.
-- **Running: at most TWO sessions per week** (knee history) — enforced by the week
-  checker via `category_max_per_week: 2` on the `running/*` leaves. It may be
-  proposed without being asked; prefer uphill/hilly routes and keep steep
-  descents easy. No run while the knee is symptomatic. Prefer `running/intervals` or
-  `running/tempo-threshold`; `running/easy-long` when tolerance is uncertain.
-- **Plan around injuries and schedule first; keep the week flexible.** Rotate
-  lower-body gym types for variety, ease leg work in cycling-heavy weeks, and
-  aim for 1–3 rest days. Season phase (§0 table) sets what a good week looks like.
+- **athlete_rules** (Settings -> Rules): weekly caps per category and
+  unavailable activities — passed to the week checker, which enforces them.
+- **athlete_notes / injury_history** and **the athlete's own section** of the
+  coach instructions: goals, season, usual week, preferences, equipment.
+
+Apply the methodology within that context. Plan around injuries and schedule
+first and keep the week flexible.
 
 ## How this skill is organised (progressive disclosure)
 
@@ -183,19 +173,14 @@ Full leaves currently in the library:
 - **gym:** `lower-max-strength`, `lower-eccentric`, `lower-isometric`,
   `lower-power`, `upper-body`, `full-body`, `strength-endurance`
 - **plyometrics:** `extensive`, `intensive`
-- **running:** `easy-long`, `intervals`, `tempo-threshold` *(max one run per week
-  — see "Who this is tuned for")*
+- **running:** `easy-long`, `intervals`, `tempo-threshold`
 
 `gym/full-body` (all-round strength) and `gym/strength-endurance` (stair machine /
-loaded vertical, blending endurance and strength) are the newest leaves, added
-for this athlete's stated need for varied lower-body stimulus and a ski-relevant
-vertical-endurance option.
+loaded vertical, blending endurance and strength) are the newest leaves.
 
-Several leaves also carry a `> **This athlete —** …` note in the body where the
-personalisation is session-specific (the one-run-a-week cap, the plyometric
-return-to-load, the cycling trainer/easy focus, the climbing swap for upper body).
-The always-in-context `reference/catalog.md` encodes the one-run-a-week rule
-directly in those rows' descriptions.
+Personal limits used to sit in leaf frontmatter (`category_max_per_week`) and in
+athlete-specific notes; they now live in the athlete's rules and section. The
+frontmatter field still works for a genuinely generic cap.
 
 Climbing (an `gym/upper-body` swap) and hiking/mountaineering (closest proxy:
 `gym/strength-endurance`, used only when a mountain trip is on the calendar) are

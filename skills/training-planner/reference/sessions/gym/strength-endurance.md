@@ -30,14 +30,6 @@ legs, with a real cardiovascular cost, at moderate impact. Reach for it to:
   stimulus is wanted than heavy lifting (the athlete can swap a lower-gym slot
   for this).
 
-> **This athlete —** this is a **ski-specific** session: the stair machine and
-> loaded uphill work train exactly the sustained quad/glute endurance and
-> vertical capacity that alpine and ski-touring days demand, and weighted
-> step-downs add the eccentric/braking element of descents. It also doubles as
-> hiking/mountaineering-specific preparation when a mountain trip is coming up.
-> Because it is weight-bearing endurance rather than pure strength, it counts
-> toward the week's leg-impact and metabolic budget — don't treat it as free.
-
 ## Don't use when
 
 - A knee or Achilles is reactive — loaded stepping and step-downs concentrate
@@ -120,7 +112,7 @@ progressed too fast.
 
 ## Worked example
 
-> **Context:** this athlete, late-August, cycling-primary week (two rides
+> **Context:** an example athlete preparing for ski season, late-August, cycling-primary week (two rides
 > planned) but wants a second leg stimulus that supports rather than fights the
 > riding, and a mountain hike is three weeks out. Readiness normal.
 
