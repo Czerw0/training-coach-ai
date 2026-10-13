@@ -1,6 +1,6 @@
-# AI Training Coach
+# ApexFit — AI Training Coach
 
-I built my own coach: an AI agent that reads my actual data - every ride,
+I built my own coach, **Apex**: an AI agent that reads my actual data - every ride,
 every night of sleep, every HRV reading, even the weather in Warsaw — and tells
 me exactly what to train today and why.
 
@@ -25,8 +25,18 @@ every single message costs me (about half a cent).
 - A trace panel next to the chat that shows the agent's actual reasoning,
   round by round: which data it pulled, what it saw, and how that led to the
   plan — surfaced from the model's extended thinking, not a paraphrase.
-- A stats view: training by type, weekly volume, and plan adherence (did the
-  planned sessions actually happen?).
+- A stats view: training by type, weekly volume, plan adherence (did the
+  planned sessions actually happen?), how I feel (soreness, energy, motivation)
+  and an injury timeline.
+- A page for every activity: sport-specific metrics compared with my own
+  90-day average, HR and power zones, exercises, plan vs done, prev/next.
+- Apex insights on demand: "Get insights" on an activity (5–8 bullets) or
+  "Ask Apex" on the HRV, Sleep, Injuries and Form tiles (3 bullets). One cheap
+  model call (no tools, no thinking, JSON-schema output validated before
+  saving), stored and served from the DB on every revisit; Refresh at most
+  every 10 minutes. About 1–1.5 cents a set, logged separately as `insights-v1`.
+- Injuries can be hidden from view on one device (for showing the app to
+  someone) — the agent and insights still see all of them.
 - A live cost dashboard: tokens and dollars per message, spend over time, and
   which tools fired on every turn, filterable by model and config version.
 
@@ -175,9 +185,11 @@ Open http://127.0.0.1:8000/ and log in with the superuser account.
 | Page | URL | What for |
 |---|---|---|
 | Today | `/` | Readiness, today's session, the week, recovery, load, weather, insights |
-| Coach | `/coach/` | Talk to the coach; the trace panel shows its reasoning and tool calls |
+| Apex | `/coach/` | Talk to the coach; the trace panel shows its reasoning and tool calls |
 | Calendar | `/calendar/` | Done (Garmin) vs planned sessions; drag to move, click to edit |
-| Stats | `/stats/` | Fitness & form, volume by sport, intensity, recovery, FTP/VO2max, records |
+| Stats | `/stats/` | Fitness & form, volume by sport, intensity, recovery, how you feel, injuries, FTP/VO2max, records |
+| Activities | `/activities/` | Every synced session, filter by sport, search; each opens `/activity/<id>/` with insights |
+| Profile | `/me/` | Links to Settings and Usage, theme, log out (the fifth tab on mobile) |
 | Usage | `/usage/` | Spend and projection, cost per message, cache, tools, per model/config |
 | Settings | `/settings/` | Location, athlete profile, HR zones, instruction days |
 | Admin | `/admin/` | Profile, injuries, goals, raw synced data |
