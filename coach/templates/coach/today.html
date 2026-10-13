@@ -5,19 +5,57 @@
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-  .today-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "ready" "session" "insights" "weather" "week" "hrv" "sleep" "load" "latest"; }
-  @media (min-width: 760px) {
-    .today-grid { grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-template-areas: "ready session" "insights weather" "week week" "hrv sleep" "load latest"; }
+  /* Two independent stacks on wide screens (no row stretching); one ordered
+     column on phones and tablets — the stacks dissolve with display: contents. */
+  .today-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  .today-grid .col, .today-grid .pair { display: contents; }
+  #c-ready { order: 1; } #c-session { order: 2; } #c-insights { order: 3; } #c-weather { order: 4; }
+  #c-feel { order: 5; } #c-sync { order: 6; } #c-injuries { order: 7; } #c-week { order: 8; }
+  #c-hrv { order: 9; } #c-sleep { order: 10; } #c-latest { order: 11; } #c-load { order: 12; }
+  @media (min-width: 1100px) {
+    .today-grid { grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); align-items: start; }
+    .today-grid .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .today-grid .card { order: 0 !important; }
+    .today-grid .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
   }
-  @media (min-width: 1240px) {
-    .today-grid { grid-template-columns: repeat(3, minmax(0, 1fr));
-      grid-template-areas: "ready session session" "week week insights" "hrv sleep insights" "load latest weather"; }
+  .today-grid .card { container-type: inline-size; }
+
+  @container (max-width: 380px) {
+    .today-grid .ready-row { flex-direction: column; align-items: stretch; }
+    .today-grid .ready-row .ring { align-self: center; }
+    .today-grid .mini { min-width: 0; }
+    .today-grid .wx-parts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  #c-ready { grid-area: ready; } #c-session { grid-area: session; } #c-insights { grid-area: insights; }
-  #c-week { grid-area: week; } #c-hrv { grid-area: hrv; } #c-sleep { grid-area: sleep; }
-  #c-load { grid-area: load; } #c-latest { grid-area: latest; } #c-weather { grid-area: weather; }
+  .wx-part { min-width: 0; }
+
+  /* sync */
+  .sync-line { display: flex; align-items: center; gap: 10px; }
+  .pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--good); flex-shrink: 0; animation: ring 2s infinite; }
+  .pulse.err { background: var(--bad); animation: none; } .pulse.run { background: var(--accent); }
+  @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(46,158,91,.45); } 70%, 100% { box-shadow: 0 0 0 8px rgba(46,158,91,0); } }
+  .countdown { font-family: var(--f-num); font-size: 32px; font-weight: 700; line-height: 1; }
+  .track-bar { height: 6px; border-radius: 99px; background: var(--sunken); overflow: hidden; }
+  .track-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .4s; }
+
+  /* feel */
+  .scale { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+  .scale button { all: unset; cursor: pointer; text-align: center; padding: 7px 0; border-radius: 8px; background: var(--sunken); font-family: var(--f-num); font-weight: 700; font-size: 15px; }
+  .scale button.on { background: var(--accent); color: var(--on-accent); }
+  .scale button:focus-visible, .pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { all: unset; cursor: pointer; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); font-size: 12.5px; font-weight: 600; }
+  .pill.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .saved { font-size: 12.5px; font-weight: 700; color: var(--good); }
+  .saved.err { color: var(--bad); }
+
+  /* injuries */
+  .inj { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 10px 12px; border-radius: var(--r-sm); background: var(--sunken); }
+  .inj b { font-size: 14px; }
+  .inj .meta { font-size: 12px; }
+  .hide-btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--muted); padding: 4px 8px; border-radius: 999px; }
+  .hide-btn:hover { background: var(--surface); color: var(--fg); }
+  .hide-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .link-btn { all: unset; cursor: pointer; color: var(--accent); font-weight: 700; }
   .wx-now { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .wx-now svg { width: 58px; height: 58px; flex-shrink: 0; }
   .wx-now .big { font-size: 42px; }
@@ -25,7 +63,6 @@
   .wx-part { background: var(--sunken); border-radius: 12px; padding: 10px 4px; display: grid; justify-items: center; gap: 2px; font-size: 11.5px; color: var(--muted); text-align: center; }
   .wx-part svg { width: 34px; height: 34px; }
   .wx-part b { font-family: var(--f-num); font-size: 17px; color: var(--fg); }
-  #c-insights { align-self: start; }
 
   /* readiness */
   .ready-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
@@ -107,74 +144,94 @@
   </div>
 
   <div class="today-grid">
-    <section class="card" id="c-ready">
-      <div class="card-head"><h2>Readiness</h2><span id="ready-chip"></span></div>
-      <div class="ready-row">
-        <svg class="ring" viewBox="0 0 112 112" role="img" aria-labelledby="ring-label">
-          <title id="ring-label">Readiness score</title>
-          <circle class="track" cx="56" cy="56" r="46" fill="none" stroke-width="10"/>
-          <circle class="val" id="ring-val" cx="56" cy="56" r="46" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="0 289" transform="rotate(-90 56 56)"/>
-          <text id="ring-num" x="56" y="61" text-anchor="middle" font-size="32">–</text>
-          <text class="cap" x="56" y="78" text-anchor="middle">OF 100</text>
-        </svg>
-        <div class="mini">
-          <div><div class="k">HRV</div><div class="v" id="m-hrv">–</div><span id="m-hrv-chip"></span></div>
-          <div><div class="k">Sleep</div><div class="v" id="m-sleep">–</div><span id="m-sleep-chip"></span></div>
-          <div><div class="k">Load ratio</div><div class="v" id="m-acwr">–</div><span id="m-acwr-chip"></span></div>
+    <div class="col col-main">
+      <section class="card" id="c-session">
+        <div class="card-head"><h2 id="session-head">Today's session</h2><a class="sub" href="/calendar/">Calendar →</a></div>
+        <div id="session-body"><div class="skeleton">Loading…</div></div>
+      </section>
+      <section class="card" id="c-week">
+        <div class="card-head"><h2>This week</h2><span class="sub" id="week-sub"></span></div>
+        <div class="week" id="week"></div>
+        <div class="week-legend"><span><i class="mk" style="--c:var(--muted)"></i>Done</span><span><i class="mk plan" style="--c:var(--muted)"></i>Planned</span></div>
+      </section>
+      <section class="card" id="c-latest">
+        <div class="card-head"><h2>Latest activity</h2><span class="sub" id="latest-sub"></span></div>
+        <div id="latest-body"><div class="skeleton">Loading…</div></div>
+      </section>
+      <div class="pair">
+        <section class="card" id="c-hrv">
+        <div class="card-head"><h2>HRV</h2><span class="sub" id="hrv-sub">last 7 days</span></div>
+        <div class="big" id="hrv-big">–</div>
+        <div class="chart-box sm"><canvas id="hrvChart" aria-label="HRV over the last 7 days"></canvas></div>
+      </section>
+        <section class="card" id="c-sleep">
+        <div class="card-head"><h2>Sleep</h2><span class="sub" id="sleep-sub"></span></div>
+        <div id="sleep-body"><div class="skeleton">Loading…</div></div>
+      </section>
+      </div>
+      <section class="card" id="c-load">
+        <div class="card-head"><h2>Training load</h2><span class="sub">weekly, last 8 weeks</span></div>
+        <div class="stat-row">
+          <div><div class="k">7 days</div><div class="v" id="l-acute">–</div></div>
+          <div><div class="k">28 days</div><div class="v" id="l-chronic">–</div></div>
+          <div><div class="k">Ratio</div><div class="v" id="l-ratio">–</div></div>
         </div>
-      </div>
-      <details class="how">
-        <summary>How is this calculated?</summary>
-        <p>HRV against your own 28-day baseline (40%), last night's sleep score (35%) and the balance of your 7-day load against your 28-day average (25%). Missing inputs are left out and the rest re-weighted. It's a guide, not a diagnosis.</p>
-      </details>
-    </section>
-
-    <section class="card" id="c-session">
-      <div class="card-head"><h2 id="session-head">Today's session</h2><a class="sub" href="/calendar/">Calendar →</a></div>
-      <div id="session-body"><div class="skeleton">Loading…</div></div>
-    </section>
-
-    <section class="card" id="c-insights">
-      <div class="card-head"><h2>Insights</h2><span class="sub">from your data</span></div>
-      <div class="insights" id="insights"></div>
-    </section>
-
-    <section class="card" id="c-weather">
-      <div class="card-head"><h2>Weather</h2><a class="sub" id="wx-loc" href="/settings/">–</a></div>
-      <div id="wx-body"><div class="skeleton">Loading…</div></div>
-    </section>
-
-    <section class="card" id="c-week">
-      <div class="card-head"><h2>This week</h2><span class="sub" id="week-sub"></span></div>
-      <div class="week" id="week"></div>
-      <div class="week-legend"><span><i class="mk" style="--c:var(--muted)"></i>Done</span><span><i class="mk plan" style="--c:var(--muted)"></i>Planned</span></div>
-    </section>
-
-    <section class="card" id="c-hrv">
-      <div class="card-head"><h2>HRV</h2><span class="sub" id="hrv-sub">last 7 days</span></div>
-      <div class="big" id="hrv-big">–</div>
-      <div class="chart-box sm"><canvas id="hrvChart" aria-label="HRV over the last 7 days"></canvas></div>
-    </section>
-
-    <section class="card" id="c-sleep">
-      <div class="card-head"><h2>Sleep</h2><span class="sub" id="sleep-sub"></span></div>
-      <div id="sleep-body"><div class="skeleton">Loading…</div></div>
-    </section>
-
-    <section class="card" id="c-load">
-      <div class="card-head"><h2>Training load</h2><span class="sub">weekly, last 8 weeks</span></div>
-      <div class="stat-row">
-        <div><div class="k">7 days</div><div class="v" id="l-acute">–</div></div>
-        <div><div class="k">28 days</div><div class="v" id="l-chronic">–</div></div>
-        <div><div class="k">Ratio</div><div class="v" id="l-ratio">–</div></div>
-      </div>
-      <div class="chart-box sm"><canvas id="loadChart" aria-label="Weekly training load"></canvas></div>
-    </section>
-
-    <section class="card" id="c-latest">
-      <div class="card-head"><h2>Latest activity</h2><span class="sub" id="latest-sub"></span></div>
-      <div id="latest-body"><div class="skeleton">Loading…</div></div>
-    </section>
+        <div class="chart-box sm"><canvas id="loadChart" aria-label="Weekly training load"></canvas></div>
+      </section>
+    </div>
+    <div class="col col-side">
+      <section class="card" id="c-ready">
+        <div class="card-head"><h2>Readiness</h2><span id="ready-chip"></span></div>
+        <div class="ready-row">
+          <svg class="ring" viewBox="0 0 112 112" role="img" aria-labelledby="ring-label">
+            <title id="ring-label">Readiness score</title>
+            <circle class="track" cx="56" cy="56" r="46" fill="none" stroke-width="10"/>
+            <circle class="val" id="ring-val" cx="56" cy="56" r="46" fill="none" stroke-width="10" stroke-linecap="round" stroke-dasharray="0 289" transform="rotate(-90 56 56)"/>
+            <text id="ring-num" x="56" y="61" text-anchor="middle" font-size="32">–</text>
+            <text class="cap" x="56" y="78" text-anchor="middle">OF 100</text>
+          </svg>
+          <div class="mini">
+            <div><div class="k">HRV</div><div class="v" id="m-hrv">–</div><span id="m-hrv-chip"></span></div>
+            <div><div class="k">Sleep</div><div class="v" id="m-sleep">–</div><span id="m-sleep-chip"></span></div>
+            <div><div class="k">Load ratio</div><div class="v" id="m-acwr">–</div><span id="m-acwr-chip"></span></div>
+          </div>
+        </div>
+        <details class="how">
+          <summary>How is this calculated?</summary>
+          <p>HRV against your own 28-day baseline (40%), last night's sleep score (35%) and the balance of your 7-day load against your 28-day average (25%). Missing inputs are left out and the rest re-weighted. It's a guide, not a diagnosis.</p>
+        </details>
+      </section>
+      <section class="card" id="c-insights">
+        <div class="card-head"><h2>Insights</h2><span class="sub">from your data</span></div>
+        <div class="insights" id="insights"></div>
+      </section>
+      <section class="card" id="c-weather">
+        <div class="card-head"><h2>Weather</h2><a class="sub" id="wx-loc" href="/settings/">–</a></div>
+        <div id="wx-body"><div class="skeleton">Loading…</div></div>
+      </section>
+      <section class="card" id="c-feel">
+        <div class="card-head"><h2>How do you feel?</h2><span class="sub" id="feel-sub"></span></div>
+        <div class="k" id="sore-label">Muscle soreness</div>
+        <div class="scale" id="sore-scale" role="group" aria-labelledby="sore-label"></div>
+        <div class="pills" id="sore-parts" role="group" aria-label="Sore muscles"></div>
+        <div class="row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="btn" type="button" id="feel-save" style="padding:7px 16px;font-size:13px">Log it</button>
+          <span class="saved" id="feel-saved" role="status"></span>
+        </div>
+      </section>
+      <section class="card" id="c-sync">
+        <div class="card-head"><h2>Garmin sync</h2><span class="sub">every 2–3 h</span></div>
+        <div class="sync-line"><span class="pulse" id="sync-dot"></span><span class="meta" id="sync-last">–</span></div>
+        <div><div class="k" id="sync-next-label">Next sync</div><div class="countdown" id="sync-countdown">–</div></div>
+        <div class="track-bar" aria-hidden="true"><i id="sync-bar" style="width:0"></i></div>
+        <div class="meta" id="sync-weather"></div>
+      </section>
+      <section class="card" id="c-injuries">
+        <div class="card-head"><h2>Injuries</h2><span class="sub" id="inj-sub"></span></div>
+        <div class="insights" id="inj-list"></div>
+        <div class="meta" id="inj-hidden"></div>
+      </section>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -320,6 +377,73 @@
       `<div class="wx-parts">${w.parts.map(p => `<div class="wx-part">${p.part}${TC.weatherIcon(p.code, p.is_day)}<b>${range(p)}</b>rain ${p.rain ?? 0}%</div>`).join('')}</div>`;
   }
 
+  // ---- sync ----
+  const ago = ms => { const m = Math.round(ms / 60000); if (m < 1) return 'just now'; if (m < 60) return `${m} min ago`;
+    const h = Math.floor(m / 60); return h < 24 ? `${h} h ${m % 60} min ago` : `${Math.floor(h / 24)} d ago`; };
+  const inT = ms => { const m = Math.max(0, Math.round(ms / 60000)); if (m < 1) return 'any minute now'; return m < 60 ? `in ${m} min` : `in ${Math.floor(m / 60)} h ${m % 60} min`; };
+  const hhmm = d => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  let syncTimer = null;
+  function renderSync(d) {
+    const s = d.sync, dot = document.getElementById('sync-dot');
+    dot.className = 'pulse' + (s.state === 'error' ? ' err' : s.state === 'running' ? ' run' : '');
+    const tick = () => {
+      const now = Date.now(), next = new Date(s.next), prev = new Date(s.prev_slot);
+      document.getElementById('sync-last').innerHTML = s.state === 'running' ? 'Syncing now…'
+        : s.state === 'error' ? `Last sync failed: ${e(s.error || 'unknown error')}`
+        : s.last ? `Last sync <b style="color:var(--fg)">${ago(now - new Date(s.last))}</b>` : 'No sync recorded yet';
+      document.getElementById('sync-next-label').textContent = `Next sync around ${hhmm(next)}`;
+      document.getElementById('sync-countdown').textContent = inT(next - now);
+      document.getElementById('sync-bar').style.width = Math.min(100, (now - prev) / (next - prev) * 100) + '%';
+      document.getElementById('sync-weather').textContent = `Weather refreshes around ${hhmm(new Date(s.next_weather))}.`;
+    };
+    tick();
+    clearInterval(syncTimer); syncTimer = setInterval(tick, 30000);
+  }
+
+  // ---- feel (quick log, no AI) ----
+  let sore = null; const sorePicked = new Set();
+  function renderFeel(d) {
+    const f = d.feel;
+    if (f && f.is_today) { sore = f.soreness; f.parts.forEach(p => sorePicked.add(p)); }
+    document.getElementById('feel-sub').textContent = !f ? 'nothing logged yet' : f.is_today ? 'logged today' : `last logged ${fmtDate(f.date)}`;
+    const draw = () => {
+      document.getElementById('sore-scale').innerHTML = Array.from({ length: 10 }, (_, i) =>
+        `<button type="button" class="${i + 1 === sore ? 'on' : ''}" data-s="${i + 1}" aria-pressed="${i + 1 === sore}" aria-label="Soreness ${i + 1} of 10">${i + 1}</button>`).join('');
+      document.getElementById('sore-parts').innerHTML = d.sore_parts.map(p =>
+        `<button type="button" class="pill ${sorePicked.has(p) ? 'on' : ''}" data-p="${e(p)}" aria-pressed="${sorePicked.has(p)}">${e(p)}</button>`).join('');
+    };
+    draw();
+    document.getElementById('sore-scale').onclick = ev => { const b = ev.target.closest('[data-s]'); if (b) { sore = +b.dataset.s; draw(); } };
+    document.getElementById('sore-parts').onclick = ev => { const b = ev.target.closest('[data-p]'); if (b) { sorePicked.has(b.dataset.p) ? sorePicked.delete(b.dataset.p) : sorePicked.add(b.dataset.p); draw(); } };
+    document.getElementById('feel-save').onclick = async () => {
+      const out = document.getElementById('feel-saved');
+      if (!sore) { out.className = 'saved err'; out.textContent = 'Pick a number first.'; return; }
+      const r = await TC.postJSON('/today/feel/', { muscle_soreness: sore, parts: [...sorePicked] }).then(x => x.json()).catch(() => ({ ok: false, error: 'Network error.' }));
+      out.className = 'saved' + (r.ok ? '' : ' err');
+      out.textContent = r.ok ? '✓ Saved · Apex sees it in your next chat' : r.error;
+      if (r.ok) document.getElementById('feel-sub').textContent = 'logged today';
+    };
+  }
+
+  // ---- injuries (hide = this device only) ----
+  const eyeOff = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A10 10 0 0 1 12 5c5 0 9 5 9 7a10 10 0 0 1-2.4 3.3M6.1 6.1C4 7.5 3 10.6 3 12c0 2 4 7 9 7 1.6 0 3-.4 4.3-1"/></svg>';
+  function renderInjuries(d) {
+    const hidden = TC.hiddenInjuries(), list = d.injuries, shown = list.filter(i => !hidden.includes(i.id));
+    document.getElementById('inj-sub').textContent = list.length ? `${shown.length} active` : '';
+    document.getElementById('inj-list').innerHTML = shown.length ? shown.map(i =>
+      `<div class="inj"><div><b>${e(TC.label(i.body_part || 'Injury'))}</b> ${i.severity ? `<span class="chip ${i.severity === 'minor' ? 'muted' : i.severity === 'moderate' ? 'warn' : 'bad'}">${e(i.severity)}</span>` : ''}` +
+      `<div class="meta">${i.since_days} day${i.since_days === 1 ? '' : 's'} since it started${i.description ? ' · ' + e(i.description) : ''}</div></div>` +
+      `<button class="hide-btn" type="button" data-hide="${i.id}" aria-label="Hide ${e(i.body_part || 'injury')} on this device">${eyeOff}Hide</button></div>`).join('')
+      : `<div class="meta">${list.length ? 'All injuries are hidden on this device.' : 'No active injuries. Keep it that way.'}</div>`;
+    const n = list.filter(i => hidden.includes(i.id)).length;
+    document.getElementById('inj-hidden').innerHTML = n ? `${n} hidden on this device · <button class="link-btn" type="button" data-showall>show</button>` : '';
+    document.getElementById('c-injuries').onclick = ev => {
+      const h = ev.target.closest('[data-hide]');
+      if (h) { TC.setHiddenInjuries([...TC.hiddenInjuries(), +h.dataset.hide]); renderInjuries(d); }
+      if (ev.target.closest('[data-showall]')) { TC.setHiddenInjuries([]); renderInjuries(d); }
+    };
+  }
+
   function drawCharts() {
     charts.forEach(c => c.destroy()); charts = [];
     if (!data) return;
@@ -361,6 +485,7 @@
     document.getElementById('today-title').textContent = t.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
     document.getElementById('today-sub').textContent = data.last_sync ? `Garmin data up to ${fmtDate(data.last_sync)}` : 'No Garmin data yet';
     renderReadiness(data); renderSession(data); renderWeek(data); renderSleep(data); renderLatest(data); renderInsights(data); renderWeather(data);
+    renderSync(data); renderFeel(data); renderInjuries(data);
     const l = data.load;
     document.getElementById('l-acute').textContent = l.acute_7d;
     document.getElementById('l-chronic').textContent = l.chronic_28d;

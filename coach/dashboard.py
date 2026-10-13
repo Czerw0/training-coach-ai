@@ -9,8 +9,12 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 
-from coach import metrics
-from coach.models import PlannedSession
+from pydantic import BaseModel, Field, ValidationError
+
+from coach import metrics, sync_schedule
+from coach.models import DailyFeeling, Injury, PlannedSession, SyncStatus
+from coach.schemas import format_validation_error
+from coach.tools import log_daily_feeling
 from sync.models import Activity, DailyStats, FTPRecord, HRVRecord, SleepRecord, UserProfile, WeatherHourly, WeatherLocation
 
 ZONES = range(1, 6)
@@ -206,6 +210,66 @@ def weather_parts(hours, tz, limit=4):
     return out[:limit]
 
 
+def _sync():
+    from django.utils import timezone
+    now = timezone.now()
+    status = SyncStatus.objects.filter(pk=1).first()
+    last = status.updated_at if status and status.state == "done" else None
+    if last is None:   # before the first tracked sync: newest stats row is the best signal
+        newest = DailyStats.objects.order_by("-updated_at").values_list("updated_at", flat=True).first()
+        last = newest
+    return {
+        "state": status.state if status else None,
+        "error": status.message if status and status.state == "error" else None,
+        "last": last.isoformat() if last else None,
+        "next": sync_schedule.next_run(sync_schedule.GARMIN_HOURS_UTC, now).isoformat(),
+        "prev_slot": sync_schedule.previous_run(sync_schedule.GARMIN_HOURS_UTC, now).isoformat(),
+        "next_weather": sync_schedule.next_run(sync_schedule.WEATHER_HOURS_UTC, now).isoformat(),
+    }
+
+
+def _feel(today):
+    f = DailyFeeling.objects.order_by("-date").first()
+    if not f:
+        return None
+    return {"date": f.date.isoformat(), "is_today": f.date == today, "soreness": f.muscle_soreness,
+            "energy": f.energy_level, "motivation": f.motivation,
+            "parts": [p.strip() for p in (f.muscle_sore or "").split(",") if p.strip()]}
+
+
+def _injuries(today):
+    return [{"id": i.id, "body_part": i.body_part, "severity": i.severity, "description": i.description,
+             "since_days": (today - i.date_started).days, "affects_running": i.affects_running,
+             "affects_cycling": i.affects_cycling}
+            for i in Injury.objects.filter(date_resolved__isnull=True).order_by("date_started")]
+
+
+SORE_PARTS = ("Hamstrings", "Glutes", "Quads", "Calves", "Lower back", "Upper back", "Shoulders", "Arms", "Core")
+
+
+class FeelIn(BaseModel):
+    muscle_soreness: int = Field(ge=1, le=10)
+    parts: list[str] = Field(default_factory=list, max_length=len(SORE_PARTS))
+
+
+@login_required
+@require_http_methods(["POST"])
+def log_feel(request):
+    """Quick soreness log from the Today tile — same merge rules as the agent's
+    log_daily_feeling tool, no model call."""
+    import json
+    try:
+        data = FeelIn(**json.loads(request.body or b"{}"))
+    except (ValidationError, ValueError) as exc:
+        msg = format_validation_error(exc) if isinstance(exc, ValidationError) else "Invalid JSON."
+        return JsonResponse({"ok": False, "error": msg}, status=400)
+    unknown = [p for p in data.parts if p not in SORE_PARTS]
+    if unknown:
+        return JsonResponse({"ok": False, "error": f"Unknown muscle group: {', '.join(unknown)}"}, status=400)
+    log_daily_feeling(muscle_soreness=data.muscle_soreness, sore_muscles=", ".join(data.parts) or None)
+    return JsonResponse({"ok": True, "feel": _feel(dt.date.today())})
+
+
 @login_required
 def today_page(request):
     return render(request, "coach/today.html")
@@ -261,4 +325,8 @@ def today_data(request):
         "hr_zones": (UserProfile.objects.filter(pk=1).values_list("hr_zones", flat=True).first()),
         "insights": build_insights(today, hrv_today, baseline, ratio, week),
         "weather": _weather(),
+        "sync": _sync(),
+        "feel": _feel(today),
+        "sore_parts": list(SORE_PARTS),
+        "injuries": _injuries(today),
     })

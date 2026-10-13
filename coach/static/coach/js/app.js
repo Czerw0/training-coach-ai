@@ -133,6 +133,14 @@
       return `<svg viewBox="0 0 24 26" role="img" aria-label="${label}">${ICONS[TC.weatherKey(code, isDay)]}</svg>`;
     },
 
+    // injuries hidden from view on this device only (the database and Apex are untouched)
+    hiddenInjuries() {
+      try { return JSON.parse(localStorage.getItem('tc-hidden-injuries') || '[]'); } catch (e) { return []; }
+    },
+    setHiddenInjuries(ids) {
+      try { localStorage.setItem('tc-hidden-injuries', JSON.stringify([...new Set(ids)])); } catch (e) {}
+    },
+
     label(t) { return (t || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); },
 
     // canvas can't parse color-mix(); turn a #RRGGBB token into rgba()

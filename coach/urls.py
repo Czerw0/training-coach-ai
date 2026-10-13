@@ -4,6 +4,7 @@ from . import dashboard, settings_views, stats, views
 urlpatterns = [
     path('', dashboard.today_page, name='today_page'),
     path('today/data/', dashboard.today_data, name='today_data'),
+    path('today/feel/', dashboard.log_feel, name='log_feel'),
     path('coach/', views.chat_page, name='chat_page'),
     path('me/', views.me_page, name='me_page'),
     path('message/', views.chat_message, name='chat_message'),

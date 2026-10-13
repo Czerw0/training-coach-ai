@@ -40,7 +40,17 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        days = options['days']
+        # the Today page shows when the last sync ran and whether it worked
+        from coach.models import SyncStatus
+        SyncStatus(state="running", message="").save()
+        try:
+            self._run(options['days'])
+        except Exception as e:
+            SyncStatus(state="error", message=str(e)[:500]).save()
+            raise
+        SyncStatus(state="done", message="").save()
+
+    def _run(self, days):
         today = datetime.date.today()
         self.stdout.write('Starting Garmin sync...')
         
