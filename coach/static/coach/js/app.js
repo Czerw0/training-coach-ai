@@ -150,6 +150,48 @@
       const n = parseInt(h, 16);
       return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
     },
+
+    // Apex insights: saved per activity / tile, generated only on click.
+    // opts: scope, key, big (activity page button), filter(items) -> items shown
+    insights(el, opts) {
+      const e = TC.escapeHtml, url = `/insights/${opts.scope}/${opts.key || 'today'}/`;
+      const label = opts.big ? '✦ Get insights' : '✦ Ask Apex';
+      let busy = false;
+      const when = iso => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      function draw(d, err) {
+        if (!d || !d.items) {
+          el.innerHTML = `<button class="${opts.big ? 'apex-btn' : 'ask-btn'}" type="button" data-go${busy ? ' disabled' : ''}>${busy ? 'Apex is thinking…' : label}</button>` +
+            (err ? `<div class="apex-err">${e(err)}</div>` : '');
+          return;
+        }
+        const items = opts.filter ? opts.filter(d.items, d) : d.items, cut = d.items.length - items.length;
+        el.innerHTML = `<div class="apex-box${opts.big ? ' big' : ''}"><div class="apex-head"><span class="apex-name">✦ Apex</span>` +
+          `<span class="apex-meta">${when(d.created_at)} · $${Number(d.cost_usd).toFixed(3)} · <button class="link-btn" type="button" data-refresh${busy ? ' disabled' : ''}>${busy ? 'refreshing…' : 'Refresh'}</button></span></div>` +
+          `<ul class="apex-list">${items.map(i => `<li><b>${e(i.title)}</b> ${e(i.text)}</li>`).join('')}</ul>` +
+          (cut ? `<div class="apex-meta">${cut} insight${cut === 1 ? '' : 's'} about hidden injuries not shown</div>` : '') +
+          (err ? `<div class="apex-err">${e(err)}</div>` : '') + '</div>';
+      }
+      let current = null;
+      async function run(refresh) {
+        if (busy) return;
+        busy = true; draw(current);
+        try {
+          const r = await TC.postJSON(url + (refresh ? '?refresh=1' : ''), {});
+          const d = await r.json();
+          busy = false;
+          if (d.items) current = d;
+          draw(current, d.ok ? null : d.error);
+          if (d.ok && opts.onLoad) opts.onLoad(d);
+        } catch (err) { busy = false; draw(current, "Apex couldn't be reached. Try again in a moment."); }
+      }
+      el.addEventListener('click', ev => {
+        if (ev.target.closest('[data-go]')) { ev.stopPropagation(); run(false); }
+        if (ev.target.closest('[data-refresh]')) { ev.stopPropagation(); run(true); }
+      });
+      el.redraw = () => draw(current);
+      fetch(url).then(r => r.json()).then(d => { if (d.items) current = d; draw(current); }).catch(() => draw(null));
+      draw(null);
+    },
   };
 
   document.addEventListener('DOMContentLoaded', () => {

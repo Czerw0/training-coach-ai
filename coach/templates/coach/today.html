@@ -163,10 +163,12 @@
         <div class="card-head"><h2>HRV</h2><span class="sub" id="hrv-sub">last 7 days</span></div>
         <div class="big" id="hrv-big">–</div>
         <div class="chart-box sm"><canvas id="hrvChart" aria-label="HRV over the last 7 days"></canvas></div>
+        <div class="ask" data-insights="hrv"></div>
       </section>
         <section class="card" id="c-sleep">
         <div class="card-head"><h2>Sleep</h2><span class="sub" id="sleep-sub"></span></div>
         <div id="sleep-body"><div class="skeleton">Loading…</div></div>
+        <div class="ask" data-insights="sleep"></div>
       </section>
       </div>
       <section class="card" id="c-load">
@@ -230,6 +232,7 @@
         <div class="card-head"><h2>Injuries</h2><span class="sub" id="inj-sub"></span></div>
         <div class="insights" id="inj-list"></div>
         <div class="meta" id="inj-hidden"></div>
+        <div class="ask" data-insights="injuries"></div>
       </section>
     </div>
   </div>
@@ -438,6 +441,7 @@
       : `<div class="meta">${list.length ? 'All injuries are hidden on this device.' : 'No active injuries. Keep it that way.'}</div>`;
     const n = list.filter(i => hidden.includes(i.id)).length;
     document.getElementById('inj-hidden').innerHTML = n ? `${n} hidden on this device · <button class="link-btn" type="button" data-showall>show</button>` : '';
+    const ask = document.querySelector('#c-injuries [data-insights]'); if (ask && ask.redraw) ask.redraw();
     document.getElementById('c-injuries').onclick = ev => {
       const h = ev.target.closest('[data-hide]');
       if (h) { TC.setHiddenInjuries([...TC.hiddenInjuries(), +h.dataset.hide]); renderInjuries(d); }
@@ -494,6 +498,14 @@
     drawCharts();
   }
 
+  // Apex insights on tiles. Bullets naming an injury hidden on this device are dropped from view.
+  TC.hideInjuryInsights = (items, d) => {
+    const names = TC.hiddenInjuries().map(id => (d.injury_names || {})[id]).filter(Boolean)
+      .flatMap(n => [n.toLowerCase(), n.toLowerCase().split(/\s+/).pop()]).filter(w => w.length > 2);
+    return names.length ? items.filter(i => !names.some(n => (i.title + ' ' + i.text).toLowerCase().includes(n))) : items;
+  };
+  document.querySelectorAll('[data-insights]').forEach(el =>
+    TC.insights(el, { scope: el.dataset.insights, filter: el.dataset.insights === 'injuries' ? TC.hideInjuryInsights : null }));
   TC.onTheme(drawCharts);
   document.addEventListener('DOMContentLoaded', load);
 </script>

@@ -28,8 +28,6 @@
   .trend a.now i { background: var(--accent); }
   .trend a:hover i { background: var(--accent-strong); }
   .plan-lines { display: grid; gap: 4px; font-size: 13.5px; white-space: pre-line; color: var(--muted); }
-  .apex-btn { display: inline-flex; align-items: center; gap: 7px; border: 0; cursor: pointer; border-radius: 999px; padding: 10px 18px; font-weight: 700; font-size: 14.5px; color: #fff; background: linear-gradient(135deg, var(--accent), var(--ice)); }
-  .apex-btn:disabled { opacity: .6; cursor: default; }
 </style>
 {% endblock %}
 
@@ -42,7 +40,6 @@
       <h1 id="act-name">Loading…</h1>
       <div class="sub" id="act-sub"></div>
     </div>
-    <div id="insights-cta"></div>
   </div>
 
   <div id="insights-box"></div>
@@ -151,7 +148,9 @@
         (p.description ? `\n${e(p.description)}` : '') +
         (p.exercises.length ? '\n' + p.exercises.map(x => `${e(x.name)} ${x.sets ?? '–'} × ${x.reps ?? '–'}${x.weight_kg != null ? ' @ ' + x.weight_kg + ' kg' : ''}`).join('\n') : '');
     }
-    document.dispatchEvent(new CustomEvent('activity:loaded', { detail: d }));
+    // Get insights: button in the header until a set exists, then the set below the header
+    const box = document.getElementById('insights-box');
+    TC.insights(box, { scope: 'activity', key: d.id, big: true });
   }
 
   fetch(`/activity/${ACTIVITY_ID}/data/`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(render)

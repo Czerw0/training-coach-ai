@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods
 
 from coach.dashboard import group_sets
-from coach.models import PlannedSession
+from coach.models import AiInsight, PlannedSession
 from sync.models import Activity, UserProfile
 
 # (field, label, unit, decimals, sport) — sport None = shown for every activity that has it.
@@ -173,13 +173,8 @@ def activities_data(request):
         page_no = 1
     page = Paginator(qs.values("id", "activity_name", "activity_type", "start_time", "duration_seconds",
                                "distance_meters", "training_load", "avg_hr"), 30).get_page(page_no)
-    insighted = set()
-    try:
-        from coach.models import AiInsight
-        insighted = set(AiInsight.objects.filter(scope="activity", key__in=[str(r["id"]) for r in page])
-                        .values_list("key", flat=True))
-    except ImportError:
-        pass
+    insighted = set(AiInsight.objects.filter(scope="activity", key__in=[str(r["id"]) for r in page])
+                    .values_list("key", flat=True))
     return JsonResponse({
         "page": page.number, "pages": page.paginator.num_pages, "total": page.paginator.count,
         "items": [{"id": r["id"], "name": r["activity_name"] or r["activity_type"], "type": r["activity_type"],

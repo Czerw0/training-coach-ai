@@ -114,6 +114,7 @@
         <div class="card-head"><h3>Form</h3><span class="sub" id="tsb-now"></span></div>
         <div class="legend"><span><i style="--c:var(--good)"></i>Fresh (above +5)</span><span><i style="--c:var(--t-other)"></i>Neutral</span><span><i style="--c:var(--warn)"></i>Fatigued (below −10)</span></div>
         <div class="chart-box"><canvas id="formChart" aria-label="Form, fitness minus fatigue"></canvas></div>
+        <div class="ask" data-insights="form"></div>
       </div>
     </div>
   </section>
@@ -472,6 +473,14 @@
     try { localStorage.setItem('tc-stats-days', days); } catch (err) {}
     load();
   }));
+  // Apex insights on tiles. Bullets naming an injury hidden on this device are dropped from view.
+  TC.hideInjuryInsights = (items, d) => {
+    const names = TC.hiddenInjuries().map(id => (d.injury_names || {})[id]).filter(Boolean)
+      .flatMap(n => [n.toLowerCase(), n.toLowerCase().split(/\s+/).pop()]).filter(w => w.length > 2);
+    return names.length ? items.filter(i => !names.some(n => (i.title + ' ' + i.text).toLowerCase().includes(n))) : items;
+  };
+  document.querySelectorAll('[data-insights]').forEach(el =>
+    TC.insights(el, { scope: el.dataset.insights, filter: el.dataset.insights === 'injuries' ? TC.hideInjuryInsights : null }));
   TC.onTheme(drawCharts);
   document.addEventListener('DOMContentLoaded', load);
 </script>

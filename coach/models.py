@@ -160,3 +160,20 @@ class PlannedExercise(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.sets}x{self.reps}) for session {self.session_id}"
+
+class AiInsight(models.Model):
+    """One saved set of Apex insights for an activity or a Today/Stats tile.
+    Served from here on revisit; regenerated only on an explicit refresh."""
+    scope = models.CharField(max_length=20)          # activity / sleep / hrv / form / injuries
+    key = models.CharField(max_length=40)            # activity id, or the date for tiles
+    items = models.JSONField(default=list)           # [{"title": ..., "text": ...}]
+    model = models.CharField(max_length=60, blank=True, default="")
+    prompt_version = models.CharField(max_length=40, blank=True, default="")
+    cost_usd = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["scope", "key"], name="unique_insight_scope_key")]
+
+    def __str__(self):
+        return f"{self.scope}:{self.key} · {len(self.items)} insights"
