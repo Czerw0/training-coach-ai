@@ -366,6 +366,7 @@
       eventClick(info) {
         info.jsEvent.preventDefault();
         if (info.event.extendedProps.kind === 'planned') openEdit(info.event);
+        else if (info.event.extendedProps.activity_id) window.location.href = `/activity/${info.event.extendedProps.activity_id}/`;
         else openReadonly(info.event);
       },
       dateClick(info) { openCreate(info.dateStr.slice(0, 10)); },

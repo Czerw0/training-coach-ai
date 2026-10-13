@@ -155,7 +155,7 @@
         <div class="week-legend"><span><i class="mk" style="--c:var(--muted)"></i>Done</span><span><i class="mk plan" style="--c:var(--muted)"></i>Planned</span></div>
       </section>
       <section class="card" id="c-latest">
-        <div class="card-head"><h2>Latest activity</h2><span class="sub" id="latest-sub"></span></div>
+        <div class="card-head"><h2>Latest activity</h2><span class="sub"><span id="latest-sub"></span> · <a id="latest-link" href="/activities/">Open →</a></span></div>
         <div id="latest-body"><div class="skeleton">Loading…</div></div>
       </section>
       <div class="pair">
@@ -327,6 +327,7 @@
     const a = d.latest_activity, body = document.getElementById('latest-body');
     if (!a) { body.innerHTML = '<div class="empty">No activities synced yet.</div>'; return; }
     document.getElementById('latest-sub').textContent = fmtDate(a.date);
+    document.getElementById('latest-link').href = `/activity/${a.id}/`;
     const stats = [['Time', a.minutes != null ? a.minutes + ' min' : null], ['Distance', a.km != null ? a.km + ' km' : null],
       ['Avg HR', a.avg_hr], ['Load', a.load], ['TSS', a.tss]].filter(x => x[1] != null);
     let zones = '';

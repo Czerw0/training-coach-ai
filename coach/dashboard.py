@@ -96,6 +96,7 @@ def _latest_activity():
                     {"name": x.name, "sets": x.sets, "reps": [x.reps] if x.reps else [], "weight_kg": x.weight_kg}
                     for x in plan.exercises.all()]
     return {
+        "id": a.id,
         "strength": strength,
         "date": a.start_time.date().isoformat(), "name": a.activity_name or a.activity_type,
         "type": a.activity_type,

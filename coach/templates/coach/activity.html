@@ -1,0 +1,160 @@
+{% extends "coach/base.html" %}
+{% block title %}Activity · ApexFit{% endblock %}
+{% block mobile_title %}Activity{% endblock %}
+
+{% block head %}
+<style>
+  .act-nav { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+  .act-nav a { text-decoration: none; display: inline-flex; gap: 6px; align-items: center; max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .act-type { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .act-type i { width: 11px; height: 11px; border-radius: 50%; background: var(--c); }
+  .metrics { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: 700px) { .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .metric { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px 13px; box-shadow: var(--shadow); min-width: 0; }
+  .metric .v { font-size: 24px; }
+  .cmp { font-size: 11.5px; font-weight: 700; margin-top: 2px; color: var(--muted); }
+  .cmp.up { color: var(--accent); }
+  .zonebar { display: flex; height: 12px; border-radius: 99px; overflow: hidden; gap: 2px; background: var(--sunken); }
+  .zonebar i { display: block; }
+  .zone-l { display: grid; gap: 4px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .zone-l b { display: block; color: var(--fg); font-family: var(--f-num); font-size: 15px; }
+  .ex div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; align-items: baseline; }
+  .ex div:first-child { border-top: 0; }
+  .ex .s { font-family: var(--f-num); font-weight: 700; font-size: 15px; }
+  .ex .r { color: var(--muted); font-size: 12.5px; }
+  .trend { display: flex; align-items: flex-end; gap: 6px; height: 110px; }
+  .trend a { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; text-decoration: none; }
+  .trend a i { display: block; border-radius: 5px 5px 0 0; background: var(--chart-muted); min-height: 3px; }
+  .trend a.now i { background: var(--accent); }
+  .trend a:hover i { background: var(--accent-strong); }
+  .plan-lines { display: grid; gap: 4px; font-size: 13.5px; white-space: pre-line; color: var(--muted); }
+  .apex-btn { display: inline-flex; align-items: center; gap: 7px; border: 0; cursor: pointer; border-radius: 999px; padding: 10px 18px; font-weight: 700; font-size: 14.5px; color: #fff; background: linear-gradient(135deg, var(--accent), var(--ice)); }
+  .apex-btn:disabled { opacity: .6; cursor: default; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-inner">
+  <div class="act-nav" id="act-nav"><a href="/activities/">← All activities</a></div>
+  <div class="page-head">
+    <div>
+      <div class="act-type" id="act-type"></div>
+      <h1 id="act-name">Loading…</h1>
+      <div class="sub" id="act-sub"></div>
+    </div>
+    <div id="insights-cta"></div>
+  </div>
+
+  <div id="insights-box"></div>
+
+  <div class="metrics" id="metrics"></div>
+  <div class="meta" id="metrics-note"></div>
+
+  <div class="grid grid-2">
+    <section class="card" id="c-hr" hidden>
+      <div class="card-head"><h2>Heart-rate zones</h2><span class="sub">your zones</span></div>
+      <div class="zonebar" id="hr-bar"></div><div class="zone-l" id="hr-l"></div>
+    </section>
+    <section class="card" id="c-power" hidden>
+      <div class="card-head"><h2>Power zones</h2><span class="sub" id="power-sub"></span></div>
+      <div class="zonebar" id="power-bar"></div><div class="zone-l" id="power-l"></div>
+    </section>
+    <section class="card" id="c-ex" hidden>
+      <div class="card-head"><h2>Exercises</h2><span class="sub">from Garmin</span></div>
+      <div class="ex" id="ex"></div>
+    </section>
+    <section class="card" id="c-trend">
+      <div class="card-head"><h2 id="trend-title">Recent sessions</h2><span class="sub">training load</span></div>
+      <div class="trend" id="trend"></div>
+      <div class="meta" id="trend-note"></div>
+    </section>
+    <section class="card" id="c-plan" hidden>
+      <div class="card-head"><h2>Plan vs done</h2><span class="sub" id="plan-sub"></span></div>
+      <div class="plan-lines" id="plan"></div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const ACTIVITY_ID = {{ activity_id }};
+  const e = TC.escapeHtml;
+  const POWER_ZONES = ['<55%', '56–75%', '76–90%', '91–105%', '106–120%', '>120%'];
+  const fmtPace = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+  const fmtVal = m => m.key === 'pace' ? fmtPace(m.value) : Number(m.value).toLocaleString();
+  let data = null;
+
+  function zoneBlock(minutes, colors, labels, barId, lId) {
+    document.getElementById(barId).innerHTML = minutes.map((m, i) => m ? `<i style="flex:${m};background:${colors[i]}" title="Z${i + 1}: ${m} min"></i>` : '').join('');
+    const l = document.getElementById(lId);
+    l.style.gridTemplateColumns = `repeat(${minutes.length}, minmax(0, 1fr))`;
+    l.innerHTML = minutes.map((m, i) => `<span><b>${m}′</b>Z${i + 1}${labels[i] ? ' · ' + labels[i] : ''}</span>`).join('');
+  }
+
+  function render(d) {
+    data = d;
+    const color = TC.typeColor(d.type), start = new Date(d.start);
+    document.title = `${d.name} · ApexFit`;
+    document.getElementById('act-type').innerHTML = `<i style="--c:${color}"></i><span style="color:${color}">${e(TC.label(d.type))}</span>`;
+    document.getElementById('act-name').textContent = d.name;
+    document.getElementById('act-sub').textContent = [start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }),
+      start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), d.effect_label, d.location].filter(Boolean).join(' · ');
+    const nav = [`<a href="${d.prev ? '/activity/' + d.prev.id + '/' : '/activities/'}">← ${d.prev ? e(d.prev.activity_name || TC.label(d.prev.activity_type)) : 'All activities'}</a>`,
+      d.next ? `<a href="/activity/${d.next.id}/">${e(d.next.activity_name || TC.label(d.next.activity_type))} →</a>` : '<a href="/activities/">All activities →</a>'];
+    document.getElementById('act-nav').innerHTML = nav.join('');
+
+    document.getElementById('metrics').innerHTML = d.metrics.map(m => {
+      let cmp = '';
+      if (m.delta_pct != null) {
+        const better = m.lower_is_better ? m.delta_pct < 0 : m.delta_pct > 0;
+        cmp = Math.abs(m.delta_pct) < 3 ? '<div class="cmp">• typical for you</div>'
+          : `<div class="cmp ${better ? 'up' : ''}">${m.delta_pct > 0 ? '▲' : '▼'} ${Math.abs(m.delta_pct)}% vs your avg</div>`;
+      }
+      return `<div class="metric"><div class="k">${e(m.label)}</div><div class="v">${fmtVal(m)}${m.unit ? ` <small>${e(m.unit)}</small>` : ''}</div>${cmp}</div>`;
+    }).join('');
+    document.getElementById('metrics-note').textContent = d.compared_with >= 3
+      ? `Compared with your ${d.compared_with} other ${TC.label(d.type).toLowerCase()} sessions in the 90 days before this one.`
+      : 'Not enough similar sessions in the previous 90 days to compare yet.';
+
+    if (d.hr_zones) {
+      document.getElementById('c-hr').hidden = false;
+      const b = d.hr_zone_bounds || [];
+      zoneBlock(d.hr_zones, [1, 2, 3, 4, 5].map(z => `var(--z${z})`), b.map(z => z.max_bpm == null ? `${z.min_bpm}+` : `${z.min_bpm}–${z.max_bpm}`), 'hr-bar', 'hr-l');
+    }
+    if (d.power_zones) {
+      document.getElementById('c-power').hidden = false;
+      document.getElementById('power-sub').textContent = d.ftp ? `FTP ${d.ftp} W` : '';
+      zoneBlock(d.power_zones, ['var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)', 'var(--z5)', 'var(--t-strength)'], POWER_ZONES, 'power-bar', 'power-l');
+    }
+    if (d.exercises.length) {
+      document.getElementById('c-ex').hidden = false;
+      document.getElementById('ex').innerHTML = d.exercises.map(x => {
+        const reps = x.reps.length ? (new Set(x.reps).size === 1 ? `${x.sets} × ${x.reps[0]}` : x.reps.join(' · ')) : `${x.sets} sets`;
+        return `<div><span>${e(x.name)}</span><span class="s">${reps}</span><span class="r">${x.weight_kg != null ? e(x.weight_kg) + ' kg' : ''}</span></div>`;
+      }).join('');
+    }
+
+    const maxLoad = Math.max(1, ...d.recent.map(r => r.load));
+    document.getElementById('trend-title').textContent = `Last ${d.recent.length} ${TC.label(d.type).toLowerCase()} sessions`;
+    document.getElementById('trend').innerHTML = d.recent.map(r =>
+      `<a href="/activity/${r.id}/" class="${r.id === d.id ? 'now' : ''}" title="${r.date}: load ${r.load}, ${r.minutes} min"><i style="height:${Math.max(3, r.load / maxLoad * 100)}%"></i></a>`).join('');
+    const rank = [...d.recent].sort((a, b) => b.load - a.load).findIndex(r => r.id === d.id) + 1;
+    document.getElementById('trend-note').textContent = d.recent.length > 1 ? `Load rank ${rank} of the last ${d.recent.length}. Tap a bar to open that session.` : '';
+
+    if (d.plan) {
+      document.getElementById('c-plan').hidden = false;
+      const p = d.plan;
+      document.getElementById('plan-sub').textContent = TC.label(p.activity_type);
+      document.getElementById('plan').innerHTML = `<b style="color:var(--fg)">${e(p.title)}</b>` +
+        [p.duration_minutes ? `${p.duration_minutes} min planned` : '', p.intensity].filter(Boolean).map(e).join(' · ') +
+        (p.description ? `\n${e(p.description)}` : '') +
+        (p.exercises.length ? '\n' + p.exercises.map(x => `${e(x.name)} ${x.sets ?? '–'} × ${x.reps ?? '–'}${x.weight_kg != null ? ' @ ' + x.weight_kg + ' kg' : ''}`).join('\n') : '');
+    }
+    document.dispatchEvent(new CustomEvent('activity:loaded', { detail: d }));
+  }
+
+  fetch(`/activity/${ACTIVITY_ID}/data/`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(render)
+    .catch(() => { document.getElementById('act-name').textContent = 'Could not load this activity.'; });
+</script>
+{% endblock %}

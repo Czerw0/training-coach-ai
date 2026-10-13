@@ -145,7 +145,7 @@ def calendar_events(request):
             "borderColor": color,
             "classNames": ["activity"],
             "editable": False,   # real Garmin data, never draggable
-            "extendedProps": {"kind": "activity", "detail": detail},
+            "extendedProps": {"kind": "activity", "detail": detail, "activity_id": a.id},
         })
 
     # planned sessions: editable, outline style

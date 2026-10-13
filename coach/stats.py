@@ -32,7 +32,7 @@ def _totals(rows):
 
 def _activities(start, end):
     return list(Activity.objects.filter(start_time__date__gte=start, start_time__date__lte=end).values(
-        "start_time", "activity_type", "activity_name", "duration_seconds", "distance_meters",
+        "id", "start_time", "activity_type", "activity_name", "duration_seconds", "distance_meters",
         "training_load", "avg_hr", *[f"hr_zone_{z}_seconds" for z in ZONES]))
 
 
@@ -129,15 +129,15 @@ def records(rows, weeks):
     if rows:
         longest = max(rows, key=lambda r: r["duration_seconds"] or 0)
         if longest["duration_seconds"]:
-            out.append({"label": "Longest session", "value": f"{round(longest['duration_seconds'] / 60)} min",
+            out.append({"label": "Longest session", "id": longest.get("id"), "value": f"{round(longest['duration_seconds'] / 60)} min",
                         "sub": f"{longest['activity_name'] or longest['activity_type']} · {longest['start_time'].date().isoformat()}"})
         furthest = max(rows, key=lambda r: r["distance_meters"] or 0)
         if furthest["distance_meters"]:
-            out.append({"label": "Longest distance", "value": f"{furthest['distance_meters'] / 1000:.1f} km",
+            out.append({"label": "Longest distance", "id": furthest.get("id"), "value": f"{furthest['distance_meters'] / 1000:.1f} km",
                         "sub": f"{furthest['activity_name'] or furthest['activity_type']} · {furthest['start_time'].date().isoformat()}"})
         hardest = max(rows, key=lambda r: r["training_load"] or 0)
         if hardest["training_load"]:
-            out.append({"label": "Hardest session", "value": f"load {round(hardest['training_load'])}",
+            out.append({"label": "Hardest session", "id": hardest.get("id"), "value": f"load {round(hardest['training_load'])}",
                         "sub": f"{hardest['activity_name'] or hardest['activity_type']} · {hardest['start_time'].date().isoformat()}"})
     if weeks:
         big = max(weeks, key=lambda w: w["hours"])

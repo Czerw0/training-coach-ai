@@ -72,11 +72,14 @@
       <h1>Stats</h1>
       <div class="sub" id="period-sub">Your training, recovery and progress.</div>
     </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <a class="btn ghost" href="/activities/">All activities →</a>
     <div class="seg" role="group" aria-label="Period" id="period">
       <button type="button" data-days="28">4 weeks</button>
       <button type="button" data-days="84">12 weeks</button>
       <button type="button" data-days="182">6 months</button>
       <button type="button" data-days="365">1 year</button>
+    </div>
     </div>
   </div>
 
@@ -343,8 +346,10 @@
     document.getElementById('heat').innerHTML = h.map(x => `<i class="${level(x.load)}" title="${fmtShort(x.date)}: ${x.load ? 'load ' + x.load : 'rest'}"></i>`).join('');
     document.getElementById('heat-sub').textContent = `${h.filter(x => x.load > 0).length} training days of ${h.length}`;
 
-    document.getElementById('records').innerHTML = data.records.map(x =>
-      `<div class="tile record"><div class="k">${e(x.label)}</div><div class="v">${e(x.value)}</div><div class="meta">${e(x.sub)}</div></div>`).join('');
+    document.getElementById('records').innerHTML = data.records.map(x => {
+      const inner = `<div class="k">${e(x.label)}</div><div class="v">${e(x.value)}</div><div class="meta">${e(x.sub)}</div>`;
+      return x.id ? `<a class="tile record" href="/activity/${x.id}/" style="text-decoration:none;color:inherit">${inner}</a>` : `<div class="tile record">${inner}</div>`;
+    }).join('');
     document.getElementById('findings').innerHTML = data.correlations.length ? data.correlations.map(x =>
       `<div class="finding"><div><b>${e(x.title)}</b><p>${e(x.text)}</p></div></div>`).join('')
       : '<div class="empty">Not enough data in this period yet. Try a longer period.</div>';
