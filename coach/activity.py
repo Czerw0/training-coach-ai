@@ -8,7 +8,7 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods
 
-from coach.dashboard import group_sets
+from coach import training_log
 from coach.models import AiInsight, PlannedSession
 from sync.models import Activity, UserProfile
 
@@ -109,6 +109,7 @@ def activity_payload(a):
     prev = Activity.objects.filter(start_time__lt=start).order_by("-start_time").values("id", "activity_name", "activity_type").first()
     nxt = Activity.objects.filter(start_time__gt=start).order_by("start_time").values("id", "activity_name", "activity_type").first()
     profile = UserProfile.objects.filter(pk=1).first()
+    strength = training_log.strength_exercises(a, plan if plan and plan.activity_type.startswith("gym") else None)         if sport_of(a.activity_type) == "strength" else None
     return {
         "id": a.id, "name": a.activity_name or a.activity_type, "type": a.activity_type, "sport": sport_of(a.activity_type),
         "start": start.isoformat(), "location": a.location_name,
@@ -116,7 +117,9 @@ def activity_payload(a):
         "metrics": metric_rows(a, comparables), "compared_with": len(comparables),
         "hr_zones": _zones(a, "hr", 5), "power_zones": _zones(a, "power", 6),
         "hr_zone_bounds": profile.hr_zones if profile else None, "ftp": profile.ftp_watts if profile else None,
-        "exercises": group_sets(a.exercise_sets) if a.exercise_sets else [],
+        "exercises": strength["exercises"] if strength else [],
+        "exercises_source": strength["source"] if strength else None,
+        "prescribed": strength["prescribed"] if strength else None,
         "recent": [{"id": r["id"], "date": r["start_time"].date().isoformat(), "load": round(r["training_load"] or 0),
                     "minutes": round((r["duration_seconds"] or 0) / 60)} for r in recent],
         "plan": None if not plan else {

@@ -53,8 +53,9 @@
       <div id="power-bar"></div>
     </section>
     <section class="card" id="c-ex" hidden>
-      <div class="card-head"><h2>Exercises</h2><span class="sub">from Garmin</span></div>
+      <div class="card-head"><h2>Exercises</h2><span class="sub" id="ex-src"></span></div>
       <div class="ex" id="ex"></div>
+      <div class="meta" id="ex-presc" style="margin-top:10px" hidden></div>
     </section>
     <section class="card" id="c-trend">
       <div class="card-head"><h2 id="trend-title">Recent sessions</h2><span class="sub">training load</span></div>
@@ -123,6 +124,13 @@
         const reps = x.reps.length ? (new Set(x.reps).size === 1 ? `${x.sets} × ${x.reps[0]}` : x.reps.join(' · ')) : `${x.sets} sets`;
         return `<div><span>${e(x.name)}</span><span class="s">${reps}</span><span class="r">${x.weight_kg != null ? e(x.weight_kg) + ' kg' : ''}</span></div>`;
       }).join('');
+      document.getElementById('ex-src').textContent = d.exercises_source === 'planned' ? 'from your calendar' : 'from Garmin';
+      if (d.prescribed) {
+        const line = x => `${x.name} ${x.sets ?? '–'} × ${x.reps.length ? x.reps.join('/') : '–'}${x.weight_kg != null ? ' @ ' + x.weight_kg + ' kg' : ''}`;
+        const el = document.getElementById('ex-presc');
+        el.hidden = false;
+        el.textContent = 'Apex prescribed: ' + d.prescribed.map(line).join(' · ');
+      }
     }
 
     const maxLoad = Math.max(1, ...d.recent.map(r => r.load));

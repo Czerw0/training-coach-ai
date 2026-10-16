@@ -337,11 +337,11 @@
         const reps = x.reps.length ? (new Set(x.reps).size === 1 ? `${x.sets} × ${x.reps[0]}` : x.reps.join(' · ')) : `${x.sets} sets`;
         return `<div><span>${e(x.name)}</span><span class="s">${reps}</span><span class="r">${x.weight_kg != null ? e(x.weight_kg) + ' kg' : ''}</span></div>`;
       }).join('');
-      const note = st.source === 'planned' ? '<div class="meta">Garmin didn\'t record individual sets, so these are the exercises planned for that day.</div>'
+      const note = st.source === 'planned' ? '<div class="meta">From your calendar session for that day — Garmin didn\'t record individual sets.</div>'
         : !st.exercises.length ? '<div class="meta">No exercise detail for this session.</div>' : '';
       body.innerHTML = `<div class="sess-title"><span class="dot" style="--c:${typeColor(a.type)}"></span>${e(a.name)}</div>` +
         `<div class="stat-row">${totals.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${e(v)}</div></div>`).join('')}</div>` +
-        (rows ? `<div class="section-title">${st.source === 'planned' ? 'Planned exercises' : 'Exercises'}</div><div class="ex">${rows}</div>` : '') + note;
+        (rows ? `<div class="section-title">Exercises</div><div class="ex">${rows}</div>` : '') + note;
       return;
     }
     if (a.zone_minutes) {

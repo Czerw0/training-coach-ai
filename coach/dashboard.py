@@ -11,7 +11,7 @@ from django.views.decorators.http import require_http_methods
 
 from pydantic import BaseModel, Field, ValidationError
 
-from coach import athlete_rules, metrics, sync_schedule
+from coach import athlete_rules, metrics, sync_schedule, training_log
 from coach.models import DailyFeeling, Injury, PlannedSession, SyncStatus
 from coach.schemas import format_validation_error
 from coach.tools import log_daily_feeling
@@ -82,19 +82,9 @@ def _latest_activity():
     zones = [getattr(a, f"hr_zone_{z}_seconds") or 0 for z in ZONES]
     strength = None
     if "strength" in (a.activity_type or ""):
+        st = training_log.strength_exercises(a)
         strength = {"total_sets": a.active_sets or a.total_sets, "total_reps": a.total_reps,
-                    "source": None, "exercises": []}
-        if a.exercise_sets:
-            strength["source"] = "garmin"
-            strength["exercises"] = group_sets(a.exercise_sets)
-        else:
-            plan = (PlannedSession.objects.filter(date=a.start_time.date(), activity_type__startswith="gym")
-                    .prefetch_related("exercises").first())
-            if plan:
-                strength["source"] = "planned"
-                strength["exercises"] = [
-                    {"name": x.name, "sets": x.sets, "reps": [x.reps] if x.reps else [], "weight_kg": x.weight_kg}
-                    for x in plan.exercises.all()]
+                    "source": st["source"] if st else None, "exercises": st["exercises"] if st else []}
     return {
         "id": a.id,
         "strength": strength,

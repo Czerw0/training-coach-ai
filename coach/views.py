@@ -204,6 +204,14 @@ def save_planned_session(request):
             continue
 
     if sid:
+        before = PlannedSession.objects.filter(id=sid).prefetch_related("exercises").first()
+        if before and before.created_by != "human" and before.prescribed is None:
+            # first hand edit of a coach-made session: keep the coach's version
+            fields["prescribed"] = {
+                "title": before.title, "duration_minutes": before.duration_minutes,
+                "intensity": before.intensity,
+                "exercises": list(before.exercises.values("name", "sets", "reps", "weight_kg", "notes")),
+            }
         PlannedSession.objects.filter(id=sid).update(**fields)   # keep original created_by
         session = PlannedSession.objects.get(id=sid)
     else:
