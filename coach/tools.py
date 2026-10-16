@@ -251,6 +251,23 @@ def get_resolved_injury_history(days=60):
     return json.dumps(rows, default=str)
 
 
+def get_training_history(group=None, exercise=None, weeks=8):
+    """What was actually done beyond the 14-day training_log: one lift's
+    progression, one activity group's sessions, or the weekly totals."""
+    from coach import training_log
+    try:
+        weeks = max(1, min(int(weeks or 8), 16))
+    except (TypeError, ValueError):
+        weeks = 8
+    if exercise:
+        rows = training_log.exercise_history(exercise, weeks)
+        return json.dumps(rows) if rows else f"No done gym session with '{exercise}' in the last {weeks} weeks."
+    if group:
+        rows = training_log.sport_history(group, weeks)
+        return json.dumps(rows) if rows else f"No {group} sessions in the last {weeks} weeks."
+    return json.dumps(training_log.weekly_summary(weeks))
+
+
 def load_training_skill(category, skill):
     return load_skill(category, skill)
 
@@ -260,8 +277,9 @@ def get_training_principles():
 
 
 def check_training_week(sessions):
-    from coach import athlete_rules
-    return check_week(sessions, athlete_rules.for_checker())
+    from coach import athlete_rules, training_log
+    rules = {**athlete_rules.for_checker(), "recent_weekly_minutes": training_log.baseline_minutes()}
+    return check_week(sessions, rules)
 
 
 TOOL_DEFINITIONS = [
@@ -521,6 +539,27 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "get_training_history",
+        "description": (
+            "What the athlete actually did further back than training_log (14 days). "
+            "exercise: every done gym session with that lift (name substring) — what "
+            "was done and what was prescribed; use it to set the next load. group: "
+            "every session of one activity group, with the plan it answered. "
+            "Neither: weekly totals per group (like weekly_summary). Read-only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "group": {"type": "string", "enum": ["cycling", "running", "gym", "plyometrics", "skating",
+                                                     "tennis", "skiing", "mountaineering", "other"],
+                          "description": "Activity group, as in training_log."},
+                "exercise": {"type": "string", "description": "Exercise name or part of it, e.g. 'romanian deadlift'."},
+                "weeks": {"type": "integer", "description": "Lookback in weeks, 1-16, default 8."},
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "load_training_skill",
         "description": (
             "Load the planning-and-scheduling methodology for one training "
@@ -559,7 +598,9 @@ TOOL_DEFINITIONS = [
             "and per-axis fatigue saturation. Call this on a draft week BEFORE "
             "writing any of it to the calendar. Fix every error; for every "
             "warning, either fix it or state the compromise explicitly in the "
-            "plan. Pass every session you intend to schedule."
+            "plan. Pass every session you intend to schedule, with its minutes — "
+            "the checker also warns when an activity group's week jumps well "
+            "above the athlete's recent weekly volume."
         ),
         "input_schema": {
             "type": "object",
@@ -572,6 +613,7 @@ TOOL_DEFINITIONS = [
                         "properties": {
                             "id": {"type": "string", "description": "category/skill from the training_skills index, e.g. 'gym/lower-eccentric'."},
                             "start": {"type": "string", "description": "ISO-8601 start datetime, e.g. '2026-08-10T17:00'."},
+                            "minutes": {"type": "integer", "description": "Planned duration in minutes."},
                         },
                         "required": ["id", "start"],
                     },
@@ -595,6 +637,7 @@ TOOL_FUNCTIONS = {
     "get_exercise_detail": get_exercise_detail,
     "get_fitness_trend": get_fitness_trend,
     "get_resolved_injury_history": get_resolved_injury_history,
+    "get_training_history": get_training_history,
     "load_training_skill": load_training_skill,
     "get_training_principles": get_training_principles,
     "check_training_week": check_training_week,

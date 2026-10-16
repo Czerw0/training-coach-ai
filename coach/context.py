@@ -3,8 +3,8 @@ from django.db.models import Q
 from django.utils import timezone
 from zoneinfo import ZoneInfo
 
-from sync.models import Activity, HRVRecord, SleepRecord, DailyStats, WeatherHourly, WeatherLocation, UserProfile, FTPRecord, IndoorCyclingWorkout, Exercise
-from coach import athlete_rules, profile_changes
+from sync.models import HRVRecord, SleepRecord, DailyStats, WeatherHourly, WeatherLocation, UserProfile, FTPRecord, IndoorCyclingWorkout, Exercise
+from coach import athlete_rules, profile_changes, training_log
 from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, PlannedSession
 from coach.metrics import acwr
 from coach.training_skills import list_skills
@@ -65,25 +65,6 @@ def _summarise_weather(hours, tz=None):
     return summary
 
 
-def _clean_activities(rows):
-    """Round Garmin's long floats"""
-    cleaned = []
-    for a in rows:
-        cleaned.append({
-            'date': a['start_time'].date().isoformat() if a['start_time'] else None,
-            'type': a['activity_type'],
-            'duration_min': _round((a['duration_seconds'] or 0) / 60, 0),
-            'distance_km': _round((a['distance_meters'] or 0) / 1000, 1) if a['distance_meters'] else None,
-            'avg_hr': a['avg_hr'],
-            'load': _round(a['training_load'], 0),
-            'effect': a['training_effect_label'],
-            'tss': _round(a['tss'], 0),
-            'avg_power': a['avg_power'],
-            'norm_power': a['normalized_power'],
-        })
-    return cleaned
-
-
 def build_context():
     today = datetime.date.today()
     now = timezone.now()
@@ -126,14 +107,9 @@ def build_context():
     # ACWR = 7-day load / (28-day load / 4); shared with the dashboard
     load_7, load_28, acute_chronic_ratio = acwr(today)
 
-    activities_raw = list(Activity.objects.filter(
-        start_time__date__gte=today - datetime.timedelta(days=14)
-    ).order_by('-start_time').values(
-        'start_time', 'activity_type', 'duration_seconds', 'distance_meters',
-        'avg_hr', 'training_load', 'training_effect_label', 'tss',
-        'avg_power', 'normalized_power',
-    ))
-    activities = _clean_activities(activities_raw)
+    # what was actually done, plan joined with Garmin (coach/training_log.py)
+    log = training_log.recent_log(days=14, today=today)
+    weeks = training_log.weekly_summary(weeks=8, today=today)
 
     hrv = list(HRVRecord.objects.filter(
         date__gte=today - datetime.timedelta(days=7)
@@ -221,7 +197,11 @@ def build_context():
                 else 'Insufficient data'
             ),
         },
-        'recent_activities': activities,
+        # last 14 days, newest first: one entry per session, with the plan it
+        # answered (status done/done_manual/missed/unplanned) and gym exercises
+        'training_log': log,
+        # done volume per week and activity group, oldest first; the last week is partial
+        'weekly_summary': weeks,
         'recent_recommendations': recent_recommendations,
         'recovery': {
             'hrv_last_7_days': hrv,

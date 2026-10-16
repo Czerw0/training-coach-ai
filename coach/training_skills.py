@@ -81,11 +81,12 @@ def load_principles():
 def check_week(sessions, rules=None):
     """Run the skill's own scripts/check_week.py, so the rules live in one place.
 
-    sessions: [{"id": "category/skill", "start": "<ISO-8601>"}]. rules: the
-    athlete's {"weekly_caps", "unavailable"} (coach/athlete_rules.py). Never raises.
+    sessions: [{"id": "category/skill", "start": "<ISO-8601>", "minutes": N?}].
+    rules: the athlete's {"weekly_caps", "unavailable", "max_weekly_increase_pct"}
+    (coach/athlete_rules.py) + "recent_weekly_minutes". Never raises.
     """
     try:
-        week = [{"id": s.get("id"), "start": s.get("start")} for s in sessions]
+        week = [{"id": s.get("id"), "start": s.get("start"), "minutes": s.get("minutes")} for s in sessions]
         payload = json.dumps({"sessions": week, "rules": rules or {}})
     except (TypeError, AttributeError):
         return "Invalid week: expected a list of {id, start} objects."

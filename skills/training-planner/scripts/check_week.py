@@ -8,8 +8,9 @@ every `error`, and either fix or explicitly state every `warning`.
 
 Input — a JSON array of planned sessions (file path, or stdin), or an object
 {"sessions": [...], "rules": {...}} carrying the athlete's own rules:
-`weekly_caps` {category: N} and `unavailable` [category]. Athlete caps replace
-any cap a leaf declares for that category:
+`weekly_caps` {category: N}, `unavailable` [category], and for the
+progression check `max_weekly_increase_pct` + `recent_weekly_minutes`. Athlete
+caps replace any cap a leaf declares for that category:
 
     [
       {"id": "gym/lower-eccentric", "start": "2026-08-10T07:00"},
@@ -48,7 +49,12 @@ Output — JSON (default) or `--format text`. Exit code is non-zero if any
    `weekly_caps` replace the leaf caps for their categories — personal limits
    live with the athlete, not in the library. Exceeding a cap is an error, and
    so is any session in an `unavailable` category.
-5. Severity. `error` = the plan is wrong, fix it. `warning` = a defensible
+5. Progression. Sessions may carry `minutes`. With rules
+   `max_weekly_increase_pct` and `recent_weekly_minutes` {category: avg minutes
+   of the recent complete weeks}, a category whose planned minutes in any
+   rolling 7 days exceed that average by more than the percentage is a
+   warning — a bigger jump can be right (a camp, a return), but it's stated.
+6. Severity. `error` = the plan is wrong, fix it. `warning` = a defensible
    compromise the model must state in the plan rather than bury.
 """
 import json
@@ -82,7 +88,9 @@ def _load_week(source):
         start = item.get("start")
         if not sid or not start:
             raise ValueError(f"session #{i} needs both 'id' and 'start'")
-        sessions.append({"id": sid, "start": datetime.fromisoformat(start)})
+        minutes = item.get("minutes")
+        sessions.append({"id": sid, "start": datetime.fromisoformat(start),
+                         "minutes": minutes if isinstance(minutes, (int, float)) and minutes > 0 else None})
     sessions.sort(key=lambda s: s["start"])
     return sessions, rules
 
@@ -241,6 +249,29 @@ def check(sessions, rules=None):
                                 f"(from {anchor['start'].date()}); max {cap} per week."),
                 })
                 break
+
+    # 6. Progression: planned minutes of a category in any rolling 7 days vs the
+    #    athlete's recent weekly average (rules.recent_weekly_minutes, computed
+    #    by the app from what was actually done). Only sessions that carry
+    #    `minutes` count; no baseline for a category -> nothing to compare.
+    pct = rules.get("max_weekly_increase_pct")
+    baseline = rules.get("recent_weekly_minutes") or {}
+    if isinstance(pct, (int, float)) and pct > 0:
+        for cat, base in baseline.items():
+            in_cat = [s for s in sessions if s["id"].partition("/")[0] == cat and s.get("minutes")]
+            if not in_cat or not base:
+                continue
+            worst = max(sum(s["minutes"] for s in in_cat[i:] if s["start"] < a["start"] + timedelta(days=7))
+                        for i, a in enumerate(in_cat))
+            limit = base * (1 + pct / 100)
+            if worst > limit:
+                violations.append({
+                    "kind": "progression", "severity": "warning", "category": cat,
+                    "planned_minutes": round(worst), "recent_weekly_minutes": round(base),
+                    "max_increase_pct": pct,
+                    "message": (f"{round(worst)} min of {cat} within 7 days vs {round(base)} min/week "
+                                f"recently (+{round((worst / base - 1) * 100)}%, max +{pct}%)."),
+                })
 
     # dedup identical saturation windows (overlapping anchors can repeat)
     seen, deduped = set(), []

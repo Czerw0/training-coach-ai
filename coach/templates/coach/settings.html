@@ -135,6 +135,8 @@
         <div><div class="section-title">Not possible right now</div><div class="chips" id="r-unavailable"></div>
           <div class="meta">No equipment where you are, or paused by choice. Apex won't plan these at all.</div></div>
         <div class="field"><label for="r-focus">Focus areas</label><input class="input" id="r-focus" type="text" placeholder="e.g. hamstrings, glutes, balance"></div>
+        <div class="field"><label for="r-pct">Max weekly increase, %</label><input class="input" id="r-pct" type="number" min="0" max="100" inputmode="numeric" style="max-width:120px">
+          <div class="meta">The week checker warns when a plan has this much more of one activity than your recent weeks. 0 = off.</div></div>
       </div>
     </section>
 
@@ -265,7 +267,8 @@
     $('r-unavailable').innerHTML = groups.map(g => `<label class="chip"><input type="checkbox" data-off="${g}" ${r.unavailable.includes(g) ? 'checked' : ''}><span>${label(g)}</span></label>`).join('');
     $('r-focus').value = r.focus_areas.join(', ');
     $('r-light').value = r.light_day_label || '';
-    document.querySelectorAll('#r-caps input, #r-focus, #r-light').forEach(el => el.addEventListener('input', markDirty));
+    $('r-pct').value = r.max_weekly_increase_pct ?? 15;
+    document.querySelectorAll('#r-caps input, #r-focus, #r-light, #r-pct').forEach(el => el.addEventListener('input', markDirty));
     document.querySelectorAll('#r-unavailable input').forEach(el => el.addEventListener('change', markDirty));
   }
   function readRules() {
@@ -276,6 +279,7 @@
       unavailable: [...document.querySelectorAll('[data-off]:checked')].map(i => i.dataset.off),
       focus_areas: $('r-focus').value.split(',').map(s => s.trim()).filter(Boolean),
       light_day_label: $('r-light').value.trim(),
+      max_weekly_increase_pct: $('r-pct').value === '' ? 15 : Math.max(0, Math.min(100, Math.round(+$('r-pct').value))),
     };
   }
 

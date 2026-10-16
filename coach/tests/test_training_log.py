@@ -169,3 +169,46 @@ def test_own_sessions_get_no_prescription(client, user):
     _save(client, {"id": p.id, "date": TODAY.isoformat(), "activity_type": "gym_legs", "exercises": []})
     p.refresh_from_db()
     assert p.prescribed is None
+
+
+# --- what the agent gets ----------------------------------------------------------
+
+@pytest.mark.django_db
+def test_context_has_the_log_and_weekly_summary_not_recent_activities():
+    from coach.context import build_context
+    _act(dt.date.today() - dt.timedelta(days=1), "running", 45)
+    ctx = build_context()
+    assert "recent_activities" not in ctx
+    assert ctx["training_log"][0]["group"] == "running"
+    assert len(ctx["weekly_summary"]) == 8 and ctx["weekly_summary"][-1]["partial"]
+
+
+def test_get_training_history_registered_in_all_three_places():
+    from coach.tools import TOOL_DEFINITIONS, TOOL_FUNCTIONS
+    assert "get_training_history" in TOOL_FUNCTIONS
+    schema = next(d for d in TOOL_DEFINITIONS if d["name"] == "get_training_history")
+    assert schema["input_schema"]["required"] == []
+    assert set(schema["input_schema"]["properties"]) == {"group", "exercise", "weeks"}
+
+
+@pytest.mark.django_db
+def test_get_training_history_tool_returns_a_lifts_progression():
+    from coach.tools import execute_tool
+    _plan(dt.date.today() - dt.timedelta(days=3), "gym_legs", [("Back squat", 4, 6, 80.0)], completed=True)
+    out = execute_tool("get_training_history", {"exercise": "squat"})
+    assert json.loads(out)[0]["done"] == ["Back squat 4x6 @80kg"]
+    assert "No running" in execute_tool("get_training_history", {"group": "running", "weeks": 99})
+
+
+@pytest.mark.django_db
+def test_check_training_week_warns_on_a_jump_over_done_volume():
+    from coach.tools import execute_tool
+    today = dt.date.today()
+    monday = today - dt.timedelta(days=today.weekday())
+    for w in range(1, 5):
+        _act(monday - dt.timedelta(weeks=w), "running", 60, gid=f"r{w}")
+    nxt = monday + dt.timedelta(weeks=1)
+    week = [{"id": "running/easy-long", "start": f"{nxt + dt.timedelta(days=d)}T09:00", "minutes": 50}
+            for d in (0, 3)]
+    assert "progression" in execute_tool("check_training_week", {"sessions": week})
+    assert "progression" not in execute_tool("check_training_week", {"sessions": week[:1]})

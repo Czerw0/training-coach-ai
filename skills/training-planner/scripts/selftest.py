@@ -125,6 +125,19 @@ def unavailable_category_is_an_error():
     assert "unavailable" in _kinds(v, "error"), v
 
 
+@case
+def big_jump_in_weekly_minutes_warns():
+    def runs(*minutes):
+        return [{"id": "running/easy-long", "start": datetime(2026, 8, 10 + 2 * i, 9), "minutes": m}
+                for i, m in enumerate(minutes)]
+    rules = {"max_weekly_increase_pct": 15, "recent_weekly_minutes": {"running": 100}}
+    v = check_week.check(runs(60, 70), rules)                      # +30%
+    assert "progression" in _kinds(v, "warning"), v
+    assert "progression" not in _kinds(check_week.check(runs(50, 60), rules)), "+10% is fine"
+    assert "progression" not in _kinds(check_week.check(runs(60, 70), {"max_weekly_increase_pct": 15})),         "no baseline -> no check"
+    assert "progression" not in _kinds(check_week.check(runs(60, 70), {**rules, "max_weekly_increase_pct": 0})),         "0 = off"
+
+
 def main():
     failed = 0
     for fn in CASES:

@@ -24,6 +24,11 @@ which always wins over a template here:
   instructions** — goals and season (e.g. a main sport and its annual arc), the
   usual healthy-week shape, preferences, equipment, and what to protect.
 - **location and recent activity** — what is possible this week.
+- **training_log and weekly_summary** — what was actually done, against what was
+  planned. The starting point of a new week is the done volume of the recent
+  weeks, not the last plan: a missed week lowers it, extra sessions raise it.
+  Give the checker each session's minutes so it can flag a jump above that
+  volume (athlete_rules.max_weekly_increase_pct).
 
 Plan around injuries and schedule first; a rigid week is the wrong output. State
 which phase of the athlete's season a plan is in when they've described one.

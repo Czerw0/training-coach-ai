@@ -1,6 +1,6 @@
 import pytest
 
-from coach.context import _round, _clean_activities, _summarise_weather, build_context
+from coach.context import _round, _summarise_weather, build_context
 from django.core.exceptions import ValidationError
 
 from sync.models import Exercise, UserProfile
@@ -11,37 +11,6 @@ def test_round_returns_none_for_none():
 
 def test_round_rounds_to_one_digit():
     assert _round(3.14159) == 3.1
-
-def make_activity(**overrides):
-    base = {
-        "start_time": datetime(2026, 6, 1, 10, 0),
-        "activity_type": "cycling",
-        "duration_seconds": 5400,     
-        "distance_meters": 30000,     
-        "avg_hr": 145,
-        "training_load": 80.0,
-        "training_effect_label": "AEROBIC_BASE",
-        "tss": 50.0,
-        "avg_power": 170,
-        "normalized_power": 180,
-    }
-    base.update(overrides)  
-    return base
-
-def test_clean_converts_units():
-    cleaned = _clean_activities([make_activity()])
-    assert cleaned[0]["duration_min"] == 90    
-    assert cleaned[0]["distance_km"] == 30.0
-
-def test_clean_none_distance_stays_none():
-    cleaned = _clean_activities([make_activity(distance_meters=None)])
-    assert cleaned[0]["distance_km"] is None
-
-def test_clean_none_avg_hr_stays_none():
-    cleaned = _clean_activities([make_activity(avg_hr=None)])
-    assert cleaned[0]["avg_hr"] is None
-
-
 
 def make_weather_hour(**overrides):
     base = {

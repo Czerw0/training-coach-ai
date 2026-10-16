@@ -25,6 +25,9 @@ class AthleteRules(BaseModel):
     focus_areas: list[str] = Field(default_factory=list, max_length=8)
     # what the usual light days (UserProfile.instruction_days) are, e.g. "Skating instruction"
     light_day_label: str = Field(default="", max_length=60)
+    # week checker: warn when a group's planned minutes in 7 days exceed the
+    # recent weekly average by more than this; 0 = off
+    max_weekly_increase_pct: int = Field(default=15, ge=0, le=100)
 
     @field_validator("weekly_caps")
     @classmethod
@@ -75,7 +78,8 @@ def blocked(activity_type, rules=None):
 def for_checker(rules=None):
     """The part of the rules the week checker enforces."""
     rules = rules or load()
-    return {"weekly_caps": dict(rules.weekly_caps), "unavailable": list(rules.unavailable)}
+    return {"weekly_caps": dict(rules.weekly_caps), "unavailable": list(rules.unavailable),
+            "max_weekly_increase_pct": rules.max_weekly_increase_pct}
 
 
 def as_context(rules=None):

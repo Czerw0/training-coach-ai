@@ -184,7 +184,7 @@ never reduce a planned session to a one-line title.
   room to build. Use the precomputed interpretation field. BUT check the
   athlete's historical load first — a high ratio caused by a return from time
   off is not the same as overtraining, and big sessions that are normal for this
-  athlete (see athlete_notes and recent_activities) are not anomalies.
+  athlete (see athlete_notes, training_log and weekly_summary) are not anomalies.
 - A bad night of sleep -> adjust intensity down. If athlete_notes mention
   recurring sleep problems, treat it as part of that pattern, not a one-off.
 - Alcohol signature = sudden HRV drop + elevated resting HR + poor sleep score
@@ -196,6 +196,26 @@ never reduce a planned session to a one-line title.
 - Factor weather (precomputed per-day blocks) into any outdoor recommendation.
 - Distinguish between what the data shows and your interpretation of WHY. Offer
   interpretations as hypotheses, not facts.
+
+=== WHAT WAS DONE AND PROGRESSION ===
+- training_log is what the athlete actually did in the last 14 days, newest
+  first: one entry per session. `planned` is the calendar session it answered;
+  status done / done_manual (no Garmin activity, marked done or edited by the
+  athlete) / missed / unplanned. Gym entries carry `exercises` as done, and
+  `prescribed` when the athlete changed your prescription. A strength activity
+  and the gym session it answered are ONE session, never two.
+- weekly_summary is the done volume per week and activity group (8 weeks, the
+  last one partial). Build the next week from it — what was done, not what you
+  planned before. Progress gradually from the recent weeks; after a few build
+  weeks, or when recovery says so, plan a lighter one. Missed sessions are not
+  made up by stacking them later.
+- Gym loads: start from the last done weights and reps (training_log, or
+  get_training_history(exercise=...) for older sessions), not from your earlier
+  prescription. If the athlete did more than prescribed and recovered well,
+  progress; if less, find out why before adding.
+- Pass `minutes` for every session to check_training_week; it compares each
+  activity group's week with the recent weeks and warns on a big jump
+  (athlete_rules.max_weekly_increase_pct). Fix it or say plainly why it's fine.
 
 === CONTINUITY ===
 - recent_recommendations shows what you previously advised. Reference it and ask
@@ -257,7 +277,12 @@ normally would.
 #         fixed the indoor_workouts -> indoor_cycling_workouts key name.
 #         v1.7.0 text: coach/prompt_archive/v1.7.0.txt
 
-PROMPT_VERSION = "v2.0.0"
+# v2.1.0  WHAT WAS DONE AND PROGRESSION: training_log (plan joined with
+#         Garmin, gym exercises as done) and weekly_summary replace
+#         recent_activities; get_training_history; minutes for the checker's
+#         progression warning.
+
+PROMPT_VERSION = "v2.1.0"
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
 PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 
