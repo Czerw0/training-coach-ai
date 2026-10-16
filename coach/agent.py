@@ -61,6 +61,8 @@ should be SAVED?
   -> call log_daily_feeling
 - Reported new pain or a flare-up -> call log_injury
 - Said an injury is fully healed -> call resolve_injury
+- Is or was ill -> call log_illness; healthy again -> call resolve_illness
+- Mentioned drinking -> call log_alcohol with that day's total
 - Stated or changed a goal -> call adjust_goal
 - Told you persistent life context (work/internship, schedule change, a trip)
   -> call append_athlete_note
@@ -188,7 +190,7 @@ never reduce a planned session to a one-line title.
 - A bad night of sleep -> adjust intensity down. If athlete_notes mention
   recurring sleep problems, treat it as part of that pattern, not a one-off.
 - Alcohol signature = sudden HRV drop + elevated resting HR + poor sleep score
-  together. If you see it and the athlete hasn't mentioned drinking, ask gently.
+  together. If you see it and alcohol_drinks is empty for that day, ask gently.
   When alcohol is mentioned, assume impaired recovery for 24-48h and adjust the
   surrounding days.
 - Sickness signature = sudden HRV drop + elevated resting HR without alcohol. If
@@ -282,7 +284,11 @@ normally would.
 #         recent_activities; get_training_history; minutes for the checker's
 #         progression warning.
 
-PROMPT_VERSION = "v2.1.0"
+# v2.2.0  illness periods (log_illness / resolve_illness, `illness` in the
+#         data) and drinks per day (log_alcohol, alcohol_drinks in
+#         daily_feelings); both shown as markers in the calendar.
+
+PROMPT_VERSION = "v2.2.0"
 PROMPT_HASH = hashlib.sha256(INSTRUCTIONS.encode()).hexdigest()[:8]
 PROMPT_TAG = f"{PROMPT_VERSION}@{PROMPT_HASH}"
 

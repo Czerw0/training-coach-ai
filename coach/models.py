@@ -25,6 +25,22 @@ class Injury(models.Model):
     def __str__(self):
         return f"{self.body_part} injury starting {self.date_started} ({self.severity})"
 
+class Illness(models.Model):
+    """A period of being ill — like Injury, open while date_resolved is empty."""
+    date_started = models.DateField()
+    date_resolved = models.DateField(null=True, blank=True)
+    symptoms = models.CharField(max_length=250, blank=True, default="")
+    # fever, chest, real fatigue: no training until gone (see the prompt's illness rule)
+    systemic = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date_started']
+
+    def __str__(self):
+        return f"Illness from {self.date_started} ({self.symptoms or 'no symptoms noted'})"
+
+
 class Goal(models.Model):
     GOAL_CHOICES = [
         ('weight_loss', 'Weight Loss'),
@@ -63,6 +79,8 @@ class DailyFeeling(models.Model):
     muscle_sore = models.CharField(max_length=100, null=True, blank=True, choices=MUSCLE_SORE_CHOICES)
     motivation = models.IntegerField(null=True, blank=True) # 1-10 scale
     notes = models.CharField(max_length=1200, null=True, blank=True)
+    # drinks that day: ~0.5 l beer / a glass of wine / a shot each
+    alcohol_drinks = models.PositiveSmallIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

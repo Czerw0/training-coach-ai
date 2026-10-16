@@ -97,6 +97,25 @@
   .exercise-row .input { padding: 8px 9px; font-size: 15px; background: var(--sunken); }
   .exercise-row .ex-notes { grid-column: 1 / -1; }
   .exercise-row .ex-remove { background: none; border: 0; color: var(--bad); font-size: 22px; cursor: pointer; padding: 0 6px; line-height: 1; align-self: center; }
+  /* ---- day markers: small dots next to the day number ---- */
+  :root { --mk-injury: #E5484D; --mk-alcohol: #8B5A2B; --mk-illness: #7DD3FC; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --mk-alcohol: #B9834F; --mk-illness: #8FDCFF; } }
+  :root[data-theme="dark"] { --mk-alcohol: #B9834F; --mk-illness: #8FDCFF; }
+  .marks { display: inline-flex; align-items: center; gap: 3px; margin: 0 2px 0 4px; }
+  .fc .fc-daygrid-day-top { align-items: center; }
+  .mk { position: relative; width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: var(--c); cursor: pointer; flex-shrink: 0; }
+  .mk::after { content: ""; position: absolute; inset: -5px; }
+  .mk:hover { transform: scale(1.3); }
+  .mk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .fc-list-day-cushion .marks { margin-left: 10px; vertical-align: middle; }
+  .legend .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .stepper { display: flex; align-items: center; gap: 10px; }
+  .stepper button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--sunken); color: var(--fg); font-size: 22px; font-weight: 600; cursor: pointer; }
+  .stepper .input { width: 84px; text-align: center; font-family: var(--f-num); font-size: 22px; font-weight: 700; }
+  .mk-status { font-size: 13px; color: var(--bad); min-height: 1em; }
+  .mk-kinds { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mk-kinds .opt span i { background: var(--c); }
+
   #add-exercise-btn { background: var(--surface); border: 1.5px dashed var(--line); color: var(--accent); border-radius: var(--r-sm); padding: 10px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
 </style>
 {% endblock %}
@@ -108,7 +127,10 @@
       <h1>Calendar</h1>
       <div class="sub">What you did, from Garmin, next to what's planned.</div>
     </div>
-    <button class="btn" type="button" id="plan-btn">+ Plan a session</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost" type="button" id="mark-btn">+ Mark a day</button>
+      <button class="btn" type="button" id="plan-btn">+ Plan a session</button>
+    </div>
   </div>
 
   <div class="legend">
@@ -120,6 +142,9 @@
     <span class="item"><span class="sw" style="background:var(--t-outdoor)"></span>Ski &amp; hike</span>
     <span class="item"><span class="sw" style="background:var(--t-strength)"></span>Strength</span>
     <span class="item"><span class="sw outline"></span>Planned (Coach / You)</span>
+    <span class="item"><span class="dot" style="background:var(--mk-injury)"></span>Injury</span>
+    <span class="item"><span class="dot" style="background:var(--mk-illness)"></span>Illness</span>
+    <span class="item"><span class="dot" style="background:var(--mk-alcohol)"></span>Alcohol</span>
   </div>
 
   <section class="card cal-card">
@@ -176,6 +201,27 @@
       <button class="btn" type="button" id="save-btn">Save</button>
       <button class="btn danger" type="button" id="delete-btn" style="display:none;">Delete</button>
       <button class="btn ghost" type="button" id="cancel-btn">Cancel</button>
+    </footer>
+  </div>
+</div>
+
+<div class="overlay" id="mk-overlay">
+  <div class="modal sheet" role="dialog" aria-modal="true" aria-labelledby="mk-title">
+    <header class="sheet-head">
+      <div><h2 id="mk-title">Mark a day</h2><div class="who-line" id="mk-sub"></div></div>
+      <button class="x" type="button" id="mk-close" aria-label="Close">&times;</button>
+    </header>
+    <div class="sheet-body">
+      <div class="form">
+        <fieldset class="fs" id="mk-kind-fs"><legend>What happened</legend><div class="mk-kinds" id="mk-kinds"></div></fieldset>
+        <div id="mk-fields" class="form"></div>
+        <div class="mk-status" id="mk-status" role="status"></div>
+      </div>
+    </div>
+    <footer class="modal-actions sheet-foot">
+      <button class="btn" type="button" id="mk-save">Save</button>
+      <button class="btn danger" type="button" id="mk-delete" hidden>Delete</button>
+      <button class="btn ghost" type="button" id="mk-cancel">Cancel</button>
     </footer>
   </div>
 </div>
@@ -341,6 +387,146 @@
     closeModal(); calendar.refetchEvents();
   });
 
+  // ---- day markers: injury / illness / alcohol ----
+  const MK = {
+    injury: { label: 'Injury', color: 'var(--mk-injury)' },
+    illness: { label: 'Illness', color: 'var(--mk-illness)' },
+    alcohol: { label: 'Alcohol', color: 'var(--mk-alcohol)' },
+  };
+  const SEVERITIES = [['', 'Not set'], ['minor', 'Minor'], ['moderate', 'Moderate'], ['severe', 'Severe']];
+  const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+  const niceDate = s => new Date(s + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  let marks = { days: {}, injuries: {}, illnesses: {}, alcohol: {} }, marksRange = null;
+  let mk = null;   // what the marker sheet edits: {kind, id, date, isNew}
+
+  function markTitle(item, date) {
+    if (item.kind === 'alcohol') { const n = marks.alcohol[date]; return `Alcohol: ${n} drink${n === 1 ? '' : 's'}`; }
+    if (item.kind === 'injury') { const i = marks.injuries[item.id] || {}; return `Injury: ${i.body_part || ''}${i.severity ? ' (' + i.severity + ')' : ''}`; }
+    const s = marks.illnesses[item.id] || {}; return `Illness${s.symptoms ? ': ' + s.symptoms : ''}`;
+  }
+  function paintMarks() {
+    document.querySelectorAll('#calendar .marks').forEach(el => el.remove());
+    const targets = [...document.querySelectorAll('#calendar .fc-daygrid-day[data-date]')].map(c => [c.dataset.date, c.querySelector('.fc-daygrid-day-top')])
+      .concat([...document.querySelectorAll('#calendar .fc-list-day[data-date]')].map(r => [r.dataset.date, r.querySelector('.fc-list-day-cushion')]));
+    targets.forEach(([date, host]) => {
+      const items = marks.days[date];
+      if (!host || !items || !items.length) return;
+      const box = document.createElement('span');
+      box.className = 'marks';
+      items.forEach(item => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'mk';
+        b.style.setProperty('--c', MK[item.kind].color);
+        b.title = markTitle(item, date);
+        b.setAttribute('aria-label', b.title + ', ' + niceDate(date) + '. Edit');
+        // keep FullCalendar from treating the tap as a click on the day
+        ['pointerdown', 'mousedown', 'touchstart'].forEach(t => b.addEventListener(t, ev => ev.stopPropagation(), { passive: true }));
+        b.addEventListener('click', ev => { ev.stopPropagation(); ev.preventDefault(); openMarker({ kind: item.kind, id: item.id, date }); });
+        box.appendChild(b);
+      });
+      host.appendChild(box);
+    });
+  }
+  async function loadMarks(range) {
+    if (range) marksRange = range;
+    if (!marksRange) return;
+    try {
+      const r = await fetch(`/calendar/markers/?start=${marksRange[0]}&end=${marksRange[1]}`);
+      const d = await r.json();
+      if (d.ok) { marks = d; paintMarks(); }
+    } catch (err) { /* markers are extra; the calendar works without them */ }
+  }
+
+  const mkOverlay = $('mk-overlay'), mkSave = $('mk-save'), mkDelete = $('mk-delete');
+  $('mk-kinds').innerHTML = Object.entries(MK).map(([k, m]) =>
+    `<label class="opt"><input type="radio" name="mk-kind" value="${k}"><span><i style="--c:${m.color}"></i>${m.label}</span></label>`).join('');
+  document.querySelectorAll('input[name=mk-kind]').forEach(r => r.addEventListener('change', () => { mk.kind = r.value; renderMarkFields({}); }));
+
+  function field(id, label, html) { return `<div class="field"><label for="${id}">${label}</label>${html}</div>`; }
+  function renderMarkFields(v) {
+    const date = v.date || mk.date;
+    let h = '';
+    if (mk.kind === 'alcohol') {
+      h = field('mk-date', 'Day', `<input class="input" type="date" id="mk-date" max="${today()}" value="${date}" ${mk.isNew ? '' : 'disabled'}>`) +
+        `<div class="field"><label for="mk-drinks">Drinks</label><div class="stepper"><button type="button" id="mk-minus" aria-label="One less">−</button>` +
+        `<input class="input" id="mk-drinks" type="number" inputmode="numeric" min="0" max="40" value="${v.drinks ?? 1}"><button type="button" id="mk-plus" aria-label="One more">+</button></div>` +
+        `<div class="meta">1 drink ≈ 0.5 l beer, a glass of wine or a shot.</div></div>`;
+    } else if (mk.kind === 'illness') {
+      h = `<div class="row2">${field('mk-from', 'From', `<input class="input" type="date" id="mk-from" max="${today()}" value="${v.date_started || date}">`)}` +
+        `${field('mk-to', 'To (empty = still ill)', `<input class="input" type="date" id="mk-to" value="${v.date_resolved || ''}">`)}</div>` +
+        field('mk-symptoms', 'Symptoms', `<input class="input" type="text" id="mk-symptoms" maxlength="250" placeholder="e.g. sore throat, runny nose" value="${attr(v.symptoms || '')}">`) +
+        `<label class="switch"><input type="checkbox" id="mk-systemic" ${v.systemic ? 'checked' : ''}> Fever or whole-body fatigue</label>`;
+    } else {
+      h = field('mk-part', 'Body part', `<input class="input" type="text" id="mk-part" maxlength="100" placeholder="e.g. left knee" value="${attr(v.body_part || '')}">`) +
+        `<fieldset class="fs"><legend>Severity</legend><div class="seg">${SEVERITIES.map(([s, l]) =>
+          `<label class="opt"><input type="radio" name="mk-sev" value="${s}" ${(v.severity || '') === s ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></fieldset>` +
+        `<div class="row2">${field('mk-from', 'From', `<input class="input" type="date" id="mk-from" max="${today()}" value="${v.date_started || date}">`)}` +
+        `${field('mk-to', 'To (empty = still injured)', `<input class="input" type="date" id="mk-to" value="${v.date_resolved || ''}">`)}</div>` +
+        field('mk-desc', 'Notes', `<input class="input" type="text" id="mk-desc" maxlength="250" placeholder="How it happened, what hurts" value="${attr(v.description || '')}">`) +
+        `<label class="switch"><input type="checkbox" id="mk-run" ${v.affects_running ?? true ? 'checked' : ''}> Affects running</label>` +
+        `<label class="switch"><input type="checkbox" id="mk-bike" ${v.affects_cycling ? 'checked' : ''}> Affects cycling</label>`;
+    }
+    $('mk-fields').innerHTML = h;
+    if (mk.kind === 'alcohol') {
+      const n = $('mk-drinks');
+      $('mk-minus').addEventListener('click', () => { n.value = Math.max(0, (+n.value || 0) - 1); });
+      $('mk-plus').addEventListener('click', () => { n.value = Math.min(40, (+n.value || 0) + 1); });
+    }
+  }
+
+  function openMarker(m) {
+    mk = { ...m, isNew: !m.id && !(m.kind === 'alcohol' && marks.alcohol[m.date]) };
+    $('mk-status').textContent = '';
+    mkDelete.hidden = mk.isNew; mkDelete.textContent = mk.kind === 'alcohol' ? 'Remove' : 'Delete'; delete mkDelete.dataset.armed;
+    $('mk-kind-fs').hidden = !mk.isNew;
+    document.querySelector(`input[name=mk-kind][value=${mk.kind}]`).checked = true;
+    const v = mk.kind === 'alcohol' ? { date: m.date, drinks: marks.alcohol[m.date] }
+      : (mk.kind === 'injury' ? marks.injuries[m.id] : marks.illnesses[m.id]) || {};
+    $('mk-title').textContent = mk.isNew ? 'Mark a day' : MK[mk.kind].label;
+    $('mk-sub').textContent = mk.isNew ? '' : (v.date_started ? `${niceDate(v.date_started)} – ${v.date_resolved ? niceDate(v.date_resolved) : 'now'}` : niceDate(m.date));
+    renderMarkFields(v);
+    mkOverlay.classList.add('open'); document.body.style.overflow = 'hidden';
+  }
+  function closeMarker() { mkOverlay.classList.remove('open'); document.body.style.overflow = ''; }
+
+  async function send(url, body) {
+    const r = await TC.postJSON(url, body);
+    const d = await r.json().catch(() => ({ ok: false, error: 'Something went wrong.' }));
+    if (!d.ok) throw new Error(d.error || 'Something went wrong.');
+    return d;
+  }
+  mkSave.addEventListener('click', async () => {
+    mkSave.disabled = true; $('mk-status').textContent = '';
+    try {
+      if (mk.kind === 'alcohol') {
+        await send('/calendar/marker/alcohol/', { date: $('mk-date').value, drinks: +$('mk-drinks').value || 0 });
+      } else if (mk.kind === 'illness') {
+        await send('/calendar/marker/illness/', { id: mk.id || null, date_started: $('mk-from').value, date_resolved: $('mk-to').value || null,
+          symptoms: $('mk-symptoms').value.trim(), systemic: $('mk-systemic').checked });
+      } else {
+        if (!$('mk-part').value.trim()) { $('mk-part').focus(); throw new Error('Which body part?'); }
+        await send('/calendar/marker/injury/', { id: mk.id || null, body_part: $('mk-part').value.trim(),
+          severity: (document.querySelector('input[name=mk-sev]:checked') || {}).value || null, description: $('mk-desc').value.trim(),
+          date_started: $('mk-from').value, date_resolved: $('mk-to').value || null,
+          affects_running: $('mk-run').checked, affects_cycling: $('mk-bike').checked });
+      }
+      closeMarker(); loadMarks();
+    } catch (err) { $('mk-status').textContent = err.message; }
+    finally { mkSave.disabled = false; }
+  });
+  mkDelete.addEventListener('click', async () => {
+    if (!mkDelete.dataset.armed) { mkDelete.dataset.armed = '1'; mkDelete.textContent = 'Tap again to confirm'; return; }
+    try {
+      if (mk.kind === 'alcohol') await send('/calendar/marker/alcohol/', { date: mk.date, drinks: 0 });
+      else await send(`/calendar/marker/${mk.kind}/delete/`, { id: mk.id });
+      closeMarker(); loadMarks();
+    } catch (err) { $('mk-status').textContent = err.message; }
+  });
+  [$('mk-cancel'), $('mk-close')].forEach(b => b.addEventListener('click', closeMarker));
+  mkOverlay.addEventListener('click', ev => { if (ev.target === mkOverlay) closeMarker(); });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && mkOverlay.classList.contains('open')) closeMarker(); });
+  $('mark-btn').addEventListener('click', () => openMarker({ kind: 'alcohol', date: today() }));
+
   document.addEventListener('DOMContentLoaded', () => {
     const narrow = window.matchMedia('(max-width: 700px)').matches;
     calendar = new FullCalendar.Calendar($('calendar'), {
@@ -363,6 +549,8 @@
         }
       },
       events: '/calendar/events/',
+      datesSet(info) { loadMarks([info.startStr.slice(0, 10), info.endStr.slice(0, 10)]); },
+      eventsSet() { requestAnimationFrame(paintMarks); },
       eventClick(info) {
         info.jsEvent.preventDefault();
         if (info.event.extendedProps.kind === 'planned') openEdit(info.event);

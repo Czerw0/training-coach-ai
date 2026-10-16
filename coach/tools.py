@@ -1,9 +1,9 @@
 import datetime as dt
 import json
 from pydantic import ValidationError
-from coach.models import DailyFeeling, Goal, Injury, PlannedExercise, PlannedSession
+from coach.models import DailyFeeling, Goal, Illness, Injury, PlannedExercise, PlannedSession
 from coach.schemas import (
-    AdjustGoalIn, ClearPlannedSessionsIn, PlannedSessionIn, format_validation_error,
+    AdjustGoalIn, AlcoholIn, ClearPlannedSessionsIn, PlannedSessionIn, format_validation_error,
 )
 from coach.training_skills import check_week, load_principles, load_skill
 from sync.models import DailyStats, Exercise, IndoorCyclingWorkout, UserProfile
@@ -105,6 +105,60 @@ def resolve_injury(body_part):
     if updated:
         return f"Marked {body_part} injury as resolved today."
     return f"No active injury found matching '{body_part}'."
+
+
+def log_illness(symptoms=None, systemic=None, started_days_ago=0):
+    """Open an illness period, or update the one that is still open."""
+    today = dt.date.today()
+    try:
+        days = int(started_days_ago or 0)
+    except (TypeError, ValueError):
+        return "Invalid input: started_days_ago must be a whole number 0-14."
+    if not 0 <= days <= 14:
+        return "Invalid input: started_days_ago must be 0-14."
+    open_one = Illness.objects.filter(date_resolved__isnull=True).first()
+    if open_one:
+        if symptoms:
+            open_one.symptoms = symptoms[:250]
+        if systemic is not None:
+            open_one.systemic = bool(systemic)
+        open_one.save()
+        return f"Updated the open illness (since {open_one.date_started})."
+    start = today - dt.timedelta(days=days)
+    Illness.objects.create(date_started=start, symptoms=(symptoms or "")[:250], systemic=bool(systemic))
+    return f"Logged illness starting {start}."
+
+
+def resolve_illness():
+    updated = Illness.objects.filter(date_resolved__isnull=True).update(date_resolved=dt.date.today())
+    return "Marked the illness as over today." if updated else "No open illness to resolve."
+
+
+def log_alcohol(drinks, days_ago=0):
+    """Set (not add to) the number of drinks on one of the last 7 days."""
+    try:
+        days = int(days_ago or 0)
+    except (TypeError, ValueError):
+        return "Invalid input: days_ago must be a whole number 0-6."
+    if not 0 <= days <= 6:
+        return "Invalid input: days_ago must be 0-6."
+    try:
+        payload = AlcoholIn(date=dt.date.today() - dt.timedelta(days=days), drinks=drinks)
+    except ValidationError as exc:
+        return format_validation_error(exc)
+    set_alcohol(payload.date, payload.drinks)
+    return f"Saved {payload.drinks or 0} drinks on {payload.date}."
+
+
+def set_alcohol(day, drinks):
+    """Shared by log_alcohol and the calendar marker: 0/None clears the day."""
+    obj = DailyFeeling.objects.filter(date=day).first()
+    if obj is None:
+        if not drinks:
+            return
+        obj = DailyFeeling(date=day)
+    obj.alcohol_drinks = drinks or None
+    obj.save()
 
 
 def adjust_goal(title, goal_type=None, target_date=None,
@@ -376,6 +430,45 @@ TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "log_illness",
+        "description": (
+            "Log that the athlete is ill (a cold, flu, stomach bug...). Opens an "
+            "illness period; if one is already open, updates its symptoms. Use "
+            "whenever they say they are or were sick. systemic = fever, chest "
+            "symptoms or real whole-body fatigue."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symptoms": {"type": "string", "description": "Short description, e.g. 'sore throat, runny nose'."},
+                "systemic": {"type": "boolean", "description": "Fever, chest symptoms or whole-body fatigue."},
+                "started_days_ago": {"type": "integer", "description": "0 = today, 1 = yesterday ... up to 14. Default 0."},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "resolve_illness",
+        "description": "Close the open illness period as of today, when the athlete says they are healthy again.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "log_alcohol",
+        "description": (
+            "Save how many drinks the athlete had on a day (1 drink ~ 0.5 l beer, "
+            "a glass of wine or a shot). Sets the day's total, it does not add. "
+            "Use whenever they mention drinking."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "drinks": {"type": "integer", "description": "Total drinks that day, 0-40."},
+                "days_ago": {"type": "integer", "description": "0 = today, 1 = yesterday ... up to 6. Default 0."},
+            },
+            "required": ["drinks"],
+        },
+    },
+    {
         "name": "adjust_goal",
         "description": (
             "Create a new training goal or update an existing one (matched by "
@@ -629,6 +722,9 @@ TOOL_FUNCTIONS = {
     "log_daily_feeling": log_daily_feeling,
     "log_injury": log_injury,
     "resolve_injury": resolve_injury,
+    "log_illness": log_illness,
+    "resolve_illness": resolve_illness,
+    "log_alcohol": log_alcohol,
     "adjust_goal": adjust_goal,
     "append_athlete_note": append_athlete_note,
     "create_planned_session": create_planned_session,

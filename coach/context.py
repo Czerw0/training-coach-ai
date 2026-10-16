@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from sync.models import HRVRecord, SleepRecord, DailyStats, WeatherHourly, WeatherLocation, UserProfile, FTPRecord, IndoorCyclingWorkout, Exercise
 from coach import athlete_rules, profile_changes, training_log
-from coach.models import Injury, Goal, DailyFeeling, CoachRecommendation, PlannedSession
+from coach.models import Illness, Injury, Goal, DailyFeeling, CoachRecommendation, PlannedSession
 from coach.metrics import acwr
 from coach.training_skills import list_skills
 
@@ -142,8 +142,13 @@ def build_context():
     feelings = list(DailyFeeling.objects.filter(
         date__gte=today - datetime.timedelta(days=14)
     ).order_by('-date').values(
-        'date', 'energy_level', 'muscle_soreness', 'muscle_sore', 'motivation', 'notes',
+        'date', 'energy_level', 'muscle_soreness', 'muscle_sore', 'motivation', 'notes', 'alcohol_drinks',
     ))
+
+    # open, or over within the last 14 days (the rebuild after it matters)
+    illness = list(Illness.objects.filter(
+        Q(date_resolved__isnull=True) | Q(date_resolved__gte=today - datetime.timedelta(days=14))
+    ).values('date_started', 'date_resolved', 'symptoms', 'systemic'))
 
     active_injuries = list(Injury.objects.filter(
         date_started__lte=today
@@ -211,6 +216,7 @@ def build_context():
         'ftp_history': ftp_history,
         'daily_feelings_last_14_days': feelings,
         'active_injuries': active_injuries,
+        'illness': illness,
         'active_goals': active_goals,
         'location': location.name if location else None,
         # hand edits in Settings (profile fields, coach instructions), newest first

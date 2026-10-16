@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, ValidationError
 from coach import metrics
 from coach.activity import activity_payload
 from coach.agent import MODEL, client, compute_cost
-from coach.models import AiInsight, ApiUsage, CoachRecommendation, DailyFeeling, Injury
+from coach.models import AiInsight, ApiUsage, CoachRecommendation, DailyFeeling, Illness, Injury
 from coach.stats import feel_stats, fitness_series, injury_list
 from sync.models import Activity, DailyStats, HRVRecord, SleepRecord
 
@@ -120,9 +120,12 @@ def coach_notes(days):
     for day in sorted(days, reverse=True):
         note = {}
         feel = DailyFeeling.objects.filter(date=day).values(
-            "energy_level", "muscle_soreness", "muscle_sore", "motivation", "notes").first()
+            "energy_level", "muscle_soreness", "muscle_sore", "motivation", "notes", "alcohol_drinks").first()
         if feel:
             note["athlete_logged"] = {k: v for k, v in feel.items() if v not in (None, "")}
+        ill = Illness.objects.filter(date_started__lte=day).exclude(date_resolved__lt=day).first()
+        if ill:
+            note["ill"] = {"symptoms": ill.symptoms, "systemic": ill.systemic, "since": ill.date_started.isoformat()}
         chats = list(CoachRecommendation.objects.filter(date=day).order_by("-created_at")
                      .values("user_message", "recommendation")[:2])
         if chats:
