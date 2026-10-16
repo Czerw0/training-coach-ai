@@ -19,11 +19,11 @@ from pydantic import BaseModel, Field, ValidationError
 from coach import metrics
 from coach.activity import activity_payload
 from coach.agent import MODEL, client, compute_cost
-from coach.models import AiInsight, ApiUsage, DailyFeeling, Injury
+from coach.models import AiInsight, ApiUsage, CoachRecommendation, DailyFeeling, Injury
 from coach.stats import feel_stats, fitness_series, injury_list
 from sync.models import Activity, DailyStats, HRVRecord, SleepRecord
 
-PROMPT_VERSION = "insights-v1.1"   # 1.1: generic, athlete context from the data
+PROMPT_VERSION = "insights-v1.2"   # 1.1: generic; 1.2: focus/baseline payloads, coach_notes
 CONFIG_VERSION = "insights-v1"
 MAX_TOKENS = 1200
 REFRESH_MINUTES = 10
@@ -36,6 +36,8 @@ SYSTEM = """You are Apex, the AI training coach in the ApexFit app.
 You get one JSON object with an athlete's real data for one topic and write short insights about it. `athlete` holds where they are and their own rules (focus areas, unavailable activities, weekly caps) — respect them and don't suggest anything they rule out.
 - Use only the numbers in the data. Never invent values, dates, sessions or trends that are not there. If something is missing, don't mention it unless the gap itself matters.
 - Each insight: a title of 2-7 words that states the point, and one sentence (max ~30 words) that gives the evidence from the data and, when useful, what to do about it.
+- Tiles: the insights are about `focus`: today, last night, the latest reading. `baseline` is there only to compare against; never describe anything older than 7 days on its own. If `data_age_days` is 2 or more, say first that the latest data is that old.
+- `coach_notes` is what the athlete logged and discussed with you on those days. Use it to explain the numbers (a late night, illness, a hard day); it is not a topic of its own, and numbers still come only from the data.
 - Prefer comparisons the data supports (vs their own average, vs previous days or sessions, vs their zones) over generic advice.
 - Order by importance. No greetings, no disclaimers, no repeating the same point twice.
 - Plain English, second person ("you"). Use the units from the data."""
@@ -93,62 +95,129 @@ def _activity(key, today):
         "exercises": p["exercises"],
         "last_sessions_same_type": [{"date": r["date"], "load": r["load"], "minutes": r["minutes"]} for r in p["recent"]],
         "planned_that_day": p["plan"] and {k: p["plan"][k] for k in ("title", "activity_type", "duration_minutes", "intensity", "description")},
+        "prescribed_exercises": p["prescribed"],
         "that_day": {"sleep": sleep, "hrv": hrv, "how_you_felt": feel},
+        "coach_notes": coach_notes([day, day - dt.timedelta(days=1)]),
         "active_injuries": [{"body_part": i.body_part, "severity": i.severity, "since": i.date_started.isoformat()}
                             for i in Injury.objects.filter(date_started__lte=day).exclude(date_resolved__lt=day)],
     }
 
 
+def _age(latest, today):
+    """Days since the newest record, or None when there is none."""
+    return (today - latest).days if latest else None
+
+
+def _avg(rows, field, n=1):
+    vals = [r[field] for r in rows if r.get(field) is not None]
+    return round(statistics.mean(vals), n) if vals else None
+
+
+def coach_notes(days):
+    """What the athlete logged and discussed with Apex on these days, newest
+    first, to explain the numbers (a late night, a cold, a hard day at work)."""
+    out = []
+    for day in sorted(days, reverse=True):
+        note = {}
+        feel = DailyFeeling.objects.filter(date=day).values(
+            "energy_level", "muscle_soreness", "muscle_sore", "motivation", "notes").first()
+        if feel:
+            note["athlete_logged"] = {k: v for k, v in feel.items() if v not in (None, "")}
+        chats = list(CoachRecommendation.objects.filter(date=day).order_by("-created_at")
+                     .values("user_message", "recommendation")[:2])
+        if chats:
+            note["chat"] = [{"athlete": (c["user_message"] or "")[:200], "apex": c["recommendation"][:600]}
+                            for c in chats]
+        if note:
+            out.append({"date": day.isoformat(), **note})
+    return out
+
+
+def _last_days(today, n=3):
+    return [today - dt.timedelta(days=i) for i in range(n)]
+
+
 def _sleep(key, today):
-    nights = list(SleepRecord.objects.filter(date__gt=today - dt.timedelta(days=14), date__lte=today).order_by("date")
+    nights = list(SleepRecord.objects.filter(date__gt=today - dt.timedelta(days=30), date__lte=today).order_by("-date")
                   .values("date", "score", "duration_hours", "deep_sleep_hours", "rem_sleep_hours", "awake_hours", "body_battery_change"))
-    for n in nights:
-        n["date"] = n["date"].isoformat()
-    scores = [n["score"] for n in nights if n["score"] is not None]
+    age = _age(nights[0]["date"], today) if nights else None
     loads = {}
-    for a in Activity.objects.filter(start_time__date__gt=today - dt.timedelta(days=15), start_time__date__lte=today).values("start_time", "training_load"):
+    for a in Activity.objects.filter(start_time__date__gt=today - dt.timedelta(days=3), start_time__date__lte=today).values("start_time", "training_load"):
         d = a["start_time"].date().isoformat()
         loads[d] = round(loads.get(d, 0) + (a["training_load"] or 0))
-    return {"today": today.isoformat(), "last_14_nights": nights,
-            "avg_score_14d": round(statistics.mean(scores), 1) if scores else None,
-            "nights_below_60_last_7": metrics.poor_sleep_nights(today),
-            "training_load_by_day": loads}
+    for n in nights:
+        n["date"] = n["date"].isoformat()
+    recent = nights[:14]
+    return {
+        "today": today.isoformat(),
+        "data_age_days": age,
+        "focus": {"last_night": nights[0] if nights else None, "previous_3_nights": nights[1:4],
+                  "nights_below_60_last_7": metrics.poor_sleep_nights(today),
+                  "training_load_last_3_days": loads},
+        "baseline": {
+            "avg_14_nights": {"score": _avg(recent, "score"), "duration_hours": _avg(recent, "duration_hours"),
+                              "deep_sleep_hours": _avg(recent, "deep_sleep_hours")},
+            "avg_30_nights": {"score": _avg(nights, "score"), "duration_hours": _avg(nights, "duration_hours"),
+                              "deep_sleep_hours": _avg(nights, "deep_sleep_hours")},
+        },
+    }
 
 
 def _hrv(key, today):
-    rows = list(HRVRecord.objects.filter(date__gt=today - dt.timedelta(days=28), date__lte=today).order_by("date")
+    rows = list(HRVRecord.objects.filter(date__gt=today - dt.timedelta(days=7), date__lte=today).order_by("-date")
                 .values("date", "hrv_rmssd", "hrv_status", "resting_hr"))
+    age = _age(rows[0]["date"], today) if rows else None
     for r in rows:
         r["date"] = r["date"].isoformat()
     mean, sd = metrics.hrv_baseline(today)
     acute, chronic, ratio = metrics.acwr(today)
-    return {"today": today.isoformat(), "last_28_days": rows,
-            "baseline_28d": None if mean is None else {"mean_ms": round(mean, 1), "sd_ms": round(sd, 1)},
-            "load": {"acute_7d": round(acute), "chronic_28d": round(chronic), "acwr": ratio}}
+    return {
+        "today": today.isoformat(),
+        "data_age_days": age,
+        "focus": {"latest": rows[0] if rows else None, "previous_6_days": rows[1:]},
+        "baseline": {"hrv_28d": None if mean is None else {"mean_ms": round(mean, 1), "sd_ms": round(sd, 1)},
+                     "load": {"acute_7d": round(acute), "chronic_28d": round(chronic), "acwr": ratio}},
+    }
 
 
 def _form(key, today):
     series = fitness_series(today - dt.timedelta(days=41), today)
     acute, chronic, ratio = metrics.acwr(today)
     stats = DailyStats.objects.order_by("-date").values("date", "vo2max_running", "vo2max_cycling", "acwr_ratio", "recovery_time_hours").first()
+    if stats and (today - stats["date"]).days > 7:
+        stats = None                                   # stale: not about now
     if stats:
         stats["date"] = stats["date"].isoformat()
-    return {"today": today.isoformat(),
-            "note": "ctl = 42-day fitness, atl = 7-day fatigue, tsb = ctl - atl (form), all from Garmin training load",
-            "fitness_every_3_days": series[::-3][::-1], "acwr": {"acute_7d": round(acute), "chronic_28d": round(chronic), "ratio": ratio},
-            "garmin_latest": stats}
+    now = series[-1] if series else None
+    week_ago = series[-8] if len(series) >= 8 else None
+    return {
+        "today": today.isoformat(),
+        "note": "ctl = 42-day fitness, atl = 7-day fatigue, tsb = ctl - atl (form), all from Garmin training load",
+        "focus": {"today": now,
+                  "change_7d": {k: round(now[k] - week_ago[k], 1) for k in ("ctl", "atl", "tsb")} if now and week_ago else None,
+                  "acwr": {"acute_7d": round(acute), "chronic_28d": round(chronic), "ratio": ratio},
+                  "garmin_latest": stats},
+        "baseline": {"weekly_points_6w": series[::-7][::-1]},
+    }
 
 
 def _injuries(key, today):
-    feel = feel_stats(today - dt.timedelta(days=27), today)
+    feel = feel_stats(today - dt.timedelta(days=6), today)
     acute, chronic, ratio = metrics.acwr(today)
     active = [{"body_part": i.body_part, "severity": i.severity, "since": i.date_started.isoformat(),
                "days": (today - i.date_started).days, "description": i.description,
                "affects_running": i.affects_running, "affects_cycling": i.affects_cycling}
               for i in Injury.objects.filter(date_resolved__isnull=True)]
-    return {"today": today.isoformat(), "active": active, "last_12_months": injury_list(today),
-            "soreness_last_28d": {"avg": feel["avg"], "most_sore": feel["parts"], "after_hardest_days": feel["after_hard"]},
-            "load": {"acute_7d": round(acute), "chronic_28d": round(chronic), "acwr": ratio}}
+    per_part = {}
+    for i in injury_list(today):
+        per_part[i["body_part"]] = per_part.get(i["body_part"], 0) + 1
+    return {
+        "today": today.isoformat(),
+        "focus": {"active": active,
+                  "soreness_last_7d": {"avg": feel["avg"], "most_sore": feel["parts"]},
+                  "load": {"acute_7d": round(acute), "chronic_28d": round(chronic), "acwr": ratio}},
+        "baseline": {"injuries_last_12_months_per_body_part": per_part},
+    }
 
 
 def _athlete():
@@ -223,6 +292,8 @@ def insights_view(request, scope, key):
     if scope != "activity":
         key = today.isoformat()   # tiles: one set per day
     row = AiInsight.objects.filter(scope=scope, key=str(key)).first()
+    if row and scope != "activity" and row.prompt_version != PROMPT_VERSION:
+        row = None   # today's tile from an older prompt: generate again (the row is overwritten, ApiUsage stays)
 
     if request.method == "GET":
         return JsonResponse(_out(row, True) if row else {"ok": True, "items": None})
@@ -236,6 +307,8 @@ def insights_view(request, scope, key):
 
     payload = PAYLOADS[scope](key, today)
     payload["athlete"] = _athlete()
+    if scope != "activity":
+        payload["coach_notes"] = coach_notes(_last_days(today))
     try:
         items, usage, cost, stop_reason = generate(scope, payload)
     except Exception:

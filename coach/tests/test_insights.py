@@ -138,3 +138,70 @@ def test_activity_list_marks_activities_with_insights(user_client, activity):
     AiInsight.objects.create(scope="activity", key=str(activity.id), items=ITEMS[:5])
     item = user_client.get("/activities/data/").json()["items"][0]
     assert item["has_insights"] is True
+
+
+# --- v1.2: about today, with the notes from those days ---------------------------------
+
+@pytest.mark.django_db
+def test_sleep_payload_is_about_last_night_with_averages_as_baseline():
+    from sync.models import SleepRecord
+    today = dt.date.today()
+    for i, score in enumerate([55, 80, 82, 78, 81, 79]):
+        SleepRecord.objects.create(date=today - dt.timedelta(days=i), score=score, duration_hours=7.0)
+    SleepRecord.objects.create(date=today - dt.timedelta(days=60), score=20, duration_hours=3.0)
+    out = insights._sleep("x", today)
+    assert out["data_age_days"] == 0
+    assert out["focus"]["last_night"]["score"] == 55
+    assert [n["score"] for n in out["focus"]["previous_3_nights"]] == [80, 82, 78]
+    assert out["baseline"]["avg_30_nights"]["score"] == 75.8
+    assert "20" not in json.dumps(out["baseline"])       # two months ago is outside every window
+
+
+@pytest.mark.django_db
+def test_stale_hrv_is_flagged():
+    from sync.models import HRVRecord
+    today = dt.date.today()
+    HRVRecord.objects.create(date=today - dt.timedelta(days=3), hrv_rmssd=60)
+    assert insights._hrv("x", today)["data_age_days"] == 3
+
+
+@pytest.mark.django_db
+def test_injuries_baseline_counts_old_injuries_without_dates():
+    today = dt.date.today()
+    Injury.objects.create(body_part="left knee", date_started=today - dt.timedelta(days=200),
+                          date_resolved=today - dt.timedelta(days=150), description="old flare")
+    out = insights._injuries("x", today)
+    assert out["focus"]["active"] == []
+    assert out["baseline"]["injuries_last_12_months_per_body_part"] == {"Left Knee": 1}
+    assert "old flare" not in json.dumps(out)
+
+
+@pytest.mark.django_db
+def test_coach_notes_cover_the_last_three_days_only():
+    from coach.models import CoachRecommendation, DailyFeeling
+    today = dt.date.today()
+    DailyFeeling.objects.create(date=today - dt.timedelta(days=1), energy_level=3, notes="wedding, two glasses of wine")
+    DailyFeeling.objects.create(date=today - dt.timedelta(days=7), notes="old note")
+    CoachRecommendation.objects.create(date=today, user_message="slept badly", recommendation="Easy day: Z1 spin.")
+    notes = insights.coach_notes(insights._last_days(today))
+    text = json.dumps(notes)
+    assert "wedding" in text and "Easy day" in text
+    assert "old note" not in text
+    assert notes[0]["date"] == today.isoformat()
+
+
+@pytest.mark.django_db
+def test_tile_request_carries_coach_notes(user_client, api):
+    from coach.models import DailyFeeling
+    DailyFeeling.objects.create(date=dt.date.today(), notes="flight yesterday")
+    user_client.post("/insights/sleep/today/")
+    assert "flight yesterday" in api.call_args.kwargs["messages"][0]["content"]
+
+
+@pytest.mark.django_db
+def test_tile_from_an_older_prompt_is_regenerated(user_client, api):
+    AiInsight.objects.create(scope="hrv", key=dt.date.today().isoformat(), items=ITEMS[:3], prompt_version="insights-v1.1")
+    assert user_client.get("/insights/hrv/today/").json()["items"] is None
+    user_client.post("/insights/hrv/today/")
+    assert api.call_count == 1
+    assert AiInsight.objects.get().prompt_version == insights.PROMPT_VERSION
